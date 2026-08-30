@@ -3,12 +3,10 @@ name: Train Ukraine Models
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: 'Training mode'
+      steps:
+        description: 'Training steps'
         required: true
-        default: 'all'
-        type: choice
-        options: [all, court, registry, procurement, government, embeddings]
+        default: '600'
   schedule:
     - cron: '*/30 * * * *'
   workflow_run:
@@ -22,30 +20,13 @@ concurrency:
   group: ukraine-model-training
   cancel-in-progress: false
 
-env:
-  HF_EDRSR_REPO: JoTalbot/ua-edrsr
-  HF_OPEN_DATA_REPO: JoTalbot/ua-open-data
-
 jobs:
-  prepare:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    outputs:
-      mode: ${{ steps.mode.outputs.mode }}
-    steps:
-      - id: mode
-        shell: bash
-        run: echo "mode=${{ inputs.mode || 'all' }}" >> "$GITHUB_OUTPUT"
-
   train:
-    needs: prepare
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    strategy:
-      fail-fast: false
-      matrix:
-        model: [court, registry, procurement, government, embeddings]
+    timeout-minutes: 90
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    env:
+      HF_EDRSR_REPO: JoTalbot/ua-edrsr
     steps:
       - uses: actions/checkout@v5
         with:
@@ -56,88 +37,69 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install ML dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install datasets huggingface_hub pyarrow transformers sentence-transformers accelerate
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install tokenizers pyarrow numpy
 
-      - name: Prepare public-data training corpus
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          MODEL_KIND: ${{ matrix.model }}
+      - name: Download EDRSR sample (public Parquet parts)
         run: |
-          set -euo pipefail
-          mkdir -p "artifacts/training/$MODEL_KIND"
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          from huggingface_hub import HfApi
+          mkdir -p artifacts/lm-src
+          curl -sL "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00000.parquet" -o artifacts/lm-src/part-00000.parquet
+          curl -sL "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00001.parquet" -o artifacts/lm-src/part-00001.parquet
+          ls -la artifacts/lm-src
 
-          out = Path('artifacts/training') / os.environ['MODEL_KIND']
-          api = HfApi(token=os.environ['HF_TOKEN'])
-          manifest = []
-          for repo in [os.environ['HF_EDRSR_REPO'], os.environ['HF_OPEN_DATA_REPO']]:
-              try:
-                  info = api.dataset_info(repo_id=repo)
-                  for item in info.siblings or []:
-                      manifest.append({'repo': repo, 'path': item.rfilename})
-              except Exception as exc:
-                  print(f'WARN: cannot inspect {repo}: {exc}')
-          (out / 'source_manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
-          print(f"{os.environ['MODEL_KIND']}: {len(manifest)} source files discovered")
-          PY
-
-      - name: Build reproducible training manifest
-        env:
-          MODEL_KIND: ${{ matrix.model }}
+      - name: Build Ukrainian legal corpus
         run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          root = Path('artifacts/training') / os.environ['MODEL_KIND']
-          manifest = json.loads((root / 'source_manifest.json').read_text())
-          meta = {
-              'model_kind': os.environ['MODEL_KIND'],
-              'source_files': len(manifest),
-              'training_status': 'corpus_manifest_ready',
-              'gpu_backend': 'kaggle_notebook',
-              'privacy_scope': 'public_open_data_only',
-              'deanonymization': False,
-          }
-          (root / 'training_manifest.json').write_text(json.dumps(meta, ensure_ascii=False, indent=2))
-          print(json.dumps(meta, ensure_ascii=False))
-          PY
+          python scripts/build_lm_corpus.py \
+            --edrsr-parquet 'artifacts/lm-src/part-*.parquet' \
+            --edrsr-limit 400000 \
+            --output artifacts/lm/corpus.txt
 
-      - name: Upload training artifacts
+      - name: Train legal LM (CPU)
+        run: |
+          python scripts/train_lm.py \
+            --corpus artifacts/lm/corpus.txt \
+            --out artifacts/lm/model \
+            --steps ${{ inputs.steps || '600' }} \
+            --dim 256 --layers 6 --ctx 256 --batch 8 \
+            --eval-every 150 --sample-every 300
+
+      - name: Show samples
+        run: cat artifacts/lm/model/samples.txt
+
+      - name: Upload model artifact
         uses: actions/upload-artifact@v4
         with:
-          name: training-${{ matrix.model }}
-          path: artifacts/training/${{ matrix.model }}
+          name: ua-legal-lm
+          path: |
+            artifacts/lm/model/model.pt
+            artifacts/lm/model/tokenizer.json
+            artifacts/lm/model/metrics.jsonl
+            artifacts/lm/model/samples.txt
           retention-days: 30
+          if-no-files-found: error
 
-      - name: Persist manifests
+      - name: Persist training metrics
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .training-manifests/${{ matrix.model }}
-          cp artifacts/training/${{ matrix.model }}/source_manifest.json .training-manifests/${{ matrix.model }}/
-          cp artifacts/training/${{ matrix.model }}/training_manifest.json .training-manifests/${{ matrix.model }}/
+          mkdir -p .training-manifests/legal-lm
+          cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true
+          cp artifacts/lm/model/samples.txt .training-manifests/legal-lm/ 2>/dev/null || true
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .training-manifests/${{ matrix.model }}
+          git add .training-manifests/legal-lm
           if git diff --cached --quiet; then
-            echo 'No manifest changes.'
+            echo 'No metric changes.'
           else
-            git commit -m "chore: update ${{ matrix.model }} training manifests"
+            git commit -m "chore: update legal-lm training metrics"
             for attempt in 1 2 3 4 5; do
-              if git push; then
-                echo 'Manifests pushed.'
-                exit 0
-              fi
-              echo "Push rejected (attempt $attempt); rebasing on latest main and retrying..."
+              if git push; then exit 0; fi
               git fetch origin main
               git rebase origin/main
             done
-            echo 'Failed to push manifests after retries' >&2
+            echo 'Failed to push metrics after retries' >&2
             exit 1
           fi
