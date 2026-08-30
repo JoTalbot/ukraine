@@ -10,17 +10,21 @@ on:
         type: choice
         options: [all, court, registry, procurement, government, embeddings]
   schedule:
-    - cron: '15 */6 * * *'
+    - cron: '*/30 * * * *'
   workflow_run:
     workflows: ['EDRSR Hugging Face Upload']
     types: [completed]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ukraine-model-training
   cancel-in-progress: false
+
+env:
+  HF_EDRSR_REPO: JoTalbot/ua-edrsr
+  HF_OPEN_DATA_REPO: JoTalbot/ua-open-data
 
 jobs:
   prepare:
@@ -44,6 +48,8 @@ jobs:
         model: [court, registry, procurement, government, embeddings]
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -58,48 +64,43 @@ jobs:
       - name: Prepare public-data training corpus
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          HF_EDRSR_REPO: JoTalbot/ua-edrsr
-          HF_OPEN_DATA_REPO: JoTalbot/ua-open-data
           MODEL_KIND: ${{ matrix.model }}
         run: |
-          mkdir -p artifacts/training/$MODEL_KIND
+          set -euo pipefail
+          mkdir -p "artifacts/training/$MODEL_KIND"
           python - <<'PY'
-          import os
+          import json, os
           from pathlib import Path
           from huggingface_hub import HfApi
 
           out = Path('artifacts/training') / os.environ['MODEL_KIND']
-          out.mkdir(parents=True, exist_ok=True)
           api = HfApi(token=os.environ['HF_TOKEN'])
-          repos = [os.environ['HF_EDRSR_REPO'], os.environ['HF_OPEN_DATA_REPO']]
           manifest = []
-          for repo in repos:
+          for repo in [os.environ['HF_EDRSR_REPO'], os.environ['HF_OPEN_DATA_REPO']]:
               try:
                   info = api.dataset_info(repo_id=repo)
                   for item in info.siblings or []:
                       manifest.append({'repo': repo, 'path': item.rfilename})
               except Exception as exc:
                   print(f'WARN: cannot inspect {repo}: {exc}')
-          (out / 'source_manifest.json').write_text(__import__('json').dumps(manifest, ensure_ascii=False, indent=2))
-          print(f'{os.environ["MODEL_KIND"]}: {len(manifest)} source files discovered')
+          (out / 'source_manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2))
+          print(f"{os.environ['MODEL_KIND']}: {len(manifest)} source files discovered")
           PY
 
-      - name: Train or build model artifact
+      - name: Build reproducible training manifest
         env:
           MODEL_KIND: ${{ matrix.model }}
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
-          kind = os.environ['MODEL_KIND']
-          root = Path('artifacts/training') / kind
+          root = Path('artifacts/training') / os.environ['MODEL_KIND']
           manifest = json.loads((root / 'source_manifest.json').read_text())
-          # This stage deliberately builds a reproducible training manifest first.
-          # Heavy fine-tuning is enabled only when a GPU runner is configured.
           meta = {
-              'model_kind': kind,
+              'model_kind': os.environ['MODEL_KIND'],
               'source_files': len(manifest),
               'training_status': 'corpus_manifest_ready',
+              'gpu_backend': 'kaggle_notebook',
               'privacy_scope': 'public_open_data_only',
               'deanonymization': False,
           }
@@ -113,3 +114,20 @@ jobs:
           name: training-${{ matrix.model }}
           path: artifacts/training/${{ matrix.model }}
           retention-days: 30
+
+      - name: Persist manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .training-manifests/${{ matrix.model }}
+          cp artifacts/training/${{ matrix.model }}/source_manifest.json .training-manifests/${{ matrix.model }}/
+          cp artifacts/training/${{ matrix.model }}/training_manifest.json .training-manifests/${{ matrix.model }}/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .training-manifests/${{ matrix.model }}
+          if git diff --cached --quiet; then
+            echo 'No manifest changes.'
+          else
+            git commit -m "chore: update ${{ matrix.model }} training manifests"
+            git push
+          fi
