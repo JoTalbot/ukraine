@@ -1,0 +1,153 @@
+version: 1
+updated: '2026-08-30'
+policy:
+  scope: public_open_data_only
+  no_deanonymization: true
+  no_banking_secrecy: true
+  no_private_telecom_data: true
+  no_credential_or_leaked_data: true
+  preserve_source_provenance: true
+  preserve_sha256: true
+  archive_source_snapshots: true
+schedule:
+  refresh_minutes: 30
+  historical_years: [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+huggingface:
+  general_dataset_repo: JoTalbot/ua-open-data
+  court_dataset_repo: JoTalbot/ua-edrsr
+sources:
+  - id: dsa-hearings
+    category: courts
+    priority: critical
+    provider: 'Державна судова адміністрація України'
+    discovery: data.gov.ua
+    query: 'Список справ призначених до розгляду'
+    formats: [CSV]
+  - id: dsa-case-status
+    category: courts
+    priority: critical
+    provider: 'Державна судова адміністрація України'
+    discovery: data.gov.ua
+    query: 'Інформація щодо стану розгляду справ'
+    formats: [CSV]
+  - id: dsa-bankruptcy
+    category: courts
+    priority: high
+    provider: 'Державна судова адміністрація України'
+    discovery: data.gov.ua
+    query: 'Відомості про справи про банкрутство'
+    formats: [CSV]
+  - id: edrsr
+    category: courts
+    priority: critical
+    provider: 'Державна судова адміністрація України'
+    discovery: data.gov.ua
+    query: 'Єдиний державний реєстр судових рішень'
+    historical_years: [2020, 2021, 2022, 2023, 2024, 2025, 2026]
+    formats: [ZIP]
+  - id: prozorro
+    category: procurement
+    priority: critical
+    provider: Prozorro
+    discovery: data.gov.ua
+    query: '3.6 Набір даних про закупівлі'
+    formats: [CSV, JSON, ZIP]
+  - id: spending
+    category: public_finance
+    priority: critical
+    provider: 'Є-data / spending.gov.ua'
+    discovery: data.gov.ua
+    query: 'Єдиний веб-портал використання публічних коштів'
+    formats: [CSV, JSON, XLSX]
+  - id: declarations
+    category: integrity
+    priority: critical
+    provider: НАЗК
+    discovery: data.gov.ua
+    query: 'Реєстр декларацій'
+    formats: [JSON, CSV]
+  - id: legal_entities
+    category: business_registry
+    priority: critical
+    provider: 'Міністерство юстиції України'
+    discovery: data.gov.ua
+    query: 'Єдиний державний реєстр юридичних осіб ФОП громадських формувань'
+    formats: [CSV, ZIP, JSON]
+  - id: construction
+    category: construction
+    priority: high
+    provider: 'Єдина державна електронна система у сфері будівництва'
+    discovery: data.gov.ua
+    query: 'будівництво дозвільні документи'
+    formats: [CSV, JSON, XLSX]
+  - id: land_registry_open
+    category: geodata
+    priority: high
+    provider: 'Державна служба України з питань геодезії, картографії та кадастру'
+    discovery: data.gov.ua
+    query: 'геокадастр відкриті дані'
+    formats: [CSV, JSON, ZIP]
+  - id: statistics
+    category: statistics
+    priority: high
+    provider: 'Державна служба статистики України'
+    discovery: data.gov.ua
+    query: 'Державна служба статистики України'
+    formats: [CSV, XLSX, JSON, ZIP]
+  - id: elections
+    category: elections
+    priority: high
+    provider: 'Центральна виборча комісія України'
+    discovery: data.gov.ua
+    query: 'Центральна виборча комісія результати виборів'
+    formats: [CSV, XLSX, JSON, ZIP]
+  - id: national_bank
+    category: banking_public_data
+    priority: high
+    provider: 'Національний банк України'
+    discovery: data.gov.ua
+    query: 'Національний банк України відкриті дані'
+    formats: [CSV, JSON, XLSX, XML]
+    note: 'Only public institutional/statistical data; never customer accounts, transactions, or bank secrecy.'
+  - id: budgets
+    category: public_finance
+    priority: high
+    provider: 'Open Budget / Міністерство фінансів України'
+    discovery: data.gov.ua
+    query: 'відкритий бюджет України'
+    formats: [CSV, JSON, XLSX]
+  - id: recovery_dream
+    category: reconstruction
+    priority: high
+    provider: DREAM
+    discovery: data.gov.ua
+    query: 'DREAM відновлення України'
+    formats: [CSV, JSON, XLSX]
+  - id: public_vehicles
+    category: transport
+    priority: medium
+    provider: 'Міністерство внутрішніх справ України'
+    discovery: data.gov.ua
+    query: 'МВС відкриті дані транспорт'
+    formats: [CSV, JSON, XLSX]
+  - id: public_olx
+    category: marketplaces
+    priority: medium
+    provider: OLX
+    acquisition: public_pages_only
+    formats: [HTML, JSON]
+    note: 'Only publicly visible listings and business contact information; no account scraping, hidden identifiers, or personal profiling.'
+  - id: missing_persons
+    category: humanitarian
+    priority: high
+    provider: 'державні розпорядники'
+    discovery: data.gov.ua
+    query: 'Інформація про осіб, зниклих безвісти'
+    formats: [JSON, CSV]
+  - id: all_other_data_gov
+    category: discovery
+    priority: high
+    provider: data.gov.ua
+    acquisition: catalog_discovery
+    formats: [CSV, TSV, JSON, JSONL, NDJSON, XML, XLS, XLSX, ODS, PARQUET, ZIP, 7Z, GZ, GZIP]
+    note: 'Discover and mirror all publicly exposed structured resources subject to runtime/storage limits and source terms.'
