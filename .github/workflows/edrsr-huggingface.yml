@@ -190,7 +190,11 @@ jobs:
               if has_parts and 'edrsr.parquet' in names:
                   stale.append(f'{year}/edrsr.parquet')
           if stale:
-              api.delete_files(repo_id=repo, repo_type='dataset', paths_in_repo=stale)
+              for path in stale:
+                  try:
+                      api.delete_file(path_in_repo=path, repo_id=repo, repo_type='dataset')
+                  except Exception as exc:
+                      print(f'WARN: could not delete {path}: {exc}')
               print('Removed legacy single-file exports for years:', ', '.join(sorted(s.split('/')[0] for s in stale)))
 
           rows = []
