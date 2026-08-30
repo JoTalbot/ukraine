@@ -28,6 +28,9 @@ DOWNLOAD_TIMEOUT = 300
 CHUNK_SIZE = 10_000
 PART_ROWS = 250_000
 USER_AGENT = "JoTalbot/ukraine-edrsr-pipeline"
+# Bumped whenever parsing/normalization changes so scheduled runs reprocess
+# archives even when the remote ETag is unchanged.
+PIPELINE_VERSION = 2
 
 
 def http_json(url: str) -> dict[str, Any]:
@@ -142,9 +145,50 @@ def iter_xml_records(path: Path) -> Iterator[dict[str, Any]]:
         yield xml_to_dict(root)
 
 
+def sniff_delimiter(header_line: str) -> str:
+    """The official export mixes ',' and TAB separated files; pick by counts."""
+    counts = {"\t": header_line.count("\t"), ",": header_line.count(","), ";": header_line.count(";")}
+    return max(counts, key=counts.get) if any(counts.values()) else ","
+
+
+def load_dictionaries(root: Path) -> tuple[dict[str, dict[str, str]], set[str]]:
+    """Load code->name dictionaries bundled with the export (courts, categories)."""
+    dictionaries: dict[str, dict[str, str]] = {}
+    dictionary_files: set[str] = set()
+    for path in root.rglob("*.csv"):
+        name = path.name.lower()
+        if "court" not in name and "categor" not in name and "judgment" not in name:
+            continue
+        try:
+            with path.open("r", encoding="utf-8-sig", newline="") as fh:
+                header = fh.readline()
+                delimiter = sniff_delimiter(header)
+                fh.seek(0)
+                reader = csv.DictReader(fh, delimiter=delimiter)
+                columns = reader.fieldnames or []
+                if len(columns) < 2:
+                    continue
+                code_col, name_col = columns[0], columns[1]
+                mapping = {str(row[code_col]).strip(): str(row[name_col]).strip() for row in reader if row.get(code_col)}
+            if mapping:
+                dictionaries[name] = mapping
+                dictionary_files.add(path.name.lower())
+        except Exception as exc:
+            print(f"WARN: could not load dictionary {path.name}: {exc}")
+    return dictionaries, dictionary_files
+
+
 def iter_records(root: Path) -> Iterator[tuple[dict[str, Any], str]]:
+    dictionaries, dictionary_files = load_dictionaries(root)
+    court_names: dict[str, str] = {}
+    category_names: dict[str, str] = {}
+    for name, mapping in dictionaries.items():
+        if "court" in name:
+            court_names.update(mapping)
+        elif "categor" in name:
+            category_names.update(mapping)
     for path in sorted(root.rglob("*")):
-        if not path.is_file():
+        if not path.is_file() or path.name.lower() in dictionary_files:
             continue
         suffix = path.suffix.lower()
         rel = path.relative_to(root).as_posix()
@@ -161,8 +205,24 @@ def iter_records(root: Path) -> Iterator[tuple[dict[str, Any], str]]:
                 yield data, rel
         elif suffix == ".csv":
             with path.open("r", encoding="utf-8-sig", newline="") as fh:
-                for record in csv.DictReader(fh):
-                    yield dict(record), rel
+                header = fh.readline()
+                fh.seek(0)
+                delimiter = sniff_delimiter(header)
+                for record in csv.DictReader(fh, delimiter=delimiter):
+                    if record:
+                        row = dict(record)
+                        # Enrich code columns with bundled dictionary names.
+                        for code_col, dict_name, target in (
+                            ("court_code", None, "court_name"),
+                            ("category_code", None, "category_name"),
+                        ):
+                            value = row.get(code_col)
+                            if value is None:
+                                continue
+                            source = court_names if code_col == "court_code" else category_names
+                            if source.get(value.strip()):
+                                row[target] = source[value.strip()]
+                        yield row, rel
         elif suffix in {".xml", ".xhtml"}:
             for record in iter_xml_records(path):
                 yield record, rel
@@ -188,19 +248,22 @@ def pick(raw: dict[str, Any], *names: str) -> Any:
 
 def normalize(raw: dict[str, Any], source_file: str, source_sha256: str, dataset_id: str) -> dict[str, Any]:
     text = text_value(pick(raw, "text", "body", "content", "document_text", "tekst", "fulltext"))
-    case_number = text_value(pick(raw, "case_number", "caseNo", "nomer_spravy", "caseNum", "case"))
-    document_id = text_value(pick(raw, "document_id", "id", "doc_id", "id_doc", "document"))
+    case_number = text_value(pick(raw, "case_number", "cause_num", "nomer_spravy", "caseNum", "case"))
+    document_id = text_value(pick(raw, "document_id", "doc_id", "id", "id_doc"))
     result = {
         "case_number": case_number,
         "document_id": document_id,
-        "court": text_value(pick(raw, "court", "court_name", "sud")),
+        "court": text_value(pick(raw, "court_name", "court", "sud")),
         "court_instance": text_value(pick(raw, "court_instance", "instance", "instanciya")),
-        "document_type": text_value(pick(raw, "document_type", "decision_type", "type")),
-        "decision_date": text_value(pick(raw, "decision_date", "date_decision", "date", "data")),
-        "publication_date": text_value(pick(raw, "publication_date", "published_at")),
-        "category": text_value(pick(raw, "category", "category_name", "kategoriya")),
+        "document_type": text_value(pick(raw, "judgment_code", "document_type", "decision_type", "type")),
+        "decision_date": text_value(pick(raw, "adjudication_date", "decision_date", "date_decision", "date")),
+        "publication_date": text_value(pick(raw, "date_publ", "publication_date", "published_at")),
+        "judge": text_value(pick(raw, "judge", "suddya")),
+        "justice_kind": text_value(pick(raw, "justice_kind")),
+        "status": text_value(pick(raw, "status")),
+        "category": text_value(pick(raw, "category_name", "category", "kategoriya")),
         "text": text,
-        "source_url": text_value(pick(raw, "source_url", "url", "reyestr_url")),
+        "source_url": text_value(pick(raw, "doc_url", "source_url", "url", "reyestr_url")),
         "source_dataset": f"https://data.gov.ua/dataset/{dataset_id}",
         "source_sha256": source_sha256,
         "source_file": source_file,
@@ -267,6 +330,7 @@ def write_parquet(
         "records": total,
         "sha256": source_sha256,
         "dataset_id": dataset_id,
+        "pipeline_version": PIPELINE_VERSION,
         "remote_change_tag": change_tag,
         "parquet_parts": parts,
     }

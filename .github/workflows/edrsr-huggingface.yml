@@ -31,7 +31,7 @@ jobs:
         run: |
           REQUESTED="${{ inputs.year || 'all' }}"
           if [ "$REQUESTED" = "all" ]; then
-            echo 'years=[2020, 2021, 2022, 2023, 2024, 2025, 2026]' >> "$GITHUB_OUTPUT"
+            echo 'years=[2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]' >> "$GITHUB_OUTPUT"
           else
             echo "years=[$REQUESTED]" >> "$GITHUB_OUTPUT"
           fi
@@ -89,6 +89,7 @@ jobs:
           python - <<'PY'
           import json, os
           from huggingface_hub import hf_hub_download
+          PIPELINE_VERSION = 2
           tag = ""
           try:
               path = hf_hub_download(
@@ -98,7 +99,13 @@ jobs:
                   token=os.environ['HF_TOKEN'],
               )
               with open(path, encoding='utf-8') as fh:
-                  tag = (json.load(fh) or {}).get('remote_change_tag') or ""
+                  manifest = json.load(fh) or {}
+              # Trust the change tag only when the archive was parsed by the
+              # current pipeline; otherwise force a full reprocess.
+              if manifest.get('pipeline_version') == PIPELINE_VERSION:
+                  tag = manifest.get('remote_change_tag') or ""
+              else:
+                  print('Previous manifest used pipeline_version', manifest.get('pipeline_version'), '- reprocessing.')
           except Exception as exc:
               print('No previous manifest on Hugging Face:', exc)
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
