@@ -19,9 +19,6 @@ from typing import Any, Iterator
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-import pyarrow as pa
-import pyarrow.parquet as pq
-
 DATASET_SEARCH_URL = "https://data.gov.ua/api/3/action/package_search"
 DATASET_FALLBACK_2026 = "16ab7f06-7414-405f-8354-0a492475272d"
 DOWNLOAD_TIMEOUT = 300
@@ -280,6 +277,9 @@ def write_parquet(
     change_tag: str | None = None,
 ) -> int:
     """Write normalized records as several Parquet parts instead of one huge file."""
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
     output.mkdir(parents=True, exist_ok=True)
     total = 0
     part_no = 0
