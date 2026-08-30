@@ -60,18 +60,26 @@ jobs:
       - name: Push the GPU training kernel
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
+          KAGGLE_USERNAME_OVERRIDE: ${{ vars.KAGGLE_USERNAME }}
         run: |
           set -e
           mkdir -p /tmp/kernel
           cp training/kaggle/legal_lm_gpu.ipynb /tmp/kernel/
-          python - <<'PY'
-          import json, os, pathlib
-          creds = json.loads(os.environ['KAGGLE_API_TOKEN'])
-          username = creds.get('username') or creds.get('user')
-          if not username:
-              raise SystemExit('Cannot resolve Kaggle username from the KAGGLE_API secret')
+          USERNAME="${KAGGLE_USERNAME_OVERRIDE:-}"
+          if [ -z "$USERNAME" ] && python -c "import json,os;json.loads(os.environ['KAGGLE_API_TOKEN'])" 2>/dev/null; then
+            USERNAME=$(python -c "import json,os;print(json.loads(os.environ['KAGGLE_API_TOKEN']).get('username') or '')")
+          fi
+          if [ -z "$USERNAME" ]; then
+            USERNAME=$(kaggle kernels list --mine 2>/dev/null | grep -oE '[A-Za-z0-9_-]+/[A-Za-z0-9_-]+' | head -1 | cut -d/ -f1 || true)
+          fi
+          if [ -z "$USERNAME" ]; then
+            echo '::warning::Cannot resolve the Kaggle username (KGAT token without inline username and no existing kernels). Set the repository variable KAGGLE_USERNAME once, or create any manual kernel first.'
+            exit 0
+          fi
+          python - "$USERNAME" <<'PY'
+          import json, sys, pathlib
           meta = {
-              "id": f"{username}/ua-legal-lm-gpu",
+              "id": f"{sys.argv[1]}/ua-legal-lm-gpu",
               "title": "ua-legal-lm-gpu",
               "code_file": "legal_lm_gpu.ipynb",
               "language": "python",
