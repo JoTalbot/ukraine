@@ -1,0 +1,67 @@
+name: EDRSR Hugging Face Upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      year:
+        description: 'EDRSR year to process'
+        required: true
+        default: '2026'
+  schedule:
+    - cron: '30 2 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-24.04
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_DATASET_REPO: JoTalbot/ua-edrsr
+      EDRSR_YEAR: ${{ inputs.year || '2026' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip huggingface_hub pyarrow
+
+      - name: Verify Hugging Face authentication
+        run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing'; exit 1; }
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          me = api.whoami()
+          print('Hugging Face authentication OK')
+          print('account:', me.get('name') or me.get('fullname') or me.get('email'))
+          PY
+
+      - name: Run EDRSR pipeline
+        run: |
+          python scripts/edrsr_sync.py --year "$EDRSR_YEAR" --output-dir artifacts/edrsr
+
+      - name: Publish dataset to Hugging Face
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          repo = os.environ['HF_DATASET_REPO']
+          api.create_repo(repo_id=repo, repo_type='dataset', exist_ok=True, private=True)
+          root = Path('artifacts/edrsr')
+          files = list(root.rglob('*.parquet'))
+          if not files:
+              raise SystemExit('No Parquet files produced by EDRSR pipeline')
+          for path in files:
+              api.upload_file(path_or_fileobj=str(path), path_in_repo=path.relative_to(root).as_posix(), repo_id=repo, repo_type='dataset')
+          print(f'Uploaded {len(files)} Parquet file(s) to {repo}')
+          PY
