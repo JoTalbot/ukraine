@@ -3,7 +3,7 @@ name: Discovered Ukraine Open Data -> Hugging Face
 on:
   workflow_dispatch:
   schedule:
-    - cron: '45 3 * * *'
+    - cron: '*/30 * * * *'
   workflow_run:
     workflows: ['Ukraine Open Data Discovery']
     types: [completed]
@@ -43,4 +43,4 @@ jobs:
       - name: Discover datasets
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 500
       - name: Mirror discovered datasets
-        run: python scripts/data_gov_ua_discovered_sync.py --catalog artifacts/discovery/data_gov_ua_catalog.json --max-dataset-files 20 --max-file-mb 512
+        run: python scripts/data_gov_ua_discovered_sync.py --catalog artifacts/discovery/data_gov_ua_catalog.json --max-dataset-files 0 --max-file-mb 0
