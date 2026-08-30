@@ -1,0 +1,8 @@
+{
+  "model_kind": "procurement",
+  "source_files": 399,
+  "training_status": "corpus_manifest_ready",
+  "gpu_backend": "kaggle_notebook",
+  "privacy_scope": "public_open_data_only",
+  "deanonymization": false
+}
