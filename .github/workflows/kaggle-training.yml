@@ -2,7 +2,7 @@ name: Kaggle GPU Training
 
 on:
   schedule:
-    - cron: '45 */6 * * *'
+    - cron: '45 5 * * 1,4'
   workflow_dispatch:
   workflow_run:
     workflows: ['Train Ukraine Models']
@@ -76,6 +76,15 @@ jobs:
             echo '::warning::Cannot resolve the Kaggle username (KGAT token without inline username and no existing kernels). Set the repository variable KAGGLE_USERNAME once, or create any manual kernel first.'
             exit 0
           fi
+          KERNEL_ID="${USERNAME}/ua-legal-lm-gpu"
+          STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 || true)
+          echo "current kernel status: ${STATUS:-unknown}"
+          case "$STATUS" in
+            *running*|*queued*|*cancel*)
+              echo "A kernel version is already ${STATUS}; skipping push to save GPU quota."
+              exit 0
+              ;;
+          esac
           python - "$USERNAME" <<'PY'
           import json, sys, pathlib
           meta = {
