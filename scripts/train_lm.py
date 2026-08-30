@@ -84,31 +84,29 @@ def train_tokenizer(corpus: Path, vocab: int, out: Path) -> Tokenizer:
     return Tokenizer.from_file(str(out))
 
 
-def encode_file(tok: Tokenizer, corpus: Path, out: Path, workers: int = 2) -> np.memmap:
-    ids = []
+def encode_file(tok: Tokenizer, corpus: Path, out: Path) -> np.memmap:
+    pad_id = tok.token_to_id("<pad>")
+    separator = bytes([pad_id & 0xFF, (pad_id >> 8) & 0xFF]) if pad_id is not None else b"\x00\x00"
     chunk: list[str] = []
-    total = 0
-    def flush():
-        nonlocal total
-        if not chunk:
-            return
-        encoded = tok.encode_batch(chunk)
-        for e in encoded:
-            ids.append(e.ids)
-            ids.append([tok.token_to_id("<pad>")])  # separator
-            total += len(e.ids) + 1
-        chunk.clear()
-    with corpus.open("r", encoding="utf-8") as fh:
-        for line in fh:
-            chunk.append(line.rstrip("\n"))
-            if len(chunk) >= 2000:
-                flush()
-    flush()
-    array = np.array([i for seq in ids for i in seq], dtype=np.uint16)
-    mmap = np.memmap(str(out), dtype=np.uint16, mode="w+", shape=array.shape)
-    mmap[:] = array
-    mmap.flush()
-    return mmap
+    written = 0
+    with out.open("wb") as sink:
+        def flush() -> None:
+            nonlocal written, chunk
+            if not chunk:
+                return
+            for encoded in tok.encode_batch(chunk):
+                arr = np.array(encoded.ids, dtype=np.uint16)
+                sink.write(arr.tobytes())
+                sink.write(separator)  # document separator token
+                written += len(encoded.ids) + 1
+            chunk = []
+        with corpus.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                chunk.append(line.rstrip("\n"))
+                if len(chunk) >= 2000:
+                    flush()
+        flush()
+    return np.memmap(str(out), dtype=np.uint16, mode="r", shape=(written,))
 
 
 # ---------------------------------------------------------------- train
@@ -166,7 +164,8 @@ def main() -> None:
 
     torch.manual_seed(args.seed)
     device = "cpu"
-    torch.set_num_threads(max(1, (torch.get_num_threads() // 2) or 1))
+    import os
+    torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -175,7 +174,16 @@ def main() -> None:
         tok = Tokenizer.from_file(str(tok_path))
     else:
         print("Training BPE tokenizer…", flush=True)
-        tok = train_tokenizer(Path(args.corpus), args.vocab, tok_path)
+        # The trainer holds word frequencies in memory; a large sample is
+        # enough for a stable vocabulary and keeps RAM flat on small hosts.
+        sample = out / "corpus.sample.txt"
+        if not sample.exists():
+            with Path(args.corpus).open("r", encoding="utf-8") as src, sample.open("w", encoding="utf-8") as dst:
+                for index, line in enumerate(src):
+                    if index >= 250_000:
+                        break
+                    dst.write(line)
+        tok = train_tokenizer(sample, args.vocab, tok_path)
     vocab = tok.get_vocab_size()
     print(f"tokenizer: {vocab} merges/tokens", flush=True)
 
