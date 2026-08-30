@@ -117,10 +117,6 @@
   },
   {
     "repo": "JoTalbot/ua-edrsr",
-    "path": "2020/edrsr.parquet"
-  },
-  {
-    "repo": "JoTalbot/ua-edrsr",
     "path": "2020/manifest.json"
   },
   {
@@ -238,10 +234,6 @@
   {
     "repo": "JoTalbot/ua-edrsr",
     "path": "2020/part-00028.parquet"
-  },
-  {
-    "repo": "JoTalbot/ua-edrsr",
-    "path": "2021/edrsr.parquet"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
@@ -385,10 +377,6 @@
   },
   {
     "repo": "JoTalbot/ua-edrsr",
-    "path": "2022/edrsr.parquet"
-  },
-  {
-    "repo": "JoTalbot/ua-edrsr",
     "path": "2022/manifest.json"
   },
   {
@@ -486,10 +474,6 @@
   {
     "repo": "JoTalbot/ua-edrsr",
     "path": "2022/part-00023.parquet"
-  },
-  {
-    "repo": "JoTalbot/ua-edrsr",
-    "path": "2023/edrsr.parquet"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
@@ -622,10 +606,6 @@
   {
     "repo": "JoTalbot/ua-edrsr",
     "path": "2023/part-00031.parquet"
-  },
-  {
-    "repo": "JoTalbot/ua-edrsr",
-    "path": "2024/edrsr.parquet"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
@@ -762,10 +742,6 @@
   {
     "repo": "JoTalbot/ua-edrsr",
     "path": "2024/part-00032.parquet"
-  },
-  {
-    "repo": "JoTalbot/ua-edrsr",
-    "path": "2025/edrsr.parquet"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
@@ -1018,6 +994,10 @@
   {
     "repo": "JoTalbot/ua-edrsr",
     "path": "2026/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "README.md"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
