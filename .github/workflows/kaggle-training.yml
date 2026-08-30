@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '45 5 * * 1,4'
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Push even if a version is already running'
+        type: boolean
+        default: false
   workflow_run:
     workflows: ['Train Ukraine Models']
     types: [completed]
@@ -79,10 +84,14 @@ jobs:
           KERNEL_ID="${USERNAME}/ua-legal-lm-gpu"
           STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
           echo "current kernel status: ${STATUS:-unknown}"
+          FORCE="${{ github.event.inputs.force || 'false' }}"
           case "$STATUS" in
             *running*|*queued*|*cancel*)
-              echo "A kernel version is already active (${STATUS}); skipping push to save GPU quota."
-              exit 0
+              if [ "$FORCE" != "true" ]; then
+                echo "A kernel version is already active (${STATUS}); skipping push to save GPU quota."
+                exit 0
+              fi
+              echo "Force push requested; replacing the active version."
               ;;
           esac
           python - "$USERNAME" <<'PY'
