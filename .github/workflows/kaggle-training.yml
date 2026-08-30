@@ -77,11 +77,11 @@ jobs:
             exit 0
           fi
           KERNEL_ID="${USERNAME}/ua-legal-lm-gpu"
-          STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 || true)
+          STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
           echo "current kernel status: ${STATUS:-unknown}"
           case "$STATUS" in
             *running*|*queued*|*cancel*)
-              echo "A kernel version is already ${STATUS}; skipping push to save GPU quota."
+              echo "A kernel version is already active (${STATUS}); skipping push to save GPU quota."
               exit 0
               ;;
           esac
