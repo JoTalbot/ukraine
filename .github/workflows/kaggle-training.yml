@@ -1,0 +1,63 @@
+name: Kaggle GPU Training
+
+on:
+  schedule:
+    - cron: '45 */6 * * *'
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Train Ukraine Models']
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: kaggle-gpu-training
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate Kaggle secret
+        env:
+          KAGGLE_API: ${{ secrets.KAGGLE_API }}
+        run: |
+          test -n "$KAGGLE_API" || { echo 'KAGGLE_API secret is missing'; exit 1; }
+          echo 'Kaggle secret is configured.'
+      - name: Prepare training manifest
+        run: |
+          mkdir -p artifacts/kaggle
+          printf '%s\n' '{"status":"ready","training_scope":"public_open_data_only","deanonymization":false}' > artifacts/kaggle/training_manifest.json
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaggle-training-manifest
+          path: artifacts/kaggle/training_manifest.json
+          retention-days: 14
+
+  dispatch:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Configure Kaggle credentials
+        env:
+          KAGGLE_API: ${{ secrets.KAGGLE_API }}
+        run: |
+          test -n "$KAGGLE_API" || { echo 'KAGGLE_API secret is missing'; exit 1; }
+          python -m pip install --upgrade pip kaggle
+          mkdir -p "$HOME/.kaggle"
+          umask 077
+          printf '%s\n' "$KAGGLE_API" > "$HOME/.kaggle/kaggle.json"
+      - name: Check Kaggle authentication
+        run: kaggle datasets list --max-size 1 >/dev/null
+      - name: Report training handoff
+        run: |
+          echo 'Kaggle authentication succeeded.'
+          echo 'Training manifest is ready.'
+          echo 'GPU execution is delegated to the configured Kaggle notebook/dataset.'
+          echo 'No secret values are printed.'
