@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "source": "https://data.gov.ua/",
+  "purpose": "Curated public Ukraine datasets for mirroring to Hugging Face",
+  "datasets": [
+    {"id":"edrsr","name":"ЄДРСР судові рішення","priority":1,"enabled":true,"handled_by":"edrsr-huggingface.yml"},
+    {"id":"edr","name":"ЄДР юридичних осіб, ФОП та громадських формувань","priority":1,"enabled":true,"search_terms":["Єдиний державний реєстр юридичних осіб фізичних осіб-підприємців громадських формувань"]},
+    {"id":"declarations","name":"Реєстр декларацій НАЗК","priority":1,"enabled":true,"search_terms":["Реєстр декларацій НАЗК"]},
+    {"id":"sanctions","name":"Державний реєстр санкцій","priority":1,"enabled":true,"search_terms":["Державний реєстр санкцій"]},
+    {"id":"prozorro","name":"Публічні закупівлі Prozorro","priority":1,"enabled":true,"search_terms":["публічні закупівлі Prozorro"]},
+    {"id":"court_cases","name":"Стан розгляду справ у судах","priority":1,"enabled":true,"search_terms":["Інформація щодо стану розгляду справ"]},
+    {"id":"missing_persons","name":"Особи, зниклі безвісти","priority":2,"enabled":true,"search_terms":["Інформація про осіб, зниклих безвісти"]},
+    {"id":"audit_register","name":"Реєстр аудиторів та суб'єктів аудиторської діяльності","priority":2,"enabled":true,"search_terms":["Реєстр аудиторів та суб’єктів аудиторської діяльності"]},
+    {"id":"lost_phones","name":"Викрадені та втрачені мобільні телефони","priority":3,"enabled":true,"search_terms":["Інформація про викрадені, втрачені мобільні телефони"]}
+  ]
+}
