@@ -55,3 +55,42 @@ jobs:
           PY
       - name: Mirror all Ukraine open datasets
         run: python scripts/data_gov_ua_sync.py --dataset "$DATASET"
+
+      - name: Publish dataset card
+        run: |
+          python - <<'PY'
+          import datetime, json, os
+          from pathlib import Path
+          from huggingface_hub import HfApi
+
+          repo = os.environ['HF_DATASET_REPO']
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          entries = []
+          manifest_path = Path('artifacts/open-data/manifest.json')
+          if manifest_path.is_file():
+              entries = json.loads(manifest_path.read_text(encoding='utf-8'))
+
+          lines = [
+              '# Україна: дзеркало відкритих даних (data.gov.ua)', '',
+              'Автоматичне дзеркало публічних наборів [data.gov.ua](https://data.gov.ua),',
+              'яке підтримує пайплайн [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine).', '',
+              '## Набори', '', '| Набір | Файлів | Джерело |', '|---|---|---|',
+          ]
+          for entry in entries:
+              title = entry.get('title') or entry.get('catalog_id') or '—'
+              count = len(entry.get('uploaded_files') or [])
+              source = entry.get('source_url') or '—'
+              lines.append(f'| {title} | {count} | {source} |')
+          if not entries:
+              lines.append('| _маніфест цього запуску порожній_ | — | — |')
+          lines += [
+              '', '## Умови використання', '',
+              '- Дані поширюються на умовах офіційних публікацій джерела (data.gov.ua).',
+              '- Провенанс: `manifest.json` та `discovered-manifest.json` у корені репозиторію.',
+              '- Обезличення джерела зберігається; датасет не призначений для деанонімізації.', '',
+              f'_Оновлено: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}_', '',
+          ]
+          Path('README.md').write_text('\n'.join(lines), encoding='utf-8')
+          api.upload_file(path_or_fileobj='README.md', path_in_repo='README.md', repo_id=repo, repo_type='dataset')
+          print('Dataset card updated.')
+          PY

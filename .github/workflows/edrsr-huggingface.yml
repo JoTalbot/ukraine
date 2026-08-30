@@ -151,8 +151,84 @@ jobs:
           print(f'Year {year} published successfully: {len(visible)} files')
           PY
 
-  verify:
+  card:
+    name: Dataset card and legacy cleanup
     needs: upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    if: always()
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_DATASET_REPO: JoTalbot/ua-edrsr
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Remove superseded files and publish dataset card
+        run: |
+          python - <<'PY'
+          import datetime, json, os
+          from pathlib import Path
+          from huggingface_hub import HfApi, hf_hub_download
+
+          repo = os.environ['HF_DATASET_REPO']
+          token = os.environ['HF_TOKEN']
+          api = HfApi(token=token)
+          files = sorted(s.rfilename for s in (api.dataset_info(repo_id=repo).siblings or []))
+          years = sorted({f.split('/', 1)[0] for f in files if '/' in f and f.split('/', 1)[0].isdigit()})
+
+          # Remove legacy single-file exports superseded by partitioned parts.
+          stale = []
+          for year in years:
+              names = {f.split('/', 1)[1] for f in files if f.startswith(year + '/')}
+              has_parts = any(n.startswith('part-') and n.endswith('.parquet') for n in names)
+              if has_parts and 'edrsr.parquet' in names:
+                  stale.append(f'{year}/edrsr.parquet')
+          if stale:
+              api.delete_files(repo_id=repo, repo_type='dataset', paths_in_repo=stale)
+              print('Removed legacy single-file exports for years:', ', '.join(sorted(s.split('/')[0] for s in stale)))
+
+          rows = []
+          for year in years:
+              try:
+                  path = hf_hub_download(repo_id=repo, repo_type='dataset', filename=f'{year}/manifest.json', token=token)
+                  manifest = json.loads(Path(path).read_text(encoding='utf-8'))
+              except Exception as exc:
+                  print(f'WARN: no manifest for {year}: {exc}')
+                  manifest = {}
+              rows.append((year, manifest.get('records'), (manifest.get('sha256') or '')[:12]))
+
+          lines = [
+              '# ЄДРСР — судові рішення України (нормалізоване дзеркало)', '',
+              'Автоматичне дзеркало офіційних публікацій Єдиного державного реєстру судових рішень ',
+              'на [data.gov.ua](https://data.gov.ua) (Державна судова адміністрація України).',
+              'Пайплайн: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine).', '',
+              '## Роки та обсяги', '', '| Рік | Записів | SHA-256 архіву |', '|---|---|---|',
+          ]
+          for year, records, digest in rows:
+              lines.append(f'| {year} | {records if records is not None else "—"} | `{digest}…` |')
+          lines += [
+              '', '## Структура', '',
+              '- `<рік>/part-XXXXX.parquet` — партії по ~250 000 записів (zstd).',
+              '- `<рік>/manifest.json` — URL джерела, SHA-256 архіву, кількість записів, тег зміни (ETag).',
+              '- Старі однорайлові експорти `<рік>/edrsr.parquet` видаляються після успішного завантаження партій.', '',
+              '## Умови використання', '',
+              '- Дані поширюються на умовах офіційної публікації джерела; перед використанням перевірте умови на data.gov.ua.',
+              '- Обезличення, передбачене джерелом, збережено; датасет не призначений для деанонімізації.', '',
+              f'_Оновлено: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}_', '',
+          ]
+          Path('README.md').write_text('\n'.join(lines), encoding='utf-8')
+          api.upload_file(path_or_fileobj='README.md', path_in_repo='README.md', repo_id=repo, repo_type='dataset')
+          print(f'Dataset card updated ({len(rows)} years).')
+          PY
+
+  verify:
+    needs: [upload, card]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     if: always()

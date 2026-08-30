@@ -129,5 +129,15 @@ jobs:
             echo 'No manifest changes.'
           else
             git commit -m "chore: update ${{ matrix.model }} training manifests"
-            git push
+            for attempt in 1 2 3 4 5; do
+              if git push; then
+                echo 'Manifests pushed.'
+                exit 0
+              fi
+              echo "Push rejected (attempt $attempt); rebasing on latest main and retrying..."
+              git fetch origin main
+              git rebase origin/main
+            done
+            echo 'Failed to push manifests after retries' >&2
+            exit 1
           fi
