@@ -19,18 +19,40 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: edrsr-huggingface
-  cancel-in-progress: false
-
 jobs:
-  upload:
+  prepare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 5
+    outputs:
+      years: ${{ steps.years.outputs.years }}
+    steps:
+      - name: Resolve requested years
+        id: years
+        run: |
+          REQUESTED="${{ inputs.year || 'all' }}"
+          if [ "$REQUESTED" = "all" ]; then
+            echo 'years=[2020, 2021, 2022, 2023, 2024, 2025, 2026]' >> "$GITHUB_OUTPUT"
+          else
+            echo "years=[$REQUESTED]" >> "$GITHUB_OUTPUT"
+          fi
+
+  upload:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_DATASET_REPO: JoTalbot/ua-edrsr
-      EDRSR_YEAR: ${{ inputs.year || 'all' }}
+      YEAR: ${{ matrix.year }}
+    strategy:
+      fail-fast: false
+      matrix:
+        year: ${{ fromJSON(needs.prepare.outputs.years) }}
+    concurrency:
+      # One slot per year: a slow year never blocks the other years, and a
+      # queued run becomes a cheap no-op thanks to change detection.
+      group: edrsr-${{ matrix.year }}
+      cancel-in-progress: false
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -55,58 +77,72 @@ jobs:
           print('account:', me.get('name') or me.get('fullname') or me.get('email'))
           repo = os.environ['HF_DATASET_REPO']
           api.create_repo(repo_id=repo, repo_type='dataset', exist_ok=True, private=False)
-          print('Dataset repository ready:', repo)
+          # create_repo(exist_ok=True) does not change the visibility of an
+          # already existing repository, so enforce public explicitly.
+          api.update_repo_settings(repo_id=repo, repo_type='dataset', private=False)
+          print('Dataset repository ready (public):', repo)
           PY
 
-      - name: Sync and publish EDRSR years
-        shell: bash
+      - name: Resolve previous archive tag
+        id: prev
+        run: |
+          python - <<'PY'
+          import json, os
+          from huggingface_hub import hf_hub_download
+          tag = ""
+          try:
+              path = hf_hub_download(
+                  repo_id=os.environ['HF_DATASET_REPO'],
+                  repo_type='dataset',
+                  filename=os.environ['YEAR'] + '/manifest.json',
+                  token=os.environ['HF_TOKEN'],
+              )
+              with open(path, encoding='utf-8') as fh:
+                  tag = (json.load(fh) or {}).get('remote_change_tag') or ""
+          except Exception as exc:
+              print('No previous manifest on Hugging Face:', exc)
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write('tag=' + tag + '\n')
+          PY
+
+      - name: Sync EDRSR year
+        env:
+          PREV_TAG: ${{ steps.prev.outputs.tag }}
         run: |
           set -u
-          mkdir -p artifacts/edrsr
-
-          if [[ "$EDRSR_YEAR" == "all" ]]; then
-            YEARS=$(seq 2020 2026)
-          else
-            YEARS="$EDRSR_YEAR"
+          mkdir -p "artifacts/edrsr/$YEAR"
+          if ! python scripts/edrsr_sync.py --year "$YEAR" \
+                --output-dir "artifacts/edrsr/$YEAR" \
+                --skip-if-tag "$PREV_TAG"; then
+            echo "Year $YEAR is unavailable or failed discovery/download. Skipping and continuing."
+            rm -rf "artifacts/edrsr/$YEAR"
           fi
 
-          for year in $YEARS; do
-            echo "============================================================"
-            echo "Processing EDRSR year: $year"
-            echo "============================================================"
-            rm -rf "artifacts/edrsr/$year"
-            mkdir -p "artifacts/edrsr/$year"
-
-            if ! python scripts/edrsr_sync.py --year "$year" --output-dir "artifacts/edrsr/$year"; then
-              echo "Year $year is unavailable or failed discovery/download. Skipping and continuing."
-              rm -rf "artifacts/edrsr/$year"
-              continue
-            fi
-
-            test -s "artifacts/edrsr/$year/manifest.json"
-            find "artifacts/edrsr/$year" -type f -name '*.parquet' -print -quit | grep -q .
-
-            YEAR="$year" python - <<'PY'
-          import os
+      - name: Publish year to Hugging Face
+        run: |
+          python - <<'PY'
+          import json, os
           from pathlib import Path
           from huggingface_hub import HfApi
 
-          api = HfApi(token=os.environ['HF_TOKEN'])
-          repo = os.environ['HF_DATASET_REPO']
           year = os.environ['YEAR']
+          repo = os.environ['HF_DATASET_REPO']
           root = Path('artifacts/edrsr') / year
-
-          for path in sorted(root.rglob('*')):
-              if path.is_file():
-                  target = path.relative_to(Path('artifacts/edrsr')).as_posix()
-                  api.upload_file(
-                      path_or_fileobj=str(path),
-                      path_in_repo=target,
-                      repo_id=repo,
-                      repo_type='dataset',
-                  )
-                  print('Uploaded:', target)
-
+          manifest_path = root / 'manifest.json'
+          if not manifest_path.is_file():
+              raise SystemExit(f'No manifest produced for year {year}')
+          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
+          if manifest.get('skipped'):
+              print(f'Year {year}: remote archive unchanged, nothing to upload.')
+              raise SystemExit(0)
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.upload_folder(
+              folder_path=str(root),
+              path_in_repo=year,
+              repo_id=repo,
+              repo_type='dataset',
+              commit_message=f'EDRSR {year}: {manifest.get("records")} records',
+          )
           info = api.dataset_info(repo_id=repo)
           prefix = f'{year}/'
           visible = [s.rfilename for s in (info.siblings or []) if s.rfilename.startswith(prefix)]
@@ -114,10 +150,19 @@ jobs:
               raise SystemExit(f'Upload verification failed for year {year}')
           print(f'Year {year} published successfully: {len(visible)} files')
           PY
-          done
 
+  verify:
+    needs: upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    if: always()
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_DATASET_REPO: JoTalbot/ua-edrsr
+    steps:
       - name: Final Hugging Face verification
         run: |
+          python -m pip install --upgrade pip huggingface_hub >/dev/null
           python - <<'PY'
           import os
           from huggingface_hub import HfApi
