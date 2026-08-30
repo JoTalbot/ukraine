@@ -5,11 +5,15 @@
   },
   {
     "repo": "JoTalbot/ua-edrsr",
-    "path": "2006/edrsr.parquet"
+    "path": "2006/manifest.json"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
-    "path": "2006/manifest.json"
+    "path": "2006/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2006/part-00001.parquet"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
@@ -69,11 +73,99 @@
   },
   {
     "repo": "JoTalbot/ua-edrsr",
-    "path": "2014/edrsr.parquet"
+    "path": "2014/manifest.json"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
-    "path": "2014/manifest.json"
+    "path": "2014/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/part-00022.parquet"
   },
   {
     "repo": "JoTalbot/ua-edrsr",
@@ -1017,6 +1109,14 @@
   },
   {
     "repo": "JoTalbot/ua-open-data",
+    "path": "advocates/registerOfLawyers.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "advocates/structureRegisterOfLawyers.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
     "path": "arbitration_managers/24-ex_xml_arbker.zip"
   },
   {
@@ -1026,6 +1126,14 @@
   {
     "repo": "JoTalbot/ua-open-data",
     "path": "audit_register/subjects_2026-08-10.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "bank_ownership/export_banks_shareholders_schema..xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "bank_ownership/Архів_з_2007_до_2012_року..pdf"
   },
   {
     "repo": "JoTalbot/ua-open-data",
@@ -1501,6 +1609,14 @@
   },
   {
     "repo": "JoTalbot/ua-open-data",
+    "path": "financial_institutions/DRFU.ods"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "insurance_brokers/DRSB.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
     "path": "lost_phones/MVSWantedMT.json"
   },
   {
@@ -1510,6 +1626,22 @@
   {
     "repo": "JoTalbot/ua-open-data",
     "path": "manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "medicines/reestr.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "medicines/reestr_лз.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "medicines/Державний_реєстр_лікарських_засобів.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "medicines/Державний_реєстр_лікарських_засобів_України.csv"
   },
   {
     "repo": "JoTalbot/ua-open-data",
@@ -1561,7 +1693,19 @@
   },
   {
     "repo": "JoTalbot/ua-open-data",
+    "path": "notary_blank_forms/19-ex_xml_ernb_29.12.2025-24.08.2026"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
     "path": "prozorro/Публічні_закупівлі_УСЗН_ВМР_на_сайті_Prozorro.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "rro/Реєстр_РРО.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "rro/Реєстр_РРО__заборонених.csv"
   },
   {
     "repo": "JoTalbot/ua-open-data",
@@ -1598,6 +1742,22 @@
   {
     "repo": "JoTalbot/ua-open-data",
     "path": "sanctions/Державний_судновий_реєстр_України_станом_на_02.07.2025.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "ships_small/1.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "ships_small/16._Реєстр_суден_малого_флоту.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "ships_small/16.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "universities/Реєстр_закладів_вищої_освіти.xlsx"
   },
   {
     "repo": "JoTalbot/ua-open-data",
@@ -1794,6 +1954,82 @@
   {
     "repo": "JoTalbot/ua-open-data",
     "path": "vat_payers/pdv_actual_31.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vocational_schools/Реєстр_закладів_професійної_професійно-технічної_освіти.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_1.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_220.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_297.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_298.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_299.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_303.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_304.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_306.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_309.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_310.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_311.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_363.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_374.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_407.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_429.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_451.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_fugitives/MVSWantedPerson_photo_555.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_weapons/WeaponsWanted.json"
   },
   {
     "repo": "JoTalbot/ua-open-data",

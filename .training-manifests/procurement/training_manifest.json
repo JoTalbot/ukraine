@@ -1,6 +1,6 @@
 {
   "model_kind": "procurement",
-  "source_files": 450,
+  "source_files": 509,
   "training_status": "corpus_manifest_ready",
   "gpu_backend": "kaggle_notebook",
   "privacy_scope": "public_open_data_only",
