@@ -9,17 +9,15 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
-import io
 import json
-import os
 import re
-import shutil
 import tempfile
 import zipfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import quote
 from urllib.request import Request, urlopen
-import xml.etree.ElementTree as ET
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -28,17 +26,19 @@ DATASET_SEARCH_URL = "https://data.gov.ua/api/3/action/package_search"
 DATASET_FALLBACK_2026 = "16ab7f06-7414-405f-8354-0a492475272d"
 DOWNLOAD_TIMEOUT = 300
 CHUNK_SIZE = 10_000
+PART_ROWS = 250_000
+USER_AGENT = "JoTalbot/ukraine-edrsr-pipeline"
 
 
 def http_json(url: str) -> dict[str, Any]:
-    req = Request(url, headers={"User-Agent": "JoTalbot/ukraine-edrsr-pipeline"})
+    req = Request(url, headers={"User-Agent": USER_AGENT})
     with urlopen(req, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def find_dataset_id(year: int) -> str:
     query = f"Єдиний державний реєстр судових рішень за {year} рік"
-    url = DATASET_SEARCH_URL + "?q=" + __import__("urllib.parse").parse.quote(query)
+    url = DATASET_SEARCH_URL + "?q=" + quote(query)
     try:
         payload = http_json(url)
         results = payload.get("result", {}).get("results", [])
@@ -69,8 +69,18 @@ def discover_download_url(year: int) -> tuple[str, str]:
     raise RuntimeError(f"No EDRSR ZIP resource found in Data.gov.ua dataset {dataset_id}")
 
 
+def remote_change_tag(url: str) -> str | None:
+    """Best-effort change indicator (ETag, or Last-Modified) for the archive."""
+    req = Request(url, method="HEAD", headers={"User-Agent": USER_AGENT})
+    try:
+        with urlopen(req, timeout=60) as response:
+            return response.headers.get("ETag") or response.headers.get("Last-Modified")
+    except Exception:
+        return None
+
+
 def download(url: str, target: Path) -> str:
-    req = Request(url, headers={"User-Agent": "JoTalbot/ukraine-edrsr-pipeline"})
+    req = Request(url, headers={"User-Agent": USER_AGENT})
     digest = hashlib.sha256()
     with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as response, target.open("wb") as out:
         while True:
@@ -121,12 +131,6 @@ def xml_to_dict(element: ET.Element) -> dict[str, Any]:
 def iter_xml_records(path: Path) -> Iterator[dict[str, Any]]:
     # The official archive is XML-oriented, but roots can vary between releases.
     # Treat each top-level child as a record when possible.
-    context = ET.iterparse(path, events=("end",))
-    for _, elem in context:
-        if elem is not None and elem.getparent if False else False:
-            pass
-    # Re-open with a standard ElementTree fallback. Files in the annual archive
-    # are individual decisions in normal releases, so this remains bounded.
     root = ET.parse(path).getroot()
     children = list(root)
     if children:
@@ -182,7 +186,7 @@ def pick(raw: dict[str, Any], *names: str) -> Any:
     return None
 
 
-def normalize(raw: dict[str, Any], source_file: str, source_sha256: str) -> dict[str, Any]:
+def normalize(raw: dict[str, Any], source_file: str, source_sha256: str, dataset_id: str) -> dict[str, Any]:
     text = text_value(pick(raw, "text", "body", "content", "document_text", "tekst", "fulltext"))
     case_number = text_value(pick(raw, "case_number", "caseNo", "nomer_spravy", "caseNum", "case"))
     document_id = text_value(pick(raw, "document_id", "id", "doc_id", "id_doc", "document"))
@@ -197,7 +201,7 @@ def normalize(raw: dict[str, Any], source_file: str, source_sha256: str) -> dict
         "category": text_value(pick(raw, "category", "category_name", "kategoriya")),
         "text": text,
         "source_url": text_value(pick(raw, "source_url", "url", "reyestr_url")),
-        "source_dataset": f"https://data.gov.ua/dataset/{source_sha256}",
+        "source_dataset": f"https://data.gov.ua/dataset/{dataset_id}",
         "source_sha256": source_sha256,
         "source_file": source_file,
         "extra": json.dumps(raw, ensure_ascii=False, separators=(",", ":")),
@@ -205,46 +209,80 @@ def normalize(raw: dict[str, Any], source_file: str, source_sha256: str) -> dict
     return result
 
 
-def write_parquet(records: Iterator[tuple[dict[str, Any], str]], output: Path, source_sha256: str) -> int:
+def write_parquet(
+    records: Iterator[tuple[dict[str, Any], str]],
+    output: Path,
+    source_sha256: str,
+    dataset_id: str,
+    change_tag: str | None = None,
+) -> int:
+    """Write normalized records as several Parquet parts instead of one huge file."""
     output.mkdir(parents=True, exist_ok=True)
-    part = output / "edrsr.parquet"
+    total = 0
+    part_no = 0
+    rows_in_part = 0
+    parts: list[dict[str, Any]] = []
     writer: pq.ParquetWriter | None = None
-    count = 0
+    part_path = output / f"part-{part_no:05d}.parquet"
     buffer: list[dict[str, Any]] = []
-    try:
-        for raw, source_file in records:
-            buffer.append(normalize(raw, source_file, source_sha256))
-            if len(buffer) >= CHUNK_SIZE:
-                table = pa.Table.from_pylist(buffer)
-                if writer is None:
-                    writer = pq.ParquetWriter(part, table.schema, compression="zstd")
-                writer.write_table(table)
-                count += len(buffer)
-                buffer.clear()
-        if buffer:
-            table = pa.Table.from_pylist(buffer)
-            if writer is None:
-                writer = pq.ParquetWriter(part, table.schema, compression="zstd")
-            writer.write_table(table)
-            count += len(buffer)
-    finally:
+
+    def write_buffer() -> None:
+        nonlocal writer, rows_in_part, total, buffer
+        table = pa.Table.from_pylist(buffer)
+        if writer is None:
+            writer = pq.ParquetWriter(part_path, table.schema, compression="zstd")
+        writer.write_table(table)
+        rows_in_part += len(buffer)
+        total += len(buffer)
+        buffer = []
+
+    def rotate_part() -> None:
+        nonlocal writer, rows_in_part, part_no, part_path
         if writer is not None:
             writer.close()
-    if count == 0:
+            parts.append({"file": part_path.name, "rows": rows_in_part})
+            writer = None
+        rows_in_part = 0
+        part_no += 1
+        part_path = output / f"part-{part_no:05d}.parquet"
+
+    try:
+        for raw, source_file in records:
+            buffer.append(normalize(raw, source_file, source_sha256, dataset_id))
+            if len(buffer) >= CHUNK_SIZE:
+                write_buffer()
+                if rows_in_part >= PART_ROWS:
+                    rotate_part()
+        if buffer:
+            write_buffer()
+        rotate_part()
+    except BaseException:
+        if writer is not None:
+            writer.close()
+        raise
+
+    if total == 0:
         raise RuntimeError("No XML/JSON/CSV records were found in the EDRSR archive")
     manifest = {
-        "records": count,
+        "records": total,
         "sha256": source_sha256,
-        "parquet": part.name,
+        "dataset_id": dataset_id,
+        "remote_change_tag": change_tag,
+        "parquet_parts": parts,
     }
     (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    return count
+    return total
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--year", type=int, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--skip-if-tag",
+        default="",
+        help="Skip processing when the remote ETag/Last-Modified equals this tag",
+    )
     args = parser.parse_args()
 
     output = args.output_dir.resolve()
@@ -252,6 +290,19 @@ def main() -> int:
     download_url, dataset_id = discover_download_url(args.year)
     print(f"EDRSR dataset discovered: {dataset_id}")
     print(f"Source: {download_url}")
+
+    change_tag = remote_change_tag(download_url)
+    if args.skip_if_tag and change_tag and args.skip_if_tag == change_tag:
+        manifest = {
+            "skipped": True,
+            "remote_change_tag": change_tag,
+            "year": args.year,
+            "dataset_id": dataset_id,
+            "source_url": download_url,
+        }
+        (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+        print("Remote archive unchanged since the previous run; skipping.")
+        return 0
 
     with tempfile.TemporaryDirectory(prefix="edrsr-") as tmp:
         tmp_path = Path(tmp)
@@ -265,10 +316,9 @@ def main() -> int:
             if bad:
                 raise RuntimeError(f"Corrupt ZIP member: {bad}")
             safe_extract(zf, extracted)
-        count = write_parquet(iter_records(extracted), output, source_sha256)
+        count = write_parquet(iter_records(extracted), output, source_sha256, dataset_id, change_tag)
         manifest = json.loads((output / "manifest.json").read_text(encoding="utf-8"))
         manifest["year"] = args.year
-        manifest["dataset_id"] = dataset_id
         manifest["source_url"] = download_url
         (output / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"EDRSR pipeline completed: {count} records")
