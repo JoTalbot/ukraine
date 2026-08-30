@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""Mirror discovered data.gov.ua datasets to Hugging Face.
+
+Large/unbounded resources are skipped by default. The job records every decision
+so the catalog can be reviewed and re-run deterministically.
+"""
+from __future__ import annotations
+import argparse, hashlib, json, os, re
+from pathlib import Path
+import requests
+from huggingface_hub import HfApi
+
+CHUNK = 1024 * 1024
+STRUCTURED = {"CSV", "TSV", "JSON", "JSONL", "NDJSON", "XML", "XLS", "XLSX", "ODS", "PARQUET", "ZIP", "7Z", "GZ", "GZIP"}
+
+
+def safe(s: str) -> str:
+    return (re.sub(r"[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ._-]+", "_", s or "resource")[:180] or "resource")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--catalog", default="artifacts/discovery/data_gov_ua_catalog.json")
+    ap.add_argument("--max-dataset-files", type=int, default=20)
+    ap.add_argument("--max-file-mb", type=int, default=512)
+    ap.add_argument("--output", default="artifacts/discovered-open-data")
+    args = ap.parse_args()
+    token = os.environ.get("HF_TOKEN")
+    repo = os.environ.get("HF_DATASET_REPO", "JoTalbot/ua-open-data")
+    if not token: raise SystemExit("HF_TOKEN secret is missing")
+    data = json.loads(Path(args.catalog).read_text(encoding="utf-8"))
+    hf = HfApi(token=token)
+    hf.create_repo(repo_id=repo, repo_type="dataset", exist_ok=True, private=False)
+    root = Path(args.output); root.mkdir(parents=True, exist_ok=True)
+    decisions = []
+    for ds in data.get("datasets", []):
+        ds_id = safe(ds.get("id") or ds.get("name"))
+        resources = [r for r in ds.get("resources", []) if r.get("url") and r.get("format", "").upper() in STRUCTURED]
+        entry = {"id": ds_id, "name": ds.get("name"), "source_url": ds.get("url"), "modified": ds.get("modified"), "files": [], "skipped": []}
+        for i, r in enumerate(resources[:args.max_dataset_files]):
+            url = r["url"]
+            try:
+                head = requests.head(url, allow_redirects=True, timeout=30, headers={"User-Agent":"JoTalbot/ukraine-open-data-sync"})
+                size = int(head.headers.get("Content-Length", "0") or 0)
+                if size and size > args.max_file_mb * 1024 * 1024:
+                    entry["skipped"].append({"url":url,"reason":f"larger than {args.max_file_mb} MB"}); continue
+                name = safe(r.get("name") or Path(url.split("?")[0]).name or f"resource-{i}")
+                if "." not in name: name += "." + r.get("format", "bin").lower()
+                dest = root / ds_id / name; dest.parent.mkdir(parents=True, exist_ok=True)
+                with requests.get(url, stream=True, timeout=120, headers={"User-Agent":"JoTalbot/ukraine-open-data-sync"}) as resp:
+                    resp.raise_for_status()
+                    total = 0
+                    with dest.open("wb") as f:
+                        for chunk in resp.iter_content(CHUNK):
+                            if chunk:
+                                total += len(chunk)
+                                if total > args.max_file_mb * 1024 * 1024: raise RuntimeError("resource exceeded size limit")
+                                f.write(chunk)
+                sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+                target = f"discovered/{ds_id}/{name}"
+                hf.upload_file(path_or_fileobj=str(dest), path_in_repo=target, repo_id=repo, repo_type="dataset")
+                entry["files"].append({"path":target,"sha256":sha,"bytes":total,"format":r.get("format")})
+            except Exception as exc:
+                entry["skipped"].append({"url":url,"reason":str(exc)})
+        decisions.append(entry)
+    manifest = root / "discovered-manifest.json"
+    manifest.write_text(json.dumps(decisions, ensure_ascii=False, indent=2), encoding="utf-8")
+    hf.upload_file(path_or_fileobj=str(manifest), path_in_repo="discovered-manifest.json", repo_id=repo, repo_type="dataset")
+    print(f"Processed {len(decisions)} discovered datasets")
+
+if __name__ == "__main__": main()
