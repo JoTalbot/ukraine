@@ -1,6 +1,6 @@
 {
   "model_kind": "court",
-  "source_files": 399,
+  "source_files": 450,
   "training_status": "corpus_manifest_ready",
   "gpu_backend": "kaggle_notebook",
   "privacy_scope": "public_open_data_only",
