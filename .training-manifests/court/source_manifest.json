@@ -1,0 +1,1598 @@
+[
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": ".gitattributes"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2006/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2006/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2007/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2007/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2008/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2008/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2009/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2009/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2010/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2010/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2011/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2011/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2012/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2012/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2013/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2013/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2014/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2015/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2015/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2016/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2016/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2017/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2017/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2018/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2018/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2019/edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2019/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00025.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00026.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00027.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2020/part-00028.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00025.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00026.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00027.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00028.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00029.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00030.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00031.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00032.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2021/part-00033.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2022/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00025.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00026.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00027.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00028.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00029.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00030.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2023/part-00031.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00025.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00026.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00027.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00028.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00029.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00030.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00031.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2024/part-00032.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00025.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00026.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00027.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00028.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00029.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00030.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00031.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00032.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00033.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00034.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2025/part-00035.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00000.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00001.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00002.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00003.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00004.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00005.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00006.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00007.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00008.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00009.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00010.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00011.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00012.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00013.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00014.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00015.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00016.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00017.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00018.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00019.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00020.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00021.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00022.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00023.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "2026/part-00024.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "README.md"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "edrsr.parquet"
+  },
+  {
+    "repo": "JoTalbot/ua-edrsr",
+    "path": "manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": ".gitattributes"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "arbitration_managers/24-ex_xml_arbker.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "audit_register/auditors_2026-08-10.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "audit_register/subjects_2026-08-10.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "court_cases/stan-rozglyadu-sprav-vid-29-08-2026.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "court_cases/stan-rozglyadu-sprav-z-01-04-2022-po-01-05-2022.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "court_cases/stan-rozglyadu-sprav-z-01-05-2022-po-01-06-2022.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "court_cases/stan-rozglyadu-sprav-z-01-06-2022-po-01-07-2022.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "court_cases/stan-rozglyadu-sprav-z-01-07-2022-po-09-08-2022.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "court_experts/19-ex_xml_EXPERT.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "debtors/29-ex_csv_erb.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_доброчесності_2018..zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_доброчесності_2019..zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_доброчесності_2020..zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_доброчесності_2021.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_доброчесності_2022.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_родинних_зв_язків_2021.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_родинних_зв_язків_2022.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_родинних_звязків_2018..zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_родинних_звязків_2019..zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Декларації_родинних_звязків_2020..zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Реєстр_декларацій_доброчесності_судді_поданих_у_паперовій_формі_у_2016_році.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Реєстр_декларацій_доброчесності_судді_поданих_у_паперовій_формі_у_2018_році.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Реєстр_декларацій_родинних_зв_язків_судді_поданих_у_паперовій_формі_у_2016_році.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "declarations/Реєстр_декларацій_родинних_зв_язків_судді_поданих_у_паперовій_формі_у_2018_році.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/informatsiia-pro-chinni-tarifi-na-poslugi-z-vivezennia-pobutovikh-vidkhodiv-stanom-na-30-04-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-28-02-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-30-06-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-30-07-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-30-09-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-30-09-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-30-11-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-01-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-01-2022.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-04-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-05-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-07-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-08-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-08-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-10-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-10-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-11-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-12-2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31-12-2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/vidkriti-dani-pobutovi-vidkhodi-stanom-na-31.03.2021.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_27.06.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_29.02.2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_30.08.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_30.09.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_30.10.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_30.11.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_31.01.2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_31.03.2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_31.07.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Інформація_про_чинні_тарифи_на_послуги_з_вивезення_побутових_відходів_станом_на_31.12.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/063a40f9-4372-4e13-8115-a284a27b98e6/Відкриті_дані_побутові_відходи_станом_на_30.06.2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/26675df5-5335-4095-b583-032bd678b4fb/ПЕРЕЛІК_наборів_даних_що_підлягають_оприлюдненню_у_формі_відкритих_даних.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/26675df5-5335-4095-b583-032bd678b4fb/Реєстр_перелік_наборів_відкритих_даних.xml"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Tariffs_30.09.2022.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Tariffs_30.11.2022.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Tariffs_31.10.2022.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/informatsiia-pro-chinni-tarifi-na-komunalni-poslugi-z-tsentralizovanogo-opalennia-i-postachanni.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/informatsiia-pro-chinni-tarifi-na-komunalni-poslugi-z-tsentralizovanogo-opalennia-i-postachanni_29.02.2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-28-02-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-29-02-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-30-04-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-30-04-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-30-06-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-30-06-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-30-09-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-30-09-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-01-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-01-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-03-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-03-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-05-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-05-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-07-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-07-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-08-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-08-2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-10-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-12-2022.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/tariffs-31-12-2023.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-28-02-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-04-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-06-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-07-2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-09-2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-09-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-11-2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-30-11-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-01-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-01-2022.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-03-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-05-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-07-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-08-2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-08-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-08-2022.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-10-2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-10-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-12-2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/vidkriti-dani-kom-poslugi-stanom-na-31-12-2021.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Інформація_про_чинні_тарифи_на_комунальні_послуги_з_централізованого_опалення_і_постачання_гарячої_води_станом_на_27.06.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Інформація_про_чинні_тарифи_на_комунальні_послуги_з_централізованого_опалення_і_постачання_гарячої_води_станом_на_30.08.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Інформація_про_чинні_тарифи_на_комунальні_послуги_з_централізованого_опалення_і_постачання_гарячої_води_станом_на_30.11.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Інформація_про_чинні_тарифи_на_комунальні_послуги_з_централізованого_опалення_і_постачання_гарячої_води_станом_на_31.01.2020.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Інформація_про_чинні_тарифи_на_комунальні_послуги_з_централізованого_опалення_і_постачання_гарячої_води_станом_на_31.07.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Інформація_про_чинні_тарифи_на_комунальні_послуги_з_централізованого_опалення_і_постачання_гарячої_води_станом_на_31.12.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Відкриті_дані_ком.послуги_станом_на_30.06.2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Дані_про_тарифи_на_комунальні_послуги_30.04.2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Дані_про_тарифи_на_комунальні_послуги_31.05.2020.xls"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Тарифи_на_ком._послуги_30.09.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "discovered/3e45bee7-d920-4a79-a7e3-ed9872800ddf/Тарифи_на_ком._послуги_30.10.2019.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "edr/FOP.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "edr/FOP_schema.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "edr/FSU.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "edr/FSU_schema.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "edr/UO.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "edr/UO_schema.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "enforcement_proceedings/28-ex_csv_asvp.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "lost_phones/MVSWantedMT.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "lost_phones/MVSWantedMT_Shema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "manifest.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_clothes.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_clothes_schema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_photo.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_photo_schema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_schema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_signs.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_signs_schema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_things.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/BezvistiWanted_things_schema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "missing_persons/PiznanWanted_schema.json"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "notaries/17-ex_xml_wern.zip"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "prozorro/Публічні_закупівлі_УСЗН_ВМР_на_сайті_Prozorro.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/ДСРУ_01.10.2024.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/ДСРУ_загальний_жовтень.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/ДСРУ_станом_на_01.07.2026.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/ДСРУ_станом_на_15042025.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/ДСРУ_станом_на_січень_2026.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/Державний_судновий_реєстр_України..xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/Державний_судновий_реєстр_України.хlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/Державний_судновий_реєстр_України_станом_на_01.04.2026.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "sanctions/Державний_судновий_реєстр_України_станом_на_02.07.2025.xlsx"
+  }
+]
