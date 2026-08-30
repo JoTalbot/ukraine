@@ -1,25 +1,34 @@
 # Kaggle GPU training
 
-This directory contains the reproducible handoff for GPU training from GitHub Actions to Kaggle.
+Репродюцируемый переход GPU-обучения из GitHub Actions в Kaggle.
 
 ## Pipeline
 
-1. GitHub Actions builds the public-data training manifest.
-2. Kaggle consumes the prepared dataset/corpus.
-3. GPU training produces checkpoints and evaluation metrics.
-4. The resulting model can be published to Hugging Face Model Hub.
+1. GitHub Actions проверяет секрет `KAGGLE_API` и пушит кернел `training/kaggle/legal_lm_gpu.ipynb` в Kaggle (`kaggle kernels push`, GPU включён).
+2. Кернел сам скачивает публичные Parquet-части `JoTalbot/ua-edrsr`, `edr/UO.zip` и `vat_payers/pdv.csv` из `JoTalbot/ua-open-data`, строит корпус (`scripts/build_lm_corpus.py`) и обучает GPT (`scripts/train_lm.py --device cuda`, dim 512 / layers 8 / ctx 384, ~29M параметров).
+3. Метрики и сэмплы — в логе кернела; модель публикуется в HF Hub (`JoTalbot/ua-legal-lm`), если в Kaggle добавлен секрет `HF_TOKEN`.
 
-## Scope
+## Секреты
 
-Training is restricted to lawfully available public/open datasets already admitted by the project's data catalog. Source provenance must be retained. Source-provided anonymization is not reversed.
+- GitHub: `KAGGLE_API` — содержимое kaggle.json (JSON), только как Actions secret.
+- Kaggle (Attachments → Secrets): `HF_TOKEN` — токен Hugging Face с правом write, ПУБЛИКОВАТЬ МОДЕЛЬ.
 
-## Required secrets
+Секреты никогда не коммитятся и не печатаются в логах.
 
-- `KAGGLE_API`: stored only as a GitHub Actions repository secret.
-- `HF_TOKEN`: stored only as a GitHub Actions repository secret when publishing models.
+## Ограничения Kaggle
 
-Secrets must never be committed to this repository or printed in CI logs.
+- GPU-квота ~30 ч/неделю; включённый интернет в кернеле обязателен (скачивание данных).
+- Для `kaggle kernels push` аккаунт должен быть верифицирован (телефон). Иначе push упадёт с предупреждением в логе workflow.
+- Ручной запуск: вкладка Notebooks в Kaggle → New Notebook → прикрепить `legal_lm_gpu.ipynb` → Settings: GPU T4, Internet on.
 
-## GPU execution
+## Параметры по умолчанию (в первой ячейке ноутбука)
 
-The GitHub workflow validates authentication and prepares the handoff. Actual GPU compute is performed by a configured Kaggle Notebook/Job, because GitHub-hosted runners do not provide the required GPU runtime.
+| Параметр | Значение |
+|---|---|
+| YEARS | 2020–2026, по 8 Parquet-частей на год (≈14M строк до лимита) |
+| EDRSR_LIMIT / EDR_LIMIT / VAT_LIMIT | 3M / 2M / 400k строк |
+| DIM / LAYERS / CTX / BATCH / STEPS | 512 / 8 / 384 / 16 / 6000 (~1.5–2.5 ч на T4) |
+
+## Приватность
+
+Тільки законно опубліковані відкриті дані; знеособлення джерела зберігається (`no_deanonymization`).

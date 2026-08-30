@@ -44,16 +44,50 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
+      - uses: actions/checkout@v5
       - name: Configure and verify Kaggle authentication
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
         run: |
+          set -e
           test -n "$KAGGLE_API_TOKEN" || { echo 'KAGGLE_API secret is missing'; exit 1; }
-          python -m pip install --upgrade pip kaggle
+          python -m pip install --upgrade pip kaggle >/dev/null
+          mkdir -p ~/.kaggle
+          printf '%s' "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
           kaggle datasets list --max-size 1 >/dev/null
           echo 'Kaggle authentication succeeded.'
-      - name: Report training handoff
+      - name: Push the GPU training kernel
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
         run: |
-          echo 'Training manifest is ready.'
-          echo 'GPU execution is delegated to the configured Kaggle notebook/dataset.'
-          echo 'No secret values are printed.'
+          set -e
+          mkdir -p /tmp/kernel
+          cp training/kaggle/legal_lm_gpu.ipynb /tmp/kernel/
+          python - <<'PY'
+          import json, os, pathlib
+          creds = json.loads(os.environ['KAGGLE_API_TOKEN'])
+          username = creds.get('username') or creds.get('user')
+          if not username:
+              raise SystemExit('Cannot resolve Kaggle username from the KAGGLE_API secret')
+          meta = {
+              "id": f"{username}/ua-legal-lm-gpu",
+              "title": "ua-legal-lm-gpu",
+              "code_file": "legal_lm_gpu.ipynb",
+              "language": "python",
+              "kernel_type": "notebook",
+              "is_private": True,
+              "enable_gpu": True,
+              "enable_internet": True,
+              "dataset_sources": [],
+              "kernel_sources": [],
+              "competition_sources": [],
+          }
+          pathlib.Path('/tmp/kernel/kernel-metadata.json').write_text(json.dumps(meta, indent=2))
+          print('kernel id:', meta['id'])
+          PY
+          if kaggle kernels push -p /tmp/kernel; then
+            echo 'Kernel pushed: it will train on a Kaggle GPU and publish to Hugging Face when HF_TOKEN is attached in Kaggle secrets.'
+          else
+            echo '::warning::kaggle kernels push failed (account may need phone verification or kernels acceptance). Fix in Kaggle settings.'
+          fi

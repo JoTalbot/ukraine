@@ -160,12 +160,16 @@ def main() -> None:
     ap.add_argument("--sample-every", type=int, default=400)
     ap.add_argument("--prompts", nargs="*", default=["Суд: ", "ТОВАРИСТВО З ОБМЕЖЕНОЮ ВІДПОВІДАЛЬНІСТЮ ", "Справа № "])
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--device", default="cpu", help="cpu | cuda (auto: cuda when available)")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
-    device = "cpu"
     import os
-    torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
+    if args.device == "cuda" and not torch.cuda.is_available():
+        print("cuda requested but not available; falling back to cpu")
+        args.device = "cpu"
+    device = args.device
+    torch.set_num_threads(max(1, min(4, os.cpu_count() or 1))) if device == "cpu" else None
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -216,8 +220,8 @@ def main() -> None:
             for group in opt.param_groups:
                 group["lr"] = lr_at(step - 1)
             starts = torch.randint(0, n, (args.batch,), generator=g).tolist()
-            x = torch.tensor(np.stack([data[s:s + args.ctx] for s in starts]).astype(np.int64))
-            y = torch.tensor(np.stack([data[s + 1:s + 1 + args.ctx] for s in starts]).astype(np.int64))
+            x = torch.tensor(np.stack([data[s:s + args.ctx] for s in starts]).astype(np.int64), device=device)
+            y = torch.tensor(np.stack([data[s + 1:s + 1 + args.ctx] for s in starts]).astype(np.int64), device=device)
             logits = model(x)
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
             opt.zero_grad(set_to_none=True)
@@ -233,13 +237,13 @@ def main() -> None:
                 metrics.flush()
                 print(f"step {step:>5} loss {entry['loss']:.4f} ppl {entry['ppl']:.1f} ({elapsed:.0f}s)", flush=True)
 
-            if step % args.eval_every == 0 or step == args.steps:
+            if args.eval_every and (step % args.eval_every == 0 or step == args.steps):
                 val = evaluate(model, data, args.batch, args.ctx, device)
                 metrics.write(json.dumps({"step": step, "val_loss": round(val, 4)}) + "\n")
                 metrics.flush()
                 print(f"step {step:>5} VAL loss {val:.4f}", flush=True)
 
-            if step % args.sample_every == 0 or step == args.steps:
+            if args.sample_every and (step % args.sample_every == 0 or step == args.steps):
                 samples.write(f"\n===== step {step} =====\n")
                 for prompt in args.prompts:
                     text = generate(model, tok, prompt, args.ctx, device)
