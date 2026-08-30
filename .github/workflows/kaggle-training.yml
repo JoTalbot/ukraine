@@ -24,9 +24,9 @@ jobs:
       - uses: actions/checkout@v5
       - name: Validate Kaggle secret
         env:
-          KAGGLE_API: ${{ secrets.KAGGLE_API }}
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
         run: |
-          test -n "$KAGGLE_API" || { echo 'KAGGLE_API secret is missing'; exit 1; }
+          test -n "$KAGGLE_API_TOKEN" || { echo 'KAGGLE_API secret is missing'; exit 1; }
           echo 'Kaggle secret is configured.'
       - name: Prepare training manifest
         run: |
@@ -44,20 +44,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Configure Kaggle credentials
+      - name: Configure and verify Kaggle authentication
         env:
-          KAGGLE_API: ${{ secrets.KAGGLE_API }}
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
         run: |
-          test -n "$KAGGLE_API" || { echo 'KAGGLE_API secret is missing'; exit 1; }
+          test -n "$KAGGLE_API_TOKEN" || { echo 'KAGGLE_API secret is missing'; exit 1; }
           python -m pip install --upgrade pip kaggle
-          mkdir -p "$HOME/.kaggle"
-          umask 077
-          printf '%s\n' "$KAGGLE_API" > "$HOME/.kaggle/kaggle.json"
-      - name: Check Kaggle authentication
-        run: kaggle datasets list --max-size 1 >/dev/null
+          kaggle datasets list --max-size 1 >/dev/null
+          echo 'Kaggle authentication succeeded.'
       - name: Report training handoff
         run: |
-          echo 'Kaggle authentication succeeded.'
           echo 'Training manifest is ready.'
           echo 'GPU execution is delegated to the configured Kaggle notebook/dataset.'
           echo 'No secret values are printed.'
