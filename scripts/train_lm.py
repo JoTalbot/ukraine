@@ -199,6 +199,8 @@ def main() -> None:
         data = encode_file(tok, Path(args.corpus), ids_path)
     print(f"corpus tokens: {len(data):,}", flush=True)
 
+    if device == "cuda":
+        print(f"GPU: {torch.cuda.get_device_name(0)} capability={torch.cuda.get_device_capability(0)}", flush=True)
     model = GPT(vocab, args.dim, args.layers, max(1, args.dim // 64), args.ctx).to(device)
     print(f"model params: {model.num_params():,}", flush=True)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, betas=(0.9, 0.95), weight_decay=0.1)
