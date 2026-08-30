@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Mirror discovered data.gov.ua datasets to Hugging Face.
 
-Large/unbounded resources are skipped by default. The job records every decision
-so the catalog can be reviewed and re-run deterministically.
+Downloads every discovered structured resource without artificial file-count or
+size limits. The runner timeout and Hugging Face storage limits still apply.
 """
 from __future__ import annotations
 import argparse, hashlib, json, os, re
@@ -10,7 +10,7 @@ from pathlib import Path
 import requests
 from huggingface_hub import HfApi
 
-CHUNK = 1024 * 1024
+CHUNK = 8 * 1024 * 1024
 STRUCTURED = {"CSV", "TSV", "JSON", "JSONL", "NDJSON", "XML", "XLS", "XLSX", "ODS", "PARQUET", "ZIP", "7Z", "GZ", "GZIP"}
 
 
@@ -21,8 +21,8 @@ def safe(s: str) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalog", default="artifacts/discovery/data_gov_ua_catalog.json")
-    ap.add_argument("--max-dataset-files", type=int, default=20)
-    ap.add_argument("--max-file-mb", type=int, default=512)
+    ap.add_argument("--max-dataset-files", type=int, default=0, help="0 = unlimited")
+    ap.add_argument("--max-file-mb", type=int, default=0, help="0 = unlimited")
     ap.add_argument("--output", default="artifacts/discovered-open-data")
     args = ap.parse_args()
     token = os.environ.get("HF_TOKEN")
@@ -36,32 +36,36 @@ def main() -> None:
     for ds in data.get("datasets", []):
         ds_id = safe(ds.get("id") or ds.get("name"))
         resources = [r for r in ds.get("resources", []) if r.get("url") and r.get("format", "").upper() in STRUCTURED]
+        if args.max_dataset_files > 0:
+            resources = resources[:args.max_dataset_files]
         entry = {"id": ds_id, "name": ds.get("name"), "source_url": ds.get("url"), "modified": ds.get("modified"), "files": [], "skipped": []}
-        for i, r in enumerate(resources[:args.max_dataset_files]):
+        for i, r in enumerate(resources):
             url = r["url"]
+            dest = None
             try:
-                head = requests.head(url, allow_redirects=True, timeout=30, headers={"User-Agent":"JoTalbot/ukraine-open-data-sync"})
-                size = int(head.headers.get("Content-Length", "0") or 0)
-                if size and size > args.max_file_mb * 1024 * 1024:
-                    entry["skipped"].append({"url":url,"reason":f"larger than {args.max_file_mb} MB"}); continue
                 name = safe(r.get("name") or Path(url.split("?")[0]).name or f"resource-{i}")
                 if "." not in name: name += "." + r.get("format", "bin").lower()
                 dest = root / ds_id / name; dest.parent.mkdir(parents=True, exist_ok=True)
-                with requests.get(url, stream=True, timeout=120, headers={"User-Agent":"JoTalbot/ukraine-open-data-sync"}) as resp:
+                with requests.get(url, stream=True, timeout=600, headers={"User-Agent":"JoTalbot/ukraine-open-data-sync"}) as resp:
                     resp.raise_for_status()
                     total = 0
                     with dest.open("wb") as f:
                         for chunk in resp.iter_content(CHUNK):
                             if chunk:
                                 total += len(chunk)
-                                if total > args.max_file_mb * 1024 * 1024: raise RuntimeError("resource exceeded size limit")
                                 f.write(chunk)
                 sha = hashlib.sha256(dest.read_bytes()).hexdigest()
                 target = f"discovered/{ds_id}/{name}"
                 hf.upload_file(path_or_fileobj=str(dest), path_in_repo=target, repo_id=repo, repo_type="dataset")
                 entry["files"].append({"path":target,"sha256":sha,"bytes":total,"format":r.get("format")})
+                print(f"Uploaded {target} ({total} bytes)")
             except Exception as exc:
                 entry["skipped"].append({"url":url,"reason":str(exc)})
+                print(f"Resource failed, continuing: {url}: {exc}")
+            finally:
+                if dest is not None:
+                    try: dest.unlink(missing_ok=True)
+                    except Exception: pass
         decisions.append(entry)
     manifest = root / "discovered-manifest.json"
     manifest.write_text(json.dumps(decisions, ensure_ascii=False, indent=2), encoding="utf-8")
