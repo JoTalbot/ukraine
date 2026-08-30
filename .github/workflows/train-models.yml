@@ -100,35 +100,38 @@ jobs:
           train = [m for m in metrics if 'loss' in m]
           last_val = val[-1]['val_loss'] if val else None
           last_step = max((m.get('step', 0) for m in metrics), default=0)
+          ppl = round(math.exp(last_val), 1) if last_val else None
 
-          card = f"""---
-language: uk
-tags:
-- legal
-- ukraine
-- ukrainian
-- from-scratch
-- open-data
-datasets:
-- JoTalbot/ua-edrsr
-- JoTalbot/ua-open-data
----
-
-# ua-legal-lm — українська legal-LM, навчана з нуля
-
-Модель GPT (PyTorch) навчена виключно на відкритих даних України:
-метадані судових рішень ЄДРСР, ЄДР (компанії, засновники, статути), реєстр платників ПДВ.
-
-- Джерело пайплайну: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine)
-- Кроків навчання: {last_step}
-- Val loss: {last_val} (perplexity ≈ {round(math.exp(last_val), 1) if last_val else '—'})
-- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
-
-Файли: `model.pt` (state_dict + config), `tokenizer.json` (BPE), `metrics.jsonl`, `samples.txt`.
-
-Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.
-"""
-          Path('MODEL_CARD.md').write_text(card, encoding='utf-8')
+          card_lines = [
+              '---',
+              'language: uk',
+              'tags:',
+              '- legal',
+              '- ukraine',
+              '- ukrainian',
+              '- from-scratch',
+              '- open-data',
+              'datasets:',
+              '- JoTalbot/ua-edrsr',
+              '- JoTalbot/ua-open-data',
+              '---',
+              '',
+              '# ua-legal-lm — українська legal-LM, навчана з нуля',
+              '',
+              'Модель GPT (PyTorch) навчена виключно на відкритих даних України:',
+              'метадані судових рішень ЄДРСР, ЄДР (компанії, засновники, статути), реєстр платників ПДВ.',
+              '',
+              '- Джерело пайплайну: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine)',
+              f'- Кроків навчання: {last_step}',
+              f'- Val loss: {last_val} (perplexity ≈ {ppl})',
+              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}',
+              '',
+              'Файли: `model.pt` (state_dict + config), `tokenizer.json` (BPE), `metrics.jsonl`, `samples.txt`.',
+              '',
+              'Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.',
+              '',
+          ]
+          Path('MODEL_CARD.md').write_text('\n'.join(card_lines), encoding='utf-8')
 
           api = HfApi(token=os.environ['HF_TOKEN'])
           api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
