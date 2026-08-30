@@ -1,0 +1,56 @@
+name: Ukraine Open Data -> Hugging Face
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset:
+        description: 'Catalog dataset id or all'
+        required: true
+        default: 'all'
+  schedule:
+    - cron: '15 3 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/data_gov_ua_sync.py'
+      - 'config/ukraine_open_data_catalog.json'
+      - '.github/workflows/open-data-huggingface.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ukraine-open-data-huggingface
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_DATASET_REPO: JoTalbot/ua-open-data
+      DATASET: ${{ inputs.dataset || 'all' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip requests huggingface_hub
+      - name: Verify Hugging Face authentication
+        run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing'; exit 1; }
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          me = api.whoami()
+          print('Hugging Face authentication OK:', me.get('name') or me.get('fullname'))
+          api.create_repo(repo_id=os.environ['HF_DATASET_REPO'], repo_type='dataset', exist_ok=True, private=False)
+          print('Dataset ready:', os.environ['HF_DATASET_REPO'])
+          PY
+      - name: Mirror selected Ukraine open datasets
+        run: python scripts/data_gov_ua_sync.py --dataset "$DATASET"
