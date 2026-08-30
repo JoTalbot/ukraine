@@ -8,7 +8,7 @@ on:
         required: true
         default: '600'
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: '40 3,15 * * *'
   workflow_run:
     workflows: ['EDRSR Hugging Face Upload']
     types: [completed]
@@ -80,6 +80,64 @@ jobs:
             artifacts/lm/model/samples.txt
           retention-days: 30
           if-no-files-found: error
+
+      - name: Publish model to Hugging Face Hub
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_MODEL_REPO: JoTalbot/ua-legal-lm
+        run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; skipping publish'; exit 0; }
+          python -m pip install --quiet huggingface_hub
+          python - <<'PY'
+          import datetime, json, math, os
+          from pathlib import Path
+          from huggingface_hub import HfApi
+
+          repo = os.environ['HF_MODEL_REPO']
+          root = Path('artifacts/lm/model')
+          metrics = [json.loads(l) for l in (root / 'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+          val = [m for m in metrics if 'val_loss' in m]
+          train = [m for m in metrics if 'loss' in m]
+          last_val = val[-1]['val_loss'] if val else None
+          last_step = max((m.get('step', 0) for m in metrics), default=0)
+
+          card = f"""---
+language: uk
+tags:
+- legal
+- ukraine
+- ukrainian
+- from-scratch
+- open-data
+datasets:
+- JoTalbot/ua-edrsr
+- JoTalbot/ua-open-data
+---
+
+# ua-legal-lm — українська legal-LM, навчана з нуля
+
+Модель GPT (PyTorch) навчена виключно на відкритих даних України:
+метадані судових рішень ЄДРСР, ЄДР (компанії, засновники, статути), реєстр платників ПДВ.
+
+- Джерело пайплайну: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine)
+- Кроків навчання: {last_step}
+- Val loss: {last_val} (perplexity ≈ {round(math.exp(last_val), 1) if last_val else '—'})
+- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}
+
+Файли: `model.pt` (state_dict + config), `tokenizer.json` (BPE), `metrics.jsonl`, `samples.txt`.
+
+Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.
+"""
+          Path('MODEL_CARD.md').write_text(card, encoding='utf-8')
+
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
+          api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
+          api.upload_file(path_or_fileobj='MODEL_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
+          for name in ('model.pt', 'tokenizer.json', 'metrics.jsonl', 'samples.txt'):
+              api.upload_file(path_or_fileobj=str(root / name), path_in_repo=name, repo_id=repo, repo_type='model')
+          print('Published model to', repo, '| val_loss:', last_val)
+          PY
 
       - name: Persist training metrics
         shell: bash

@@ -1,0 +1,94 @@
+name: Kaggle Kernel Results
+
+on:
+  schedule:
+    - cron: '30 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  collect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Configure Kaggle authentication
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
+        run: |
+          set -e
+          test -n "$KAGGLE_API_TOKEN" || { echo 'KAGGLE_API secret is missing'; exit 1; }
+          python -m pip install --upgrade pip kaggle >/dev/null
+          mkdir -p ~/.kaggle
+          printf '%s' "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+          kaggle datasets list --max-size 1 >/dev/null
+          echo 'Kaggle authentication succeeded.'
+
+      - name: Check kernel status and download output when complete
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
+          KAGGLE_USERNAME_OVERRIDE: ${{ vars.KAGGLE_USERNAME }}
+        run: |
+          set -e
+          USERNAME="${KAGGLE_USERNAME_OVERRIDE:-}"
+          if [ -z "$USERNAME" ] && python -c "import json,os;json.loads(os.environ['KAGGLE_API_TOKEN'])" 2>/dev/null; then
+            USERNAME=$(python -c "import json,os;print(json.loads(os.environ['KAGGLE_API_TOKEN']).get('username') or '')")
+          fi
+          if [ -z "$USERNAME" ]; then
+            USERNAME=$(kaggle kernels list --mine 2>/dev/null | grep -oE '[A-Za-z0-9_-]+/[A-Za-z0-9_-]+' | head -1 | cut -d/ -f1 || true)
+          fi
+          test -n "$USERNAME" || { echo 'Cannot resolve Kaggle username'; exit 0; }
+          KERNEL_ID="${USERNAME}/ua-legal-lm-gpu"
+          STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
+          echo "kernel status: ${STATUS:-unknown}"
+          case "$STATUS" in
+            *running*|*queued*)
+              echo 'Kernel still busy; nothing to collect.'
+              exit 0
+              ;;
+          esac
+          mkdir -p artifacts/gpu-lm
+          if kaggle kernels output "$KERNEL_ID" -p artifacts/gpu-lm; then
+            find artifacts/gpu-lm -type f -exec ls -la {} \;
+          else
+            echo 'No output available yet.'
+            exit 0
+          fi
+
+      - name: Upload kernel output artifact
+        if: ${{ hashFiles('artifacts/gpu-lm/**') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ua-legal-lm-gpu-output
+          path: artifacts/gpu-lm/
+          retention-days: 30
+
+      - name: Persist GPU training metrics
+        if: ${{ hashFiles('artifacts/gpu-lm/**') != '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p .training-manifests/gpu-lm
+          find artifacts/gpu-lm -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' \) -exec cp {} .training-manifests/gpu-lm/ \; || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .training-manifests/gpu-lm
+          if git diff --cached --quiet; then
+            echo 'No GPU metric changes.'
+          else
+            git commit -m "chore: update gpu-lm training metrics"
+            for attempt in 1 2 3 4 5; do
+              if git push; then exit 0; fi
+              git fetch origin main
+              git rebase origin/main
+            done
+            echo 'Failed to push GPU metrics after retries' >&2
+            exit 1
+          fi
