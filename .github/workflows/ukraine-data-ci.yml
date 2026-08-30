@@ -1,0 +1,36 @@
+name: Ukraine data CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Validate repository contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          required = [Path('README.md'), Path('docs/ARCHITECTURE.md')]
+          missing = [str(p) for p in required if not p.is_file()]
+          if missing:
+              raise SystemExit(f'Missing required files: {missing}')
+          print('Repository contract OK')
+          PY
