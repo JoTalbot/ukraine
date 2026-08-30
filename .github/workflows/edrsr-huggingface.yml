@@ -8,14 +8,20 @@ on:
         required: true
         default: '2026'
   schedule:
+    # Daily at 02:30 UTC.
     - cron: '30 2 * * *'
 
 permissions:
   contents: read
 
+concurrency:
+  group: edrsr-huggingface
+  cancel-in-progress: false
+
 jobs:
   upload:
     runs-on: ubuntu-24.04
+    timeout-minutes: 60
     env:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_DATASET_REPO: JoTalbot/ua-edrsr
