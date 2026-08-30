@@ -19,7 +19,9 @@ PAGE_SIZE = 100
 
 def fetch(q: str, rows: int = PAGE_SIZE, start: int = 0) -> dict:
     params = urllib.parse.urlencode({"q": q, "rows": rows, "start": start})
-    with urllib.request.urlopen(f"{API}?{params}", timeout=60) as r:
+    # data.gov.ua rejects requests without a User-Agent header with HTTP 403.
+    req = urllib.request.Request(f"{API}?{params}", headers={"User-Agent": "JoTalbot/ukraine-discovery"})
+    with urllib.request.urlopen(req, timeout=60) as r:
         return json.load(r)
 
 
