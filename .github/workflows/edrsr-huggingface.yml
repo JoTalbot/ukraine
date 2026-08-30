@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       year:
-        description: 'Year to process, or all for every available year'
+        description: 'Year to process, or all for 2020-2026'
         required: true
         default: 'all'
   schedule:
-    - cron: '30 2 * * *'
+    - cron: '*/30 * * * *'
   push:
     branches: [main]
     paths:
@@ -65,7 +65,7 @@ jobs:
           mkdir -p artifacts/edrsr
 
           if [[ "$EDRSR_YEAR" == "all" ]]; then
-            YEARS=$(seq 2000 2026)
+            YEARS=$(seq 2020 2026)
           else
             YEARS="$EDRSR_YEAR"
           fi
