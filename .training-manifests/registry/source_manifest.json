@@ -1013,6 +1013,10 @@
   },
   {
     "repo": "JoTalbot/ua-open-data",
+    "path": "README.md"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
     "path": "arbitration_managers/24-ex_xml_arbker.zip"
   },
   {
@@ -1594,5 +1598,205 @@
   {
     "repo": "JoTalbot/ua-open-data",
     "path": "sanctions/Державний_судновий_реєстр_України_станом_на_02.07.2025.xlsx"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_01.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_02.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_03.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_03.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_04.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_04.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_05.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_05.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_06.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_07.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_08.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_09.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_10.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_10.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_10.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_11.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_11.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_12.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_12.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_13.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_13.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_14.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_14.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_15.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_16.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_16.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_17.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_17.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_17.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_18.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_18.10.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_19.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_20.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_20.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_21.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_21.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_22.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_23.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_24.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_25.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_26.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_27.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_27.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_28.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_28.09.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_29.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_30.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "vat_payers/pdv_actual_31.08.2018.csv"
+  },
+  {
+    "repo": "JoTalbot/ua-open-data",
+    "path": "wanted_weapons/WeaponsWanted.shema.json"
   }
 ]
