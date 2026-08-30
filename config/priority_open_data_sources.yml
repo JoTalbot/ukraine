@@ -151,3 +151,104 @@ sources:
     acquisition: catalog_discovery
     formats: [CSV, TSV, JSON, JSONL, NDJSON, XML, XLS, XLSX, ODS, PARQUET, ZIP, 7Z, GZ, GZIP]
     note: 'Discover and mirror all publicly exposed structured resources subject to runtime/storage limits and source terms.'
+
+  # Додаткові джерела зі списку imena.ua/blog/ukraine-database (2015).
+  # Домени 2015 року перевірено (30.08.2026): мертві сервіси замінено
+  # чинними публікаціями на data.gov.ua, де вони існують.
+  # Див. docs/SOURCES_IMENA_2015.md для повної звітки по всіх 148 пунктах.
+  - id: vat_payers
+    category: taxation
+    priority: high
+    provider: 'Державна податкова служба України'
+    discovery: data.gov.ua
+    query: 'Реєстр платників податку на додану вартість'
+    formats: [ZIP, CSV]
+    reference: 'imena.ua #2-3 (minrd.gov.ua ліквідовано)'
+  - id: wanted_weapons
+    category: police
+    priority: high
+    provider: 'Національна поліція України'
+    discovery: data.gov.ua
+    query: 'Інформація про викрадену, втрачену зброю'
+    formats: [JSON, CSV]
+    reference: 'imena.ua #122'
+  - id: wanted_fugitives
+    category: police
+    priority: high
+    provider: 'Міністерство внутрішніх справ України'
+    discovery: data.gov.ua
+    query: 'Інформація про осіб, які переховуються від органів влади'
+    formats: [JSON, CSV]
+    reference: 'imena.ua #14'
+  - id: bank_ownership
+    category: finance
+    priority: high
+    provider: 'Національний банк України'
+    discovery: data.gov.ua
+    query: 'Структури власності банків'
+    formats: [XLSX, CSV]
+    reference: 'imena.ua #142'
+  - id: financial_institutions
+    category: finance
+    priority: high
+    provider: 'Національна комісія з державного регулювання ринків фінансових послуг'
+    discovery: data.gov.ua
+    query: 'Державний реєстр фінансових установ'
+    formats: [CSV, XLSX]
+    reference: 'imena.ua #18, #87 (dfp.gov.ua, kis.nfp.gov.ua недоступні)'
+  - id: medicines
+    category: health
+    priority: high
+    provider: 'Міністерство охорони здоровʼя України'
+    discovery: data.gov.ua
+    query: 'Державний реєстр лікарських засобів'
+    formats: [CSV, XLSX, ZIP]
+    reference: 'imena.ua #28 (drlz.kiev.ua недоступний)'
+  - id: advocates
+    category: legal_profession
+    priority: medium
+    provider: 'Рада адвокатів України / UNBA'
+    discovery: data.gov.ua
+    query: 'Єдиний реєстр адвокатів'
+    formats: [CSV, XLSX]
+    reference: 'imena.ua #24'
+  - id: rro
+    category: taxation
+    priority: medium
+    provider: 'Державна податкова служба України'
+    discovery: data.gov.ua
+    query: 'Державний реєстр реєстраторів розрахункових операцій'
+    formats: [ZIP, CSV]
+    reference: 'imena.ua #98, #132 (sts.gov.ua недоступний)'
+  - id: universities
+    category: education
+    priority: medium
+    provider: 'Міністерство освіти і науки України'
+    discovery: data.gov.ua
+    query: 'Реєстр закладів вищої освіти'
+    formats: [CSV, XLSX]
+    reference: 'imena.ua #23'
+  - id: ships_small
+    category: transport
+    priority: medium
+    provider: 'Регістр судноплавства України'
+    discovery: data.gov.ua
+    query: 'Реєстр суден малого флоту'
+    formats: [CSV, XLSX]
+    reference: 'imena.ua #72-76'
+  - id: insurance_brokers
+    category: finance
+    priority: medium
+    provider: 'Національна комісія з державного регулювання ринків фінансових послуг'
+    discovery: data.gov.ua
+    query: 'Державний реєстр страхових та перестрахових брокерів'
+    formats: [CSV, XLSX]
+    reference: 'imena.ua #18'
+  - id: notary_blank_forms
+    category: justice
+    priority: low
+    provider: 'Міністерство юстиції України'
+    discovery: data.gov.ua
+    query: 'Єдиний реєстр спеціальних бланків нотаріальних документів'
+    formats: [CSV, XLSX]
+    reference: 'imena.ua #21 (rnb.informjust.ua недоступний)'

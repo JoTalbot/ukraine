@@ -1,21 +1,248 @@
 {
-  "version": 2,
+  "version": 3,
   "source": "https://data.gov.ua/",
   "purpose": "Curated public Ukraine datasets for mirroring to Hugging Face",
   "datasets": [
-    {"id":"edrsr","name":"ЄДРСР судові рішення","priority":1,"enabled":true,"handled_by":"edrsr-huggingface.yml"},
-    {"id":"edr","name":"ЄДР юридичних осіб, ФОП та громадських формувань","priority":1,"enabled":true,"search_terms":["Єдиний державний реєстр юридичних осіб фізичних осіб-підприємців громадських формувань"]},
-    {"id":"declarations","name":"Реєстр декларацій НАЗК","priority":1,"enabled":true,"search_terms":["Реєстр декларацій НАЗК"]},
-    {"id":"sanctions","name":"Державний реєстр санкцій","priority":1,"enabled":true,"search_terms":["Державний реєстр санкцій"]},
-    {"id":"prozorro","name":"Публічні закупівлі Prozorro","priority":1,"enabled":true,"search_terms":["публічні закупівлі Prozorro"]},
-    {"id":"court_cases","name":"Стан розгляду справ у судах","priority":1,"enabled":true,"search_terms":["Інформація щодо стану розгляду справ"]},
-    {"id":"debtors","name":"Єдиний реєстр боржників","priority":1,"enabled":true,"search_terms":["Єдиний реєстр боржників"]},
-    {"id":"enforcement_proceedings","name":"Автоматизована система виконавчого провадження","priority":1,"enabled":true,"search_terms":["Інформація з автоматизованої системи виконавчого провадження"]},
-    {"id":"notaries","name":"Єдиний реєстр нотаріусів","priority":2,"enabled":true,"search_terms":["Єдиний реєстр нотаріусів"]},
-    {"id":"court_experts","name":"Державний реєстр атестованих судових експертів","priority":2,"enabled":true,"search_terms":["Державний реєстр атестованих судових експертів"]},
-    {"id":"arbitration_managers","name":"Єдиний реєстр арбітражних керуючих України","priority":2,"enabled":true,"search_terms":["Єдиний реєстр арбітражних керуючих України"]},
-    {"id":"missing_persons","name":"Особи, зниклі безвісти","priority":2,"enabled":true,"search_terms":["Інформація про осіб, зниклих безвісти"]},
-    {"id":"audit_register","name":"Реєстр аудиторів та суб'єктів аудиторської діяльності","priority":2,"enabled":true,"search_terms":["Реєстр аудиторів та суб’єктів аудиторської діяльності"]},
-    {"id":"lost_phones","name":"Викрадені та втрачені мобільні телефони","priority":3,"enabled":true,"search_terms":["Інформація про викрадені, втрачені мобільні телефони"]}
+    {
+      "id": "edrsr",
+      "name": "ЄДРСР судові рішення",
+      "priority": 1,
+      "enabled": true,
+      "handled_by": "edrsr-huggingface.yml"
+    },
+    {
+      "id": "edr",
+      "name": "ЄДР юридичних осіб, ФОП та громадських формувань",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "Єдиний державний реєстр юридичних осіб фізичних осіб-підприємців громадських формувань"
+      ]
+    },
+    {
+      "id": "declarations",
+      "name": "Реєстр декларацій НАЗК",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "Реєстр декларацій НАЗК"
+      ]
+    },
+    {
+      "id": "sanctions",
+      "name": "Державний реєстр санкцій",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "Державний реєстр санкцій"
+      ]
+    },
+    {
+      "id": "prozorro",
+      "name": "Публічні закупівлі Prozorro",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "публічні закупівлі Prozorro"
+      ]
+    },
+    {
+      "id": "court_cases",
+      "name": "Стан розгляду справ у судах",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "Інформація щодо стану розгляду справ"
+      ]
+    },
+    {
+      "id": "debtors",
+      "name": "Єдиний реєстр боржників",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "Єдиний реєстр боржників"
+      ]
+    },
+    {
+      "id": "enforcement_proceedings",
+      "name": "Автоматизована система виконавчого провадження",
+      "priority": 1,
+      "enabled": true,
+      "search_terms": [
+        "Інформація з автоматизованої системи виконавчого провадження"
+      ]
+    },
+    {
+      "id": "notaries",
+      "name": "Єдиний реєстр нотаріусів",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Єдиний реєстр нотаріусів"
+      ]
+    },
+    {
+      "id": "court_experts",
+      "name": "Державний реєстр атестованих судових експертів",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Державний реєстр атестованих судових експертів"
+      ]
+    },
+    {
+      "id": "arbitration_managers",
+      "name": "Єдиний реєстр арбітражних керуючих України",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Єдиний реєстр арбітражних керуючих України"
+      ]
+    },
+    {
+      "id": "missing_persons",
+      "name": "Особи, зниклі безвісти",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Інформація про осіб, зниклих безвісти"
+      ]
+    },
+    {
+      "id": "audit_register",
+      "name": "Реєстр аудиторів та суб'єктів аудиторської діяльності",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Реєстр аудиторів та суб’єктів аудиторської діяльності"
+      ]
+    },
+    {
+      "id": "lost_phones",
+      "name": "Викрадені та втрачені мобільні телефони",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Інформація про викрадені, втрачені мобільні телефони"
+      ]
+    },
+    {
+      "id": "vat_payers",
+      "name": "Реєстр платників ПДВ (ДПС)",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Реєстр платників податку на додану вартість"
+      ]
+    },
+    {
+      "id": "wanted_weapons",
+      "name": "Викрадена та втрачена зброя (Нацполіція)",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Інформація про викрадену, втрачену зброю"
+      ]
+    },
+    {
+      "id": "wanted_fugitives",
+      "name": "Особи, які переховуються від органів влади (МВС)",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Інформація про осіб, які переховуються від органів влади"
+      ]
+    },
+    {
+      "id": "bank_ownership",
+      "name": "Структури власності банків (НБУ)",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Структури власності банків"
+      ]
+    },
+    {
+      "id": "financial_institutions",
+      "name": "Державний реєстр фінансових установ",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Державний реєстр фінансових установ"
+      ]
+    },
+    {
+      "id": "medicines",
+      "name": "Державний реєстр лікарських засобів (МОЗ)",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Державний реєстр лікарських засобів"
+      ]
+    },
+    {
+      "id": "advocates",
+      "name": "Єдиний реєстр адвокатів України",
+      "priority": 2,
+      "enabled": true,
+      "search_terms": [
+        "Єдиний реєстр адвокатів"
+      ]
+    },
+    {
+      "id": "rro",
+      "name": "Державний реєстр реєстраторів розрахункових операцій",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Державний реєстр реєстраторів розрахункових операцій"
+      ]
+    },
+    {
+      "id": "universities",
+      "name": "Реєстр закладів вищої освіти (МЕС)",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Реєстр закладів вищої освіти"
+      ]
+    },
+    {
+      "id": "vocational_schools",
+      "name": "Реєстр закладів професійної освіти (МЕС)",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Реєстр закладів професійної (професійно-технічної) освіти"
+      ]
+    },
+    {
+      "id": "ships_small",
+      "name": "Реєстр суден малого флоту (Регістр судноплавства)",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Реєстр суден малого флоту"
+      ]
+    },
+    {
+      "id": "insurance_brokers",
+      "name": "Реєстр страхових та перестрахових брокерів",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Державний реєстр страхових та перестрахових брокерів"
+      ]
+    },
+    {
+      "id": "notary_blank_forms",
+      "name": "Єдиний реєстр спеціальних бланків нотаріальних документів",
+      "priority": 3,
+      "enabled": true,
+      "search_terms": [
+        "Єдиний реєстр спеціальних бланків нотаріальних документів"
+      ]
+    }
   ]
 }
