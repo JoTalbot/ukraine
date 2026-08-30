@@ -7,6 +7,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import importlib.util
 
+import pytest
+
+pytest.importorskip("torch", reason="torch is installed only in the training workflow")
+pytest.importorskip("tokenizers", reason="tokenizers is installed only in the training workflow")
+
 spec = importlib.util.spec_from_file_location("train_lm", Path(__file__).resolve().parents[1] / "scripts" / "train_lm.py")
 train_lm = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(train_lm)
