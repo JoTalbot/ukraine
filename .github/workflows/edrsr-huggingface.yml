@@ -8,7 +8,6 @@ on:
         required: true
         default: '2026'
   schedule:
-    # Daily at 02:30 UTC. The official EDRSR open-data publication is updated daily.
     - cron: '30 2 * * *'
   push:
     branches: [main]
@@ -69,20 +68,35 @@ jobs:
           import os
           from pathlib import Path
           from huggingface_hub import HfApi
+
           api = HfApi(token=os.environ['HF_TOKEN'])
           repo = os.environ['HF_DATASET_REPO']
-          api.create_repo(repo_id=repo, repo_type='dataset', exist_ok=True, private=True)
+
+          # Create the dataset if it does not exist. Keep it public so it is
+          # visible in the user's Hugging Face datasets list.
+          api.create_repo(
+              repo_id=repo,
+              repo_type='dataset',
+              exist_ok=True,
+              private=False,
+          )
+
           root = Path('artifacts/edrsr')
-          files = list(root.rglob('*.parquet'))
+          files = sorted(root.rglob('*.parquet'))
           if not files:
               raise SystemExit('No Parquet files produced by EDRSR pipeline')
+
+          uploaded = []
           for path in files:
+              target = path.relative_to(root).as_posix()
               api.upload_file(
                   path_or_fileobj=str(path),
-                  path_in_repo=path.relative_to(root).as_posix(),
+                  path_in_repo=target,
                   repo_id=repo,
                   repo_type='dataset',
               )
+              uploaded.append(target)
+
           manifest = root / 'manifest.json'
           api.upload_file(
               path_or_fileobj=str(manifest),
@@ -90,5 +104,15 @@ jobs:
               repo_id=repo,
               repo_type='dataset',
           )
-          print(f'Uploaded {len(files)} Parquet file(s) and manifest to {repo}')
+
+          # Final verification: the dataset repository must be readable and
+          # contain the manifest after upload.
+          info = api.dataset_info(repo_id=repo)
+          siblings = {s.rfilename for s in (info.siblings or [])}
+          if 'manifest.json' not in siblings:
+              raise SystemExit('Upload verification failed: manifest.json missing')
+
+          print(f'Dataset ready: {repo}')
+          print(f'Uploaded Parquet files: {len(uploaded)}')
+          print(f'Repository files visible on Hub: {len(siblings)}')
           PY
