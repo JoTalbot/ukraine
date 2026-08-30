@@ -25,6 +25,29 @@ DOWNLOAD_TIMEOUT = 300
 CHUNK_SIZE = 10_000
 PART_ROWS = 250_000
 USER_AGENT = "JoTalbot/ukraine-edrsr-pipeline"
+# Explicit output schema: batches where a column is entirely None must not
+# change the inferred type between parts.
+RECORD_SCHEMA = None  # initialized lazily in write_parquet
+
+
+def record_schema():
+    import pyarrow as pa
+
+    global RECORD_SCHEMA
+    if RECORD_SCHEMA is None:
+        fields = [
+            ("case_number", pa.string()), ("document_id", pa.string()),
+            ("court", pa.string()), ("court_instance", pa.string()),
+            ("document_type", pa.string()), ("decision_date", pa.string()),
+            ("publication_date", pa.string()), ("judge", pa.string()),
+            ("justice_kind", pa.string()), ("status", pa.string()),
+            ("category", pa.string()), ("text", pa.string()),
+            ("source_url", pa.string()), ("source_dataset", pa.string()),
+            ("source_sha256", pa.string()), ("source_file", pa.string()),
+            ("extra", pa.string()),
+        ]
+        RECORD_SCHEMA = pa.schema([pa.field(name, typ) for name, typ in fields])
+    return RECORD_SCHEMA
 # Bumped whenever parsing/normalization changes so scheduled runs reprocess
 # archives even when the remote ETag is unchanged.
 PIPELINE_VERSION = 2
@@ -291,7 +314,7 @@ def write_parquet(
 
     def write_buffer() -> None:
         nonlocal writer, rows_in_part, total, buffer
-        table = pa.Table.from_pylist(buffer)
+        table = pa.Table.from_pylist(buffer, schema=record_schema())
         if writer is None:
             writer = pq.ParquetWriter(part_path, table.schema, compression="zstd")
         writer.write_table(table)
