@@ -18,6 +18,14 @@ def safe(s: str) -> str:
     return (re.sub(r"[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ._-]+", "_", s or "resource")[:180] or "resource")
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(CHUNK), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalog", default="artifacts/discovery/data_gov_ua_catalog.json")
@@ -54,7 +62,7 @@ def main() -> None:
                             if chunk:
                                 total += len(chunk)
                                 f.write(chunk)
-                sha = hashlib.sha256(dest.read_bytes()).hexdigest()
+                sha = file_sha256(dest)
                 target = f"discovered/{ds_id}/{name}"
                 hf.upload_file(path_or_fileobj=str(dest), path_in_repo=target, repo_id=repo, repo_type="dataset")
                 entry["files"].append({"path":target,"sha256":sha,"bytes":total,"format":r.get("format")})
