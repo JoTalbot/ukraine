@@ -57,26 +57,29 @@ jobs:
           esac
           mkdir -p artifacts/gpu-lm
           if kaggle kernels output "$KERNEL_ID" -p artifacts/gpu-lm; then
-            find artifacts/gpu-lm -type f -exec ls -la {} \;
+            # The kernel working dir also contains its repo clone and source
+            # data; only model/ holds the training output we need.
+            find artifacts/gpu-lm -type f -exec ls -la {} \; | head -40
           else
             echo 'No output available yet.'
             exit 0
           fi
 
       - name: Upload kernel output artifact
-        if: ${{ hashFiles('artifacts/gpu-lm/**') != '' }}
+        if: ${{ hashFiles('artifacts/gpu-lm/model/*') != '' }}
         uses: actions/upload-artifact@v4
         with:
           name: ua-legal-lm-gpu-output
-          path: artifacts/gpu-lm/
+          path: artifacts/gpu-lm/model/
           retention-days: 30
 
       - name: Persist GPU training metrics
-        if: ${{ hashFiles('artifacts/gpu-lm/**') != '' }}
+        if: ${{ hashFiles('artifacts/gpu-lm/model/metrics.jsonl') != '' }}
         run: |
           set -euo pipefail
           mkdir -p .training-manifests/gpu-lm
-          find artifacts/gpu-lm -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' \) -exec cp {} .training-manifests/gpu-lm/ \; || true
+          cp artifacts/gpu-lm/model/metrics.jsonl .training-manifests/gpu-lm/
+          cp artifacts/gpu-lm/model/samples.txt .training-manifests/gpu-lm/ 2>/dev/null || true
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add .training-manifests/gpu-lm
