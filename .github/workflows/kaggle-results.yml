@@ -73,6 +73,68 @@ jobs:
           path: artifacts/gpu-lm/model/
           retention-days: 30
 
+      - name: Publish GPU model to Hugging Face Hub
+        if: ${{ hashFiles('artifacts/gpu-lm/model/model.pt') != '' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_MODEL_REPO: JoTalbot/ua-legal-lm-gpu
+        run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; skipping GPU model publish'; exit 0; }
+          python -m pip install --quiet huggingface_hub
+          python - <<'PY'
+          import datetime, json, math, os
+          from pathlib import Path
+          from huggingface_hub import HfApi
+
+          repo = os.environ['HF_MODEL_REPO']
+          root = Path('artifacts/gpu-lm/model')
+          metrics = [json.loads(l) for l in (root / 'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+          val = [m for m in metrics if 'val_loss' in m]
+          last_val = val[-1]['val_loss'] if val else None
+          last_step = max((m.get('step', 0) for m in metrics), default=0)
+          ppl = round(math.exp(last_val), 2) if last_val else None
+
+          card_lines = [
+              '---',
+              'language: uk',
+              'tags:',
+              '- legal',
+              '- ukraine',
+              '- ukrainian',
+              '- from-scratch',
+              '- open-data',
+              'datasets:',
+              '- JoTalbot/ua-edrsr',
+              '- JoTalbot/ua-open-data',
+              '---',
+              '',
+              '# ua-legal-lm-gpu — українська legal-LM (~29M), навчена з нуля на GPU',
+              '',
+              'GPT (PyTorch): dim 512, 8 шарів, ctx 384, BPE 8192. Натренована кернелом',
+              '[training/kaggle/legal_lm_gpu.ipynb](https://github.com/JoTalbot/ukraine) на Kaggle GPU',
+              'на відкритих даних: метадані рішень ЄДРСР, ЄДР, реєстр платників ПДВ.',
+              '',
+              f'- Кроків навчання: {last_step}',
+              f'- Val loss: {last_val} (perplexity ≈ {ppl})',
+              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}',
+              '',
+              'Файли: `model.pt` (state_dict + config), `tokenizer.json`, `metrics.jsonl`, `samples.txt`.',
+              '',
+              'Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.',
+              '',
+          ]
+          Path('GPU_CARD.md').write_text('\n'.join(card_lines), encoding='utf-8')
+
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
+          api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
+          api.upload_file(path_or_fileobj='GPU_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
+          for name in ('model.pt', 'tokenizer.json', 'metrics.jsonl', 'samples.txt'):
+              if (root / name).is_file():
+                  api.upload_file(path_or_fileobj=str(root / name), path_in_repo=name, repo_id=repo, repo_type='model')
+          print('Published GPU model to', repo, '| val_loss:', last_val)
+          PY
+
       - name: Persist GPU training metrics
         if: ${{ hashFiles('artifacts/gpu-lm/model/*') != '' }}
         run: |
