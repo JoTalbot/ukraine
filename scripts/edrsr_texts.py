@@ -45,6 +45,7 @@ def save_state(path: Path, state: dict) -> None:
 
 def iter_pending(parts: list[Path], done: set[str]):
     import pyarrow.parquet as pq
+    seen: set[str] = set()
     for part in parts:
         pf = pq.ParquetFile(part)
         columns = [c for c in META_COLUMNS if c in pf.schema_arrow.names]
@@ -52,10 +53,11 @@ def iter_pending(parts: list[Path], done: set[str]):
             for row in batch.to_pylist():
                 url = (row.get("source_url") or "").strip()
                 doc_id = str(row.get("document_id") or "").strip()
-                if not url or not doc_id or doc_id in done:
+                if not url or not doc_id or doc_id in done or doc_id in seen:
                     continue
                 if not url.lower().endswith((".rtf", ".doc", ".docx", ".pdf", ".txt", ".html", ".htm")):
                     continue
+                seen.add(doc_id)
                 yield doc_id, url, row
 
 
