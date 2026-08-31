@@ -104,6 +104,7 @@ def clean_line(line: str) -> str:
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--edrsr-parquet", action="append", default=[], help="glob patterns of EDRSR parquet parts")
+    ap.add_argument("--texts-parquet", action="append", default=[], help="glob patterns of full-text parquet shards")
     ap.add_argument("--edr-uo", help="UO.zip from the EDR register")
     ap.add_argument("--vat", help="pdv_actual.csv")
     ap.add_argument("--edrsr-limit", type=int, default=1_000_000)
@@ -152,6 +153,30 @@ def main() -> None:
             if count >= args.edrsr_limit:
                 break
         stats["edrsr"] = count
+
+    if args.texts_parquet:
+        import glob as globlib
+        import pyarrow.parquet as pq
+        files = []
+        for pattern in args.texts_parquet:
+            files.extend(globlib.glob(pattern))
+        count = 0
+        for path in files:
+            pf = pq.ParquetFile(path)
+            columns = [c for c in ("court", "case_number", "category", "judge", "text") if c in pf.schema_arrow.names]
+            for batch in pf.iter_batches(batch_size=200, columns=columns):
+                for row in batch.to_pylist():
+                    text = (row.get("text") or "").strip()
+                    if len(text) < 200:
+                        continue
+                    head = " ".join(x for x in (
+                        f"Суд: {row['court']}." if row.get("court") else "",
+                        f"Справа № {row['case_number']}." if row.get("case_number") else "",
+                        f"Категорія: {row['category']}." if row.get("category") else "",
+                    ) if x)
+                    push(clean_line(head + " " + text[:2500]))
+                    count += 1
+        stats["edrsr_texts"] = count
 
     if args.edr_uo:
         count = 0

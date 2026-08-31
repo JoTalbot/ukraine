@@ -1,0 +1,109 @@
+name: EDRSR Full Texts
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Documents to fetch this run'
+        required: true
+        default: '3000'
+      year:
+        description: 'EDRSR year to read metadata from'
+        required: true
+        default: '2026'
+  schedule:
+    - cron: '10 2 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: edrsr-texts
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      HF_TEXTS_REPO: JoTalbot/ua-edrsr-texts
+      YEAR: ${{ inputs.year || '2026' }}
+      LIMIT: ${{ inputs.limit || '3000' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyarrow striprtf huggingface_hub
+      - name: Verify Hugging Face authentication
+        run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing'; exit 1; }
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.whoami()
+          repo = os.environ['HF_TEXTS_REPO']
+          api.create_repo(repo_id=repo, repo_type='dataset', exist_ok=True, private=False)
+          api.update_repo_settings(repo_id=repo, repo_type='dataset', private=False)
+          print('texts dataset ready:', repo)
+          PY
+      - name: Download metadata sample and previous state
+        run: |
+          mkdir -p artifacts/texts/shards
+          curl -sL "https://huggingface.co/datasets/JoTalbot/ua-edrsr/resolve/main/$YEAR/part-00000.parquet" -o artifacts/texts/meta.parquet
+          ls -la artifacts/texts
+      - name: Restore fetch state
+        run: |
+          curl -sL -f "https://huggingface.co/datasets/${{ env.HF_TEXTS_REPO }}/resolve/main/state.json" -o artifacts/texts/state.json \
+            || echo '{"fetched": [], "failed": []}' > artifacts/texts/state.json
+          python -c "import json;s=json.load(open('artifacts/texts/state.json'));print('state fetched:',len(s.get('fetched',[])))"
+      - name: Fetch decision texts (polite, rate limited)
+        run: |
+          python scripts/edrsr_texts.py \
+            --parts 'artifacts/texts/meta.parquet' \
+            --state artifacts/texts/state.json \
+            --output-dir artifacts/texts/shards \
+            --limit "$LIMIT" --delay 0.5
+      - name: Publish shards and state
+        if: ${{ hashFiles('artifacts/texts/shards/*.parquet') != '' }}
+        run: |
+          python - <<'PY'
+          import glob, os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          repo = os.environ['HF_TEXTS_REPO']
+          year = os.environ['YEAR']
+          for path in sorted(glob.glob('artifacts/texts/shards/*.parquet')):
+              name = path.split('/')[-1]
+              api.upload_file(path_or_fileobj=path, path_in_repo=f'{year}/{name}',
+                              repo_id=repo, repo_type='dataset', commit_message=f'texts {name}')
+              print('uploaded', f'{year}/{name}')
+          api.upload_file(path_or_fileobj='artifacts/texts/state.json', path_in_repo='state.json',
+                          repo_id=repo, repo_type='dataset', commit_message='state update')
+          PY
+      - name: Dataset card
+        if: ${{ hashFiles('artifacts/texts/shards/*.parquet') != '' }}
+        run: |
+          python - <<'PY'
+          import datetime, os
+          from pathlib import Path
+          from huggingface_hub import HfApi
+          lines = [
+              '# ЄДРСР — повні тексти судових рішень', '',
+              'Тексти рішень, отримані за прямими посиланнями (`source_url`) з публічного',
+              'Єдиного державного реєстру судових рішень (reyestr.court.gov.ua).',
+              'Метадані: [JoTalbot/ua-edrsr](https://huggingface.co/datasets/JoTalbot/ua-edrsr);',
+              'пайплайн: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine).', '',
+              '- Отримання: rate-limited (0.5 с на запит), лише публічно опубліковані документи.',
+              '- `state.json` — список вже завантажених document_id (щоб не качати повторно).',
+              '- Формат: `<рік>/texts-*.parquet` (document_id, court, case_number, category, judge, text).', '',
+              f'_Оновлено: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}_', '',
+          ]
+          Path('CARD.md').write_text('\n'.join(lines), encoding='utf-8')
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.upload_file(path_or_fileobj='CARD.md', path_in_repo='README.md',
+                          repo_id=os.environ['HF_TEXTS_REPO'], repo_type='dataset')
+          PY
