@@ -1,0 +1,101 @@
+name: Kaggle Failure Diagnostics
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kaggle-failure-diagnostics
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - slug: ua-legal-lm-ft
+          - slug: ua-legal-lm-gpu
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Configure Kaggle authentication
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
+        run: |
+          set -euo pipefail
+          test -n "$KAGGLE_API_TOKEN" || { echo 'KAGGLE_API secret is missing'; exit 1; }
+          python -m pip install --upgrade pip kaggle >/dev/null
+          mkdir -p ~/.kaggle
+          printf '%s' "$KAGGLE_API_TOKEN" > ~/.kaggle/kaggle.json
+          chmod 600 ~/.kaggle/kaggle.json
+          kaggle datasets list --max-size 1 >/dev/null
+      - name: Collect failure diagnostics
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
+          KAGGLE_USERNAME_OVERRIDE: ${{ vars.KAGGLE_USERNAME }}
+        run: |
+          set -euo pipefail
+          USERNAME="${KAGGLE_USERNAME_OVERRIDE:-}"
+          if [ -z "$USERNAME" ] && python -c "import json,os;json.loads(os.environ['KAGGLE_API_TOKEN'])" 2>/dev/null; then
+            USERNAME=$(python -c "import json,os;print(json.loads(os.environ['KAGGLE_API_TOKEN']).get('username') or '')")
+          fi
+          if [ -z "$USERNAME" ]; then
+            USERNAME=$(kaggle kernels list --mine 2>/dev/null | grep -oE '[A-Za-z0-9_-]+/[A-Za-z0-9_-]+' | head -1 | cut -d/ -f1 || true)
+          fi
+          test -n "$USERNAME" || { echo 'Cannot resolve Kaggle username'; exit 1; }
+          KERNEL_ID="${USERNAME}/${{ matrix.slug }}"
+          STATUS_RAW=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
+          STATUS=$(printf '%s\n' "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | grep -oE 'kernelworkerstatus\.[a-z_]+' | head -1 | cut -d. -f2 || true)
+          if [ -z "$STATUS" ]; then STATUS=$(printf '%s\n' "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | grep -oE '\b(queued|running|complete|error|failed|cancel_requested|cancel_acknowledged|new_script)\b' | head -1 || true); fi
+          STATUS="${STATUS:-unknown}"
+          echo "Kaggle $KERNEL_ID status: $STATUS"
+          case "$STATUS" in
+            error|failed|cancelled|canceled)
+              OUT="artifacts/${{ matrix.slug }}/diagnostic-output"
+              rm -rf "$OUT"; mkdir -p "$OUT"
+              ok=false
+              for attempt in 1 2 3; do
+                echo "Diagnostic output attempt $attempt/3"
+                rm -rf "$OUT"/*
+                if timeout --signal=TERM --kill-after=20s 7m kaggle kernels output "$KERNEL_ID" -p "$OUT"; then ok=true; break; fi
+                sleep 8
+              done
+              if [ "$ok" != true ]; then
+                mkdir -p "artifacts/${{ matrix.slug }}"
+                printf '%s\n' "$STATUS" > "artifacts/${{ matrix.slug }}/error.txt"
+              fi
+              find "$OUT" -type f -name 'error.txt' -print -exec cp {} "artifacts/${{ matrix.slug }}/kaggle-error.txt" \; || true
+              find "$OUT" -type f -name '*.log' -print | sort | head -20 || true
+              if [ ! -f "artifacts/${{ matrix.slug }}/kaggle-error.txt" ]; then
+                printf '%s\n' "Kaggle status: $STATUS" > "artifacts/${{ matrix.slug }}/kaggle-error.txt"
+              fi
+              ;;
+            *) echo "No failure diagnostics required for status: $STATUS"; exit 0 ;;
+          esac
+          mkdir -p ".training-manifests/${{ matrix.slug }}"
+          cp "artifacts/${{ matrix.slug }}/kaggle-error.txt" ".training-manifests/${{ matrix.slug }}/kaggle-error.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ".training-manifests/${{ matrix.slug }}/kaggle-error.txt"
+          if git diff --cached --quiet; then
+            echo 'No diagnostic changes.'
+          else
+            git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
+            pushed=false
+            for attempt in 1 2 3 4 5; do
+              if git push; then pushed=true; break; fi
+              git fetch origin main
+              git rebase origin/main || { git rebase --abort || true; break; }
+            done
+            test "$pushed" = true
+          fi
