@@ -10,7 +10,7 @@ on:
         type: boolean
         default: false
   workflow_run:
-    workflows: ['Train Ukraine Models']
+    workflows: ['Ukraine data CI']
     types: [completed]
 
 permissions:
@@ -97,7 +97,6 @@ jobs:
                 echo "A version is already active; skipping push to save GPU quota."
                 exit 0
               fi
-              echo "Force push requested; replacing the active version."
               ;;
           esac
           python - "$USERNAME" "${{ matrix.slug }}" "${{ matrix.file }}" <<'PY'
@@ -117,10 +116,9 @@ jobs:
               "competition_sources": [],
           }
           pathlib.Path('/tmp/kernel/kernel-metadata.json').write_text(json.dumps(meta, indent=2))
-          print('kernel id:', meta['id'])
           PY
           kaggle kernels push -p /tmp/kernel
-          echo "Kernel ${{ matrix.slug }} pushed."
+          echo "Kernel $KERNEL_ID pushed."
           for attempt in 1 2 3 4 5 6; do
             sleep 10
             STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
@@ -130,5 +128,5 @@ jobs:
               *error*|*failed*|*cancelled*|*canceled*) echo "Kernel entered failure state: $STATUS"; exit 1 ;;
             esac
           done
-          echo 'Kernel push accepted, but no queued/running status was observed within the verification window.'
+          echo 'No queued/running status observed within verification window.'
           exit 1
