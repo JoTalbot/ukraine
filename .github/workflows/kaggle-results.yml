@@ -54,12 +54,18 @@ jobs:
           fi
           test -n "$USERNAME" || { echo 'Cannot resolve Kaggle username'; exit 1; }
           KERNEL_ID="${USERNAME}/${{ matrix.slug }}"
-          STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
-          STATUS="${STATUS:-unknown}"
-          echo "kernel status [$KERNEL_ID]: $STATUS"
 
-          # Persist a heartbeat for every poll so queued/running kernels are
-          # distinguishable from a broken collector. Keep the last 96 samples.
+          STATUS_RAW=$(kaggle kernels status "$KERNEL_ID" 2>&1 || true)
+          echo '--- Kaggle status response ---'
+          printf '%s\n' "$STATUS_RAW"
+          echo '--- end status response ---'
+          STATUS=$(printf '%s\n' "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | grep -oE 'kernelworkerstatus\.[a-z_]+' | head -1 | cut -d. -f2 || true)
+          if [ -z "$STATUS" ]; then
+            STATUS=$(printf '%s\n' "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | grep -oE '\b(queued|running|complete|error|failed|cancel_requested|cancel_acknowledged|new_script)\b' | head -1 || true)
+          fi
+          STATUS="${STATUS:-unknown}"
+          echo "normalized kernel status [$KERNEL_ID]: $STATUS"
+
           mkdir -p ".training-manifests/${{ matrix.slug }}"
           printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STATUS" >> ".training-manifests/${{ matrix.slug }}/status-history.tsv"
           tail -n 96 ".training-manifests/${{ matrix.slug }}/status-history.tsv" > "/tmp/status-history.tsv"
@@ -72,25 +78,47 @@ jobs:
             echo 'No status changes to persist.'
           else
             git commit -m "chore: record ${{ matrix.slug }} Kaggle status"
+            pushed=false
             for attempt in 1 2 3 4 5; do
-              if git push; then break; fi
+              if git push; then pushed=true; break; fi
               git fetch origin main
               git rebase origin/main
             done
+            if [ "$pushed" != true ]; then
+              echo 'Failed to persist Kaggle status after retries' >&2
+              exit 1
+            fi
           fi
 
           case "$STATUS" in
-            *running*|*queued*) echo 'Kernel still active; this scheduled check will retry later.'; exit 0 ;;
-            *error*|*failed*|*cancelled*|*canceled*)
+            running|queued|new_script|cancel_requested|cancel_acknowledged)
+              echo 'Kernel is not complete; this scheduled check will retry later.'
+              exit 0
+              ;;
+            error|failed|cancelled|canceled)
               echo "Kernel is in a failure state: $STATUS"
               mkdir -p "artifacts/${{ matrix.slug }}"
               printf '%s\n' "$STATUS" > "artifacts/${{ matrix.slug }}/error.txt"
               exit 1
               ;;
+            complete)
+              mkdir -p "artifacts/${{ matrix.slug }}"
+              echo "Collecting completed output for $KERNEL_ID"
+              if ! kaggle kernels output "$KERNEL_ID" -p "artifacts/${{ matrix.slug }}"; then
+                echo 'Kaggle output download failed.' >&2
+                kaggle kernels status "$KERNEL_ID" || true
+                exit 1
+              fi
+              ;;
+            *)
+              echo "Cannot safely classify Kaggle kernel status: $STATUS" >&2
+              exit 1
+              ;;
           esac
-          mkdir -p "artifacts/${{ matrix.slug }}"
-          kaggle kernels output "$KERNEL_ID" -p "artifacts/${{ matrix.slug }}"
-          find "artifacts/${{ matrix.slug }}" -type f | head -30
+
+          echo '--- collected files ---'
+          find "artifacts/${{ matrix.slug }}" -type f -print | sort | head -100
+          echo '--- end collected files ---'
           ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -type f -name error.txt -print)
           if [ -n "$ERROR_FILES" ]; then
             while IFS= read -r error_file; do
@@ -107,7 +135,6 @@ jobs:
           ROOT="artifacts/${{ matrix.slug }}"
           if [ ! -d "$ROOT" ]; then echo "No output directory"; exit 1; fi
           if [ "${{ matrix.slug }}" = "ua-legal-lm-ft" ]; then
-            test -f "$ROOT/model-ft/final/adapter_config.json" || true
             test -f "$ROOT/model-ft/metrics.jsonl" || { echo 'Fine-tune metrics.jsonl missing'; exit 1; }
           else
             test -f "$ROOT/model/model.pt" || { echo 'GPU model.pt missing'; exit 1; }
@@ -161,4 +188,4 @@ jobs:
           DIR=".training-manifests/${{ matrix.slug }}"; mkdir -p "$DIR"
           find "artifacts/${{ matrix.slug }}" -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
           git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR"
-          if git diff --cached --quiet; then echo 'No metric changes.'; else git commit -m "chore: update ${{ matrix.slug }} training metrics"; for attempt in 1 2 3 4 5; do if git push; then exit 0; fi; git fetch origin main; git rebase origin/main; done; echo 'Failed to push metrics after retries' >&2; exit 1; fi
+          if git diff --cached --quiet; then echo 'No metric changes.'; else git commit -m "chore: update ${{ matrix.slug }} training metrics"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi; fi
