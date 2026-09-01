@@ -104,8 +104,8 @@ jobs:
             complete)
               mkdir -p "artifacts/${{ matrix.slug }}"
               echo "Collecting completed output for $KERNEL_ID"
-              if ! kaggle kernels output "$KERNEL_ID" -p "artifacts/${{ matrix.slug }}"; then
-                echo 'Kaggle output download failed.' >&2
+              if ! timeout --signal=TERM --kill-after=30s 12m kaggle kernels output "$KERNEL_ID" -p "artifacts/${{ matrix.slug }}"; then
+                echo 'Kaggle output download failed or timed out after 12 minutes.' >&2
                 kaggle kernels status "$KERNEL_ID" || true
                 exit 1
               fi
