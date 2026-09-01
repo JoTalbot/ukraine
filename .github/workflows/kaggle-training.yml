@@ -77,6 +77,7 @@ jobs:
         run: |
           set -e
           mkdir -p /tmp/kernel
+          python scripts/patch_kaggle_notebooks.py
           cp training/kaggle/${{ matrix.file }} /tmp/kernel/
           USERNAME="${KAGGLE_USERNAME_OVERRIDE:-}"
           if [ -z "$USERNAME" ] && python -c "import json,os;json.loads(os.environ['KAGGLE_API_TOKEN'])" 2>/dev/null; then
