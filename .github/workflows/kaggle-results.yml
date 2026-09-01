@@ -2,11 +2,15 @@ name: Kaggle Kernel Results
 
 on:
   schedule:
-    - cron: '30 6 * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: kaggle-kernel-results
+  cancel-in-progress: false
 
 jobs:
   collect:
@@ -27,7 +31,7 @@ jobs:
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
         run: |
-          set -e
+          set -euo pipefail
           test -n "$KAGGLE_API_TOKEN" || { echo 'KAGGLE_API secret is missing'; exit 1; }
           python -m pip install --upgrade pip kaggle >/dev/null
           mkdir -p ~/.kaggle
@@ -35,7 +39,7 @@ jobs:
           chmod 600 ~/.kaggle/kaggle.json
           kaggle datasets list --max-size 1 >/dev/null
           echo 'Kaggle authentication succeeded.'
-      - name: Check kernel status and download output when complete
+      - name: Check kernel status and collect completed output
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
           KAGGLE_USERNAME_OVERRIDE: ${{ vars.KAGGLE_USERNAME }}
@@ -53,7 +57,7 @@ jobs:
           STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
           echo "kernel status [$KERNEL_ID]: ${STATUS:-unknown}"
           case "$STATUS" in
-            *running*|*queued*) echo 'Kernel still busy; nothing to collect.'; exit 0 ;;
+            *running*|*queued*) echo 'Kernel still active; this scheduled check will retry later.'; exit 0 ;;
             *error*|*failed*|*cancelled*|*canceled*)
               echo "Kernel is in a failure state: $STATUS"
               mkdir -p "artifacts/${{ matrix.slug }}"
@@ -67,12 +71,25 @@ jobs:
           ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -type f -name error.txt -print)
           if [ -n "$ERROR_FILES" ]; then
             while IFS= read -r error_file; do
-              if [ -s "$error_file" ] && [ "$(cat "$error_file")" != "ok" ]; then
+              if [ -s "$error_file" ] && [ "$(tr -d '\r\n' < "$error_file")" != "ok" ]; then
                 echo "Training reported an error in $error_file:"
                 cat "$error_file"
                 exit 1
               fi
             done <<< "$ERROR_FILES"
+          fi
+      - name: Validate completed training artifacts
+        run: |
+          set -euo pipefail
+          ROOT="artifacts/${{ matrix.slug }}"
+          if [ ! -d "$ROOT" ]; then echo "No output directory"; exit 1; fi
+          if [ "${{ matrix.slug }}" = "ua-legal-lm-ft" ]; then
+            test -f "$ROOT/model-ft/final/adapter_config.json" || test -f "$ROOT/model-ft/final/*.safetensors" || true
+            test -f "$ROOT/model-ft/metrics.jsonl" || { echo 'Fine-tune metrics.jsonl missing'; exit 1; }
+          else
+            test -f "$ROOT/model/model.pt" || { echo 'GPU model.pt missing'; exit 1; }
+            test -f "$ROOT/model/tokenizer.json" || { echo 'GPU tokenizer.json missing'; exit 1; }
+            test -f "$ROOT/model/metrics.jsonl" || { echo 'GPU metrics.jsonl missing'; exit 1; }
           fi
       - name: Publish fine-tuned model to Hugging Face Hub
         if: ${{ matrix.slug == 'ua-legal-lm-ft' && hashFiles('artifacts/ua-legal-lm-ft/model-ft/final/*.safetensors') != '' }}
@@ -80,14 +97,14 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL_REPO: JoTalbot/ua-legal-lm-ft
         run: |
-          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; skipping FT publish'; exit 0; }
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; refusing to publish'; exit 1; }
           python -m pip install --quiet huggingface_hub
           python - <<'PY'
           import datetime, json, os
           from pathlib import Path
           from huggingface_hub import HfApi
           repo = os.environ['HF_MODEL_REPO']; root = Path('artifacts/ua-legal-lm-ft/model-ft'); metrics_path = root / 'metrics.jsonl'
-          metrics = [json.loads(l) for l in metrics_path.read_text(encoding='utf-8').splitlines() if l.strip()] if metrics_path.is_file() else []
+          metrics = [json.loads(l) for l in metrics_path.read_text(encoding='utf-8').splitlines() if l.strip()]
           val = [m for m in metrics if 'val_loss' in m]; last_val = val[-1]['val_loss'] if val else None; last_step = max((m.get('step',0) for m in metrics), default=0)
           card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- lora','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-ft — Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних','','',f'- Кроків донавчання: {last_step}',f'- Val loss: {last_val}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}' ,'','Приватність: лише законно опубліковані відкриті дані.',''])
           Path('FT_CARD.md').write_text(card, encoding='utf-8'); api = HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False); api.update_repo_settings(repo_id=repo, repo_type='model', private=False); api.upload_file(path_or_fileobj='FT_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model'); api.upload_folder(folder_path=str(root / 'final'), repo_id=repo, repo_type='model', commit_message='ua-legal-lm-ft LoRA merge')
@@ -101,21 +118,21 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL_REPO: JoTalbot/ua-legal-lm-gpu
         run: |
-          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; skipping GPU model publish'; exit 0; }
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; refusing to publish'; exit 1; }
           python -m pip install --quiet huggingface_hub
           python - <<'PY'
           import datetime, json, math, os
           from pathlib import Path
           from huggingface_hub import HfApi
-          repo = os.environ['HF_MODEL_REPO']; root = Path('artifacts/ua-legal-lm-gpu/model'); metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]; val = [m for m in metrics if 'val_loss' in m]; last_val = val[-1]['val_loss'] if val else None; last_step = max((m.get('step',0) for m in metrics), default=0); ppl = round(math.exp(last_val),2) if last_val else None
+          repo = os.environ['HF_MODEL_REPO']; root = Path('artifacts/ua-legal-lm-gpu/model'); metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]; val = [m for m in metrics if 'val_loss' in m]; last_val = val[-1]['val_loss'] if val else None; last_step = max((m.get('step',0) for m in metrics), default=0); ppl = round(math.exp(last_val),2) if last_val is not None else None
           card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- from-scratch','- open-data','datasets:','- JoTalbot/ua-edrsr','- JoTalbot/ua-open-data','---','','# ua-legal-lm-gpu — українська legal-LM (~29M), навчана з нуля на GPU','','',f'- Кроків навчання: {last_step}',f'- Val loss: {last_val} (perplexity ≈ {ppl})',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані.',''])
           Path('GPU_CARD.md').write_text(card, encoding='utf-8'); api = HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False); api.update_repo_settings(repo_id=repo, repo_type='model', private=False); api.upload_file(path_or_fileobj='GPU_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
           for name in ('model.pt','tokenizer.json','metrics.jsonl','samples.txt'):
-              if (root/name).is_file(): api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
+              api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
           print('Published GPU model to', repo, '| val_loss:', last_val)
           PY
       - name: Persist kernel metrics
-        if: ${{ hashFiles(format('artifacts/{0}/model*/metrics.jsonl', matrix.slug)) != '' || hashFiles(format('artifacts/{0}/model*/error.txt', matrix.slug)) != '' }}
+        if: ${{ always() && (hashFiles(format('artifacts/{0}/model*/metrics.jsonl', matrix.slug)) != '' || hashFiles(format('artifacts/{0}/model*/error.txt', matrix.slug)) != '') }}
         run: |
           set -euo pipefail
           DIR=".training-manifests/${{ matrix.slug }}"; mkdir -p "$DIR"
