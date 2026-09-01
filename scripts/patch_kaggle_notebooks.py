@@ -16,6 +16,16 @@ def _lines(text: str) -> list[str]:
     return text.splitlines(keepends=True)
 
 
+def _ensure_torchvision_removed(text: str, marker: str) -> str:
+    """Remove the broken preinstalled torchvision before transformers/peft imports."""
+    if "pip" not in text or marker not in text:
+        return text
+    if "pip -q uninstall -y torchvision" in text or "pip uninstall -y torchvision" in text:
+        return text
+    replacement = "!pip -q uninstall -y torchvision || true\n" + marker
+    return text.replace(marker, replacement, 1)
+
+
 def patch_notebook(path: Path) -> bool:
     notebook = json.loads(path.read_text(encoding="utf-8"))
     changed = False
@@ -28,8 +38,8 @@ def patch_notebook(path: Path) -> bool:
         text = original
 
         marker = INSTALL_MARKERS.get(name)
-        if marker and marker in text and "uninstall -y torchvision" not in text:
-            text = text.replace(marker, marker + "!pip -q uninstall -y torchvision || true\n", 1)
+        if marker:
+            text = _ensure_torchvision_removed(text, marker)
 
         if "print('training exit code:', result.returncode)" in text and "raise SystemExit(result.returncode)" not in text:
             needle = "print('training exit code:', result.returncode)\n"
