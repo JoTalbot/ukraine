@@ -1,1 +1,1 @@
-jotalbot/ua-legal-lm-ft has status "kernelworkerstatus.queued"
+jotalbot/ua-legal-lm-ft has status "kernelworkerstatus.error"
