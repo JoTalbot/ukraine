@@ -47,6 +47,8 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
     )
     patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
     assert "uninstall -y torchvision" in patched
+    assert "transformers==4.57.1" in patched
+    assert "peft==0.17.1" in patched
     assert "raise SystemExit(r.returncode)" in patched
     assert "model-ft/metrics.jsonl" in patched
     assert "fine-tuning produced incomplete artifacts" in patched
