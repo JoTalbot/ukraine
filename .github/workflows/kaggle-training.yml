@@ -10,7 +10,7 @@ on:
         type: boolean
         default: false
   workflow_run:
-    workflows: ['Ukraine data CI']
+    workflows: ['Ukraine data CI', 'Kaggle Kernel Results']
     types: [completed]
 
 permissions:
