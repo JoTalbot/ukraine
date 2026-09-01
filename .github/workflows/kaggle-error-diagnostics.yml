@@ -59,6 +59,9 @@ jobs:
           if [ -z "$STATUS" ]; then STATUS=$(printf '%s\n' "$STATUS_RAW" | tr '[:upper:]' '[:lower:]' | grep -oE '\b(queued|running|complete|error|failed|cancel_requested|cancel_acknowledged|new_script)\b' | head -1 || true); fi
           STATUS="${STATUS:-unknown}"
           echo "Kaggle $KERNEL_ID status: $STATUS"
+          mkdir -p ".training-manifests/${{ matrix.slug }}"
+          printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/kaggle-current-status.txt"
+          printf '%s\n' "$STATUS_RAW" > ".training-manifests/${{ matrix.slug }}/kaggle-status-raw.txt"
           case "$STATUS" in
             error|failed|cancelled|canceled)
               OUT="artifacts/${{ matrix.slug }}/diagnostic-output"
@@ -71,31 +74,33 @@ jobs:
                 sleep 8
               done
               if [ "$ok" != true ]; then
-                mkdir -p "artifacts/${{ matrix.slug }}"
-                printf '%s\n' "$STATUS" > "artifacts/${{ matrix.slug }}/error.txt"
+                printf '%s\n' "$STATUS_RAW" > "artifacts/${{ matrix.slug }}/kaggle-error.txt"
+              else
+                find "$OUT" -type f -name 'error.txt' -print -exec cp {} "artifacts/${{ matrix.slug }}/kaggle-error.txt" \; || true
+                if [ ! -f "artifacts/${{ matrix.slug }}/kaggle-error.txt" ]; then
+                  find "$OUT" -type f \( -name '*.log' -o -name '*.txt' \) -print | sort | head -20 || true
+                  printf '%s\n' "$STATUS_RAW" > "artifacts/${{ matrix.slug }}/kaggle-error.txt"
+                fi
               fi
-              find "$OUT" -type f -name 'error.txt' -print -exec cp {} "artifacts/${{ matrix.slug }}/kaggle-error.txt" \; || true
-              find "$OUT" -type f -name '*.log' -print | sort | head -20 || true
-              if [ ! -f "artifacts/${{ matrix.slug }}/kaggle-error.txt" ]; then
-                printf '%s\n' "Kaggle status: $STATUS" > "artifacts/${{ matrix.slug }}/kaggle-error.txt"
-              fi
+              cp "artifacts/${{ matrix.slug }}/kaggle-error.txt" ".training-manifests/${{ matrix.slug }}/kaggle-error.txt"
               ;;
-            *) echo "No failure diagnostics required for status: $STATUS"; exit 0 ;;
+            *) echo "No failure diagnostics required for status: $STATUS" ;;
           esac
-          mkdir -p ".training-manifests/${{ matrix.slug }}"
-          cp "artifacts/${{ matrix.slug }}/kaggle-error.txt" ".training-manifests/${{ matrix.slug }}/kaggle-error.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ".training-manifests/${{ matrix.slug }}/kaggle-error.txt"
+          git add ".training-manifests/${{ matrix.slug }}"
           if git diff --cached --quiet; then
             echo 'No diagnostic changes.'
-          else
-            git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
-            pushed=false
-            for attempt in 1 2 3 4 5; do
-              if git push; then pushed=true; break; fi
-              git fetch origin main
-              git rebase origin/main || { git rebase --abort || true; break; }
-            done
-            test "$pushed" = true
+            exit 0
           fi
+          git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
+          for attempt in 1 2 3 4 5; do
+            if git push; then exit 0; fi
+            git fetch origin main
+            if git rebase origin/main; then continue; fi
+            git rebase --abort || true
+            git reset --soft origin/main
+            git commit -C HEAD --no-edit || true
+          done
+          echo 'Unable to push diagnostics after retries' >&2
+          exit 1
