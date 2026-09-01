@@ -1,3 +1,5 @@
 pytest
 pyarrow
 striprtf
+pypdf
+python-docx
