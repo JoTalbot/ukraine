@@ -11,18 +11,36 @@ INSTALL_MARKERS = {
     "legal_lm_finetune.ipynb": "!pip -q install tokenizers pyarrow peft striprtf\n",
 }
 
+# Kaggle's preinstalled transformers/peft stack can drift independently.  The
+# FT notebook imports PEFT before training, so keep a known-compatible pair and
+# remove torchvision, which can break transformers' lazy vision imports on the
+# Kaggle torch build.
+FT_INSTALL = (
+    "!pip -q uninstall -y torchvision\n"
+    "!pip -q install tokenizers pyarrow striprtf "
+    "transformers==4.57.1 peft==0.17.1\n"
+)
+
 
 def _lines(text: str) -> list[str]:
     return text.splitlines(keepends=True)
 
 
+def _ensure_ft_dependencies(text: str, marker: str, name: str) -> str:
+    if name != "legal_lm_finetune.ipynb" or marker not in text:
+        return text
+    if "transformers==4.57.1" in text and "peft==0.17.1" in text and "uninstall -y torchvision" in text:
+        return text
+    return text.replace(marker, FT_INSTALL, 1)
+
+
 def _ensure_torchvision_removed(text: str, marker: str) -> str:
-    """Remove the broken preinstalled torchvision before transformers/peft imports."""
+    """Keep GPU notebook safe from a broken preinstalled torchvision."""
     if "pip" not in text or marker not in text:
         return text
     if "pip -q uninstall -y torchvision" in text or "pip uninstall -y torchvision" in text:
         return text
-    replacement = "!pip -q uninstall -y torchvision || true\n" + marker
+    replacement = "!pip -q uninstall -y torchvision\n" + marker
     return text.replace(marker, replacement, 1)
 
 
@@ -39,7 +57,9 @@ def patch_notebook(path: Path) -> bool:
 
         marker = INSTALL_MARKERS.get(name)
         if marker:
-            text = _ensure_torchvision_removed(text, marker)
+            text = _ensure_ft_dependencies(text, marker, name)
+            if name != "legal_lm_finetune.ipynb":
+                text = _ensure_torchvision_removed(text, marker)
 
         if "print('training exit code:', result.returncode)" in text and "raise SystemExit(result.returncode)" not in text:
             needle = "print('training exit code:', result.returncode)\n"
