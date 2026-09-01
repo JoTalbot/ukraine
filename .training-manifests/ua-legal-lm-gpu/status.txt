@@ -1,1 +1,1 @@
-jotalbot/ua-legal-lm-gpu has status "kernelworkerstatus.queued"
+jotalbot/ua-legal-lm-gpu has status "kernelworkerstatus.complete"
