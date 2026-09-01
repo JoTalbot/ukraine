@@ -66,7 +66,7 @@ jobs:
           mv /tmp/status-history.tsv ".training-manifests/${{ matrix.slug }}/status-history.tsv"
           printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/status.txt"
           git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add ".training-manifests/${{ matrix.slug }}/status-history.tsv" ".training-manifests/${{ matrix.slug }}/status.txt"
-          if git diff --cached --quiet; then echo 'No status changes to persist.'; else git commit -m "chore: record ${{ matrix.slug }} Kaggle status"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to persist Kaggle status after retries' >&2; exit 1; fi; fi
+          if git diff --cached --quiet; then echo 'No status changes to persist.'; else git commit -m "chore: record ${{ matrix.slug }} Kaggle status"; git push || { git fetch origin main; git rebase origin/main; git push; }; fi
           case "$STATUS" in
             running|queued|new_script|cancel_requested|cancel_acknowledged) echo 'Kernel is not complete; this scheduled check will retry later.'; exit 0 ;;
             error|failed|cancelled|canceled) echo "Kernel is in a failure state: $STATUS"; mkdir -p "artifacts/${{ matrix.slug }}"; printf '%s\n' "$STATUS" > "artifacts/${{ matrix.slug }}/error.txt"; exit 1 ;;
@@ -96,7 +96,10 @@ jobs:
               ;;
             *) echo "Cannot safely classify Kaggle kernel status: $STATUS" >&2; exit 1 ;;
           esac
-          echo '--- collected files ---'; find "artifacts/${{ matrix.slug }}" -type f -print | sort | head -100; echo '--- end collected files ---'
+          echo '--- collected files ---'
+          FILE_LIST=$(find "artifacts/${{ matrix.slug }}" -type f -print | sort)
+          printf '%s\n' "$FILE_LIST" | head -100
+          echo '--- end collected files ---'
           ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -type f -name error.txt -print)
           if [ -n "$ERROR_FILES" ]; then while IFS= read -r error_file; do if [ -s "$error_file" ] && [ "$(tr -d '\r\n' < "$error_file")" != "ok" ]; then echo "Training reported an error in $error_file:"; cat "$error_file"; exit 1; fi; done <<< "$ERROR_FILES"; fi
       - name: Validate completed training artifacts
