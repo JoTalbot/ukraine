@@ -70,12 +70,12 @@ jobs:
           chmod 600 ~/.kaggle/kaggle.json
           kaggle datasets list --max-size 1 >/dev/null
           echo 'Kaggle authentication succeeded.'
-      - name: Push the GPU training kernel
+      - name: Push and verify the GPU training kernel
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
           KAGGLE_USERNAME_OVERRIDE: ${{ vars.KAGGLE_USERNAME }}
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p /tmp/kernel
           python scripts/patch_kaggle_notebooks.py
           cp training/kaggle/${{ matrix.file }} /tmp/kernel/
@@ -86,13 +86,13 @@ jobs:
           if [ -z "$USERNAME" ]; then
             USERNAME=$(kaggle kernels list --mine 2>/dev/null | grep -oE '[A-Za-z0-9_-]+/[A-Za-z0-9_-]+' | head -1 | cut -d/ -f1 || true)
           fi
-          test -n "$USERNAME" || { echo 'Cannot resolve Kaggle username'; exit 0; }
+          test -n "$USERNAME" || { echo 'Cannot resolve Kaggle username'; exit 1; }
           KERNEL_ID="${USERNAME}/${{ matrix.slug }}"
           STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
           echo "current kernel status [$KERNEL_ID]: ${STATUS:-unknown}"
           FORCE="${{ github.event.inputs.force || 'false' }}"
           case "$STATUS" in
-            *running*|*queued*|*cancel*)
+            *running*|*queued*)
               if [ "$FORCE" != "true" ]; then
                 echo "A version is already active; skipping push to save GPU quota."
                 exit 0
@@ -119,8 +119,16 @@ jobs:
           pathlib.Path('/tmp/kernel/kernel-metadata.json').write_text(json.dumps(meta, indent=2))
           print('kernel id:', meta['id'])
           PY
-          if kaggle kernels push -p /tmp/kernel; then
-            echo "Kernel ${{ matrix.slug }} pushed."
-          else
-            echo "::warning::kaggle kernels push failed for ${{ matrix.slug }} (phone verification or kernels acceptance may be required)."
-          fi
+          kaggle kernels push -p /tmp/kernel
+          echo "Kernel ${{ matrix.slug }} pushed."
+          for attempt in 1 2 3 4 5 6; do
+            sleep 10
+            STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
+            echo "post-push status attempt $attempt [$KERNEL_ID]: ${STATUS:-unknown}"
+            case "$STATUS" in
+              *running*|*queued*) exit 0 ;;
+              *error*|*failed*|*cancelled*|*canceled*) echo "Kernel entered failure state: $STATUS"; exit 1 ;;
+            esac
+          done
+          echo 'Kernel push accepted, but no queued/running status was observed within the verification window.'
+          exit 1
