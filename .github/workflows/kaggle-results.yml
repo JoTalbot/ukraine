@@ -53,10 +53,7 @@ jobs:
           STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
           echo "kernel status [$KERNEL_ID]: ${STATUS:-unknown}"
           case "$STATUS" in
-            *running*|*queued*)
-              echo 'Kernel still busy; nothing to collect.'
-              exit 0
-              ;;
+            *running*|*queued*) echo 'Kernel still busy; nothing to collect.'; exit 0 ;;
             *error*|*failed*|*cancelled*|*canceled*)
               echo "Kernel is in a failure state: $STATUS"
               mkdir -p "artifacts/${{ matrix.slug }}"
@@ -65,11 +62,17 @@ jobs:
               ;;
           esac
           mkdir -p "artifacts/${{ matrix.slug }}"
-          if kaggle kernels output "$KERNEL_ID" -p "artifacts/${{ matrix.slug }}"; then
-            find "artifacts/${{ matrix.slug }}" -type f | head -30
-          else
-            echo 'No output available yet.'
-            exit 1
+          kaggle kernels output "$KERNEL_ID" -p "artifacts/${{ matrix.slug }}"
+          find "artifacts/${{ matrix.slug }}" -type f | head -30
+          ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -type f -name error.txt -print)
+          if [ -n "$ERROR_FILES" ]; then
+            while IFS= read -r error_file; do
+              if [ -s "$error_file" ] && [ "$(cat "$error_file")" != "ok" ]; then
+                echo "Training reported an error in $error_file:"
+                cat "$error_file"
+                exit 1
+              fi
+            done <<< "$ERROR_FILES"
           fi
       - name: Publish fine-tuned model to Hugging Face Hub
         if: ${{ matrix.slug == 'ua-legal-lm-ft' && hashFiles('artifacts/ua-legal-lm-ft/model-ft/final/*.safetensors') != '' }}
@@ -83,22 +86,13 @@ jobs:
           import datetime, json, os
           from pathlib import Path
           from huggingface_hub import HfApi
-          repo = os.environ['HF_MODEL_REPO']
-          root = Path('artifacts/ua-legal-lm-ft/model-ft')
-          metrics_path = root / 'metrics.jsonl'
+          repo = os.environ['HF_MODEL_REPO']; root = Path('artifacts/ua-legal-lm-ft/model-ft'); metrics_path = root / 'metrics.jsonl'
           metrics = [json.loads(l) for l in metrics_path.read_text(encoding='utf-8').splitlines() if l.strip()] if metrics_path.is_file() else []
-          val = [m for m in metrics if 'val_loss' in m]
-          last_val = val[-1]['val_loss'] if val else None
-          last_step = max((m.get('step', 0) for m in metrics), default=0)
+          val = [m for m in metrics if 'val_loss' in m]; last_val = val[-1]['val_loss'] if val else None; last_step = max((m.get('step',0) for m in metrics), default=0)
           card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- lora','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-ft — Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних','','',f'- Кроків донавчання: {last_step}',f'- Val loss: {last_val}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}' ,'','Приватність: лише законно опубліковані відкриті дані.',''])
-          Path('FT_CARD.md').write_text(card, encoding='utf-8')
-          api = HfApi(token=os.environ['HF_TOKEN'])
-          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
-          api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
-          api.upload_file(path_or_fileobj='FT_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
-          api.upload_folder(folder_path=str(root / 'final'), repo_id=repo, repo_type='model', commit_message='ua-legal-lm-ft LoRA merge')
-          for name in ('metrics.jsonl', 'samples.txt'):
-              if (root / name).is_file(): api.upload_file(path_or_fileobj=str(root / name), path_in_repo=name, repo_id=repo, repo_type='model')
+          Path('FT_CARD.md').write_text(card, encoding='utf-8'); api = HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False); api.update_repo_settings(repo_id=repo, repo_type='model', private=False); api.upload_file(path_or_fileobj='FT_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model'); api.upload_folder(folder_path=str(root / 'final'), repo_id=repo, repo_type='model', commit_message='ua-legal-lm-ft LoRA merge')
+          for name in ('metrics.jsonl','samples.txt'):
+              if (root/name).is_file(): api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
           print('Published fine-tuned model to', repo)
           PY
       - name: Publish GPU from-scratch model to Hugging Face Hub
@@ -113,13 +107,9 @@ jobs:
           import datetime, json, math, os
           from pathlib import Path
           from huggingface_hub import HfApi
-          repo = os.environ['HF_MODEL_REPO']; root = Path('artifacts/ua-legal-lm-gpu/model')
-          metrics = [json.loads(l) for l in (root / 'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
-          val = [m for m in metrics if 'val_loss' in m]; last_val = val[-1]['val_loss'] if val else None; last_step = max((m.get('step',0) for m in metrics), default=0); ppl = round(math.exp(last_val),2) if last_val else None
+          repo = os.environ['HF_MODEL_REPO']; root = Path('artifacts/ua-legal-lm-gpu/model'); metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]; val = [m for m in metrics if 'val_loss' in m]; last_val = val[-1]['val_loss'] if val else None; last_step = max((m.get('step',0) for m in metrics), default=0); ppl = round(math.exp(last_val),2) if last_val else None
           card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- from-scratch','- open-data','datasets:','- JoTalbot/ua-edrsr','- JoTalbot/ua-open-data','---','','# ua-legal-lm-gpu — українська legal-LM (~29M), навчана з нуля на GPU','','',f'- Кроків навчання: {last_step}',f'- Val loss: {last_val} (perplexity ≈ {ppl})',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані.',''])
-          Path('GPU_CARD.md').write_text(card, encoding='utf-8'); api = HfApi(token=os.environ['HF_TOKEN'])
-          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False); api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
-          api.upload_file(path_or_fileobj='GPU_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
+          Path('GPU_CARD.md').write_text(card, encoding='utf-8'); api = HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False); api.update_repo_settings(repo_id=repo, repo_type='model', private=False); api.upload_file(path_or_fileobj='GPU_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
           for name in ('model.pt','tokenizer.json','metrics.jsonl','samples.txt'):
               if (root/name).is_file(): api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
           print('Published GPU model to', repo, '| val_loss:', last_val)
@@ -130,6 +120,5 @@ jobs:
           set -euo pipefail
           DIR=".training-manifests/${{ matrix.slug }}"; mkdir -p "$DIR"
           find "artifacts/${{ matrix.slug }}" -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
-          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$DIR"
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR"
           if git diff --cached --quiet; then echo 'No metric changes.'; else git commit -m "chore: update ${{ matrix.slug }} training metrics"; for attempt in 1 2 3 4 5; do if git push; then exit 0; fi; git fetch origin main; git rebase origin/main; done; echo 'Failed to push metrics after retries' >&2; exit 1; fi
