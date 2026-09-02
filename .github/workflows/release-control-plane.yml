@@ -4,6 +4,7 @@ on:
   workflow_run:
     workflows:
       - Entity Graph Build
+      - Ukraine Open Data Discovery
     types: [completed]
   workflow_dispatch:
 
@@ -38,12 +39,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           set -euo pipefail
+          case "$WORKFLOW_NAME" in
+            "Entity Graph Build") signal=graph ;;
+            "Ukraine Open Data Discovery") signal=ingestion ;;
+            *) echo "Unsupported producer workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
+          esac
           rm -rf artifacts/status/signals
           mkdir -p artifacts/status/signals
-          gh run download "$RUN_ID" --name status-signal-graph --dir artifacts/status/signals
-          test -s artifacts/status/signals/graph.json
+          gh run download "$RUN_ID" --name "status-signal-$signal" --dir artifacts/status/signals
+          test -s "artifacts/status/signals/$signal.json"
 
       - name: Aggregate canonical status index
         run: |
