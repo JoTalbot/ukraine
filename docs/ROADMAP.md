@@ -14,6 +14,7 @@ The repository is considered production-ready when every automated data/model re
 - GitHub Actions orchestration, failure alerts, Pages dashboard, and race-safe persistence.
 - Repository-level release manifests with commit identity, runtime metadata, and file checksums, published as CI artifacts.
 - Release-manifest schema validation covering identity, UTC timestamp, file uniqueness, SHA-256 format, excluded paths, and byte-size integrity.
+- Pages dashboard release identity: generated manifest commit, branch, UTC timestamp, and file count are surfaced alongside operational model/data status.
 
 ## Final hardening track
 
