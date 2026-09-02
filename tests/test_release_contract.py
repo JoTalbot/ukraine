@@ -5,6 +5,7 @@ from scripts.validate_release import (
     validate_release_manifest,
     validate_repository_contract,
     validate_sha256,
+    validate_status_index,
 )
 
 
@@ -19,34 +20,14 @@ def test_required_release_docs_exist() -> None:
 
 
 def test_release_manifest_contract_accepts_valid_manifest(tmp_path: Path) -> None:
-    manifest = {
-        "schema_version": 1,
-        "release_class": "repository",
-        "git_commit": "abc123",
-        "git_branch": "main",
-        "generated_at_utc": "2026-09-03T12:00:00Z",
-        "python": "3.12.0",
-        "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}],
-    }
+    manifest = {"schema_version": 1, "release_class": "repository", "git_commit": "abc123", "git_branch": "main", "generated_at_utc": "2026-09-03T12:00:00Z", "python": "3.12.0", "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}]}
     path = tmp_path / "release-manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
     assert validate_release_manifest(path) == []
 
 
 def test_release_manifest_contract_rejects_duplicate_bad_entries(tmp_path: Path) -> None:
-    manifest = {
-        "schema_version": 1,
-        "release_class": "repository",
-        "git_commit": "abc123",
-        "git_branch": "main",
-        "generated_at_utc": "2026-09-03T12:00:00Z",
-        "python": "3.12.0",
-        "files": [
-            {"path": "README.md", "sha256": "0" * 64, "bytes": 5},
-            {"path": "README.md", "sha256": "bad", "bytes": -1},
-            {"path": "release-manifest.json", "sha256": "0" * 64, "bytes": 1},
-        ],
-    }
+    manifest = {"schema_version": 1, "release_class": "repository", "git_commit": "abc123", "git_branch": "main", "generated_at_utc": "2026-09-03T12:00:00Z", "python": "3.12.0", "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}, {"path": "README.md", "sha256": "bad", "bytes": -1}, {"path": "release-manifest.json", "sha256": "0" * 64, "bytes": 1}]}
     path = tmp_path / "release-manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
     errors = validate_release_manifest(path)
@@ -54,3 +35,14 @@ def test_release_manifest_contract_rejects_duplicate_bad_entries(tmp_path: Path)
     assert any("invalid SHA-256" in error for error in errors)
     assert any("excluded path" in error for error in errors)
     assert any("invalid byte size" in error for error in errors)
+
+
+def test_status_index_contract_requires_exact_release_identity(tmp_path: Path) -> None:
+    manifest = tmp_path / "release-manifest.json"
+    status = tmp_path / "status-index.json"
+    payload = {"schema_version": 1, "release_class": "repository", "git_commit": "abc123", "git_branch": "main", "generated_at_utc": "2026-09-03T12:00:00Z", "python": "3.12.0", "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}]}
+    manifest.write_text(json.dumps(payload), encoding="utf-8")
+    status.write_text(json.dumps({"schema_version": 1, "release": {"git_commit": "different"}, "signals": {}}), encoding="utf-8")
+    errors = validate_status_index(status, manifest)
+    assert any("identity" in error for error in errors)
+    assert any("signal set" in error for error in errors)
