@@ -4,19 +4,27 @@ from pathlib import Path
 from scripts.generate_status_index import build_status_index
 
 
+def write_manifest(status: Path, commit: str = "abc123") -> None:
+    (status / "release-manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "release_class": "repository",
+                "git_commit": commit,
+                "git_branch": "main",
+                "generated_at_utc": "2026-09-03T12:00:00Z",
+                "python": "3.12.0",
+                "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
 def test_status_index_links_release_identity(tmp_path: Path) -> None:
     status = tmp_path / "artifacts" / "status"
     status.mkdir(parents=True)
-    manifest = {
-        "schema_version": 1,
-        "release_class": "repository",
-        "git_commit": "abc123",
-        "git_branch": "main",
-        "generated_at_utc": "2026-09-03T12:00:00Z",
-        "python": "3.12.0",
-        "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}],
-    }
-    (status / "release-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    write_manifest(status)
 
     payload = build_status_index(tmp_path)
 
@@ -31,20 +39,7 @@ def test_status_index_links_release_identity(tmp_path: Path) -> None:
 def test_status_index_has_all_operational_signals(tmp_path: Path) -> None:
     status = tmp_path / "artifacts" / "status"
     status.mkdir(parents=True)
-    (status / "release-manifest.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "release_class": "repository",
-                "git_commit": "abc123",
-                "git_branch": "main",
-                "generated_at_utc": "2026-09-03T12:00:00Z",
-                "python": "3.12.0",
-                "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}],
-            }
-        ),
-        encoding="utf-8",
-    )
+    write_manifest(status)
 
     payload = build_status_index(tmp_path)
     assert set(payload["signals"]) == {
@@ -56,3 +51,54 @@ def test_status_index_has_all_operational_signals(tmp_path: Path) -> None:
         "publication",
         "security",
     }
+
+
+def test_status_index_consumes_matching_producer_signal(tmp_path: Path) -> None:
+    status = tmp_path / "artifacts" / "status"
+    signals = status / "signals"
+    signals.mkdir(parents=True)
+    write_manifest(status)
+    (signals / "graph.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "signal": "graph",
+                "state": "green",
+                "detail": "graph build completed",
+                "git_commit": "abc123",
+                "generated_at_utc": "2026-09-03T12:00:00Z",
+                "artifact": "graph_stats.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_status_index(tmp_path)
+    assert payload["signals"]["graph"] == {
+        "state": "green",
+        "detail": "graph build completed",
+        "artifact": "graph_stats.json",
+    }
+
+
+def test_status_index_rejects_signal_from_different_release(tmp_path: Path) -> None:
+    status = tmp_path / "artifacts" / "status"
+    signals = status / "signals"
+    signals.mkdir(parents=True)
+    write_manifest(status)
+    (signals / "training.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "signal": "training",
+                "state": "green",
+                "detail": "training completed",
+                "git_commit": "different-release",
+                "generated_at_utc": "2026-09-03T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = build_status_index(tmp_path)
+    assert payload["signals"]["training"]["state"] == "unknown"
