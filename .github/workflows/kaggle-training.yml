@@ -46,7 +46,7 @@ jobs:
           mkdir -p artifacts/kaggle
           printf '%s\n' '{"status":"ready","training_scope":"public_open_data_only","deanonymization":false}' > artifacts/kaggle/training_manifest.json
       - name: Upload manifest
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: kaggle-training-manifest
           path: artifacts/kaggle/training_manifest.json
