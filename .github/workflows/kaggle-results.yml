@@ -67,7 +67,7 @@ jobs:
           mv /tmp/status-history.tsv ".training-manifests/${{ matrix.slug }}/status-history.tsv"
           printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/status.txt"
           git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add ".training-manifests/${{ matrix.slug }}/status-history.tsv" ".training-manifests/${{ matrix.slug }}/status.txt"
-          if git diff --cached --quiet; then echo 'No status changes to persist.'; else git commit -m "chore: record ${{ matrix.slug }} Kaggle status"; git push || { git fetch origin main; git rebase origin/main; git push; }; fi
+          if git diff --cached --quiet; then echo 'No status changes to persist.'; else git commit -m "chore: record ${{ matrix.slug }} Kaggle status"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to persist status after retries' >&2; exit 1; fi; fi
           case "$STATUS" in
             running|queued|new_script|cancel_requested|cancel_acknowledged) echo 'Kernel is not complete; this scheduled check will retry later.'; exit 0 ;;
             error|failed|cancelled|canceled) echo "Kernel is in a failure state: $STATUS"; mkdir -p "artifacts/${{ matrix.slug }}"; printf '%s\n' "$STATUS" > "artifacts/${{ matrix.slug }}/error.txt"; exit 1 ;;
@@ -144,6 +144,30 @@ jobs:
           for name in ('model.pt','tokenizer.json','metrics.jsonl','samples.txt'): api.upload_file(path_or_fileobj=str(root/name),path_in_repo=name,repo_id=repo,repo_type='model')
           print('Published GPU model to',repo,'| val_loss:',last_val)
           PY
+      - name: Mark processed Kaggle kernel version
+        if: ${{ success() }}
+        run: |
+          set -euo pipefail
+          DIR=".training-manifests/${{ matrix.slug }}"
+          test -f "$DIR/kernel-version.txt" || { echo 'No tracked Kaggle kernel version; nothing to mark.'; exit 0; }
+          test -f "$DIR/status.txt" || exit 0
+          STATUS=$(tr -d '\r\n ' < "$DIR/status.txt")
+          if [ "$STATUS" != "complete" ]; then echo "Kernel status is $STATUS; version remains pending."; exit 0; fi
+          VERSION=$(tr -d '\r\n ' < "$DIR/kernel-version.txt")
+          test -n "$VERSION" || exit 0
+          CURRENT=""
+          [ -f "$DIR/processed-version.txt" ] && CURRENT=$(tr -d '\r\n ' < "$DIR/processed-version.txt" || true)
+          if [ "$CURRENT" = "$VERSION" ]; then echo "Kaggle version $VERSION is already marked processed."; exit 0; fi
+          printf '%s\n' "$VERSION" > "$DIR/processed-version.txt"
+          printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" >> "$DIR/processed-history.tsv"
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR/processed-version.txt" "$DIR/processed-history.tsv"; git commit -m "chore: mark Kaggle ${{ matrix.slug }} v$VERSION processed"
+          for attempt in 1 2 3 4 5; do
+            if git push; then exit 0; fi
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo 'Failed to persist processed version after retries' >&2
+          exit 1
       - name: Persist completed kernel metrics
         if: ${{ always() && (hashFiles(format('artifacts/{0}/model*/metrics.jsonl', matrix.slug)) != '' || hashFiles(format('artifacts/{0}/model*/error.txt', matrix.slug)) != '') }}
         run: |
