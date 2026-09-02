@@ -5,6 +5,15 @@ on:
     workflows:
       - Entity Graph Build
       - Ukraine Open Data Discovery
+      - Ukraine data CI
+      - Train Ukraine Models
+      - Kaggle GPU Training
+      - Ukraine Open Data -> Hugging Face
+      - Discovered Open Data -> Hugging Face
+      - EDRSR -> Hugging Face
+      - EDRSR full texts
+      - Ukraine Pages Dashboard
+      - Kaggle Results
     types: [completed]
   workflow_dispatch:
 
@@ -22,60 +31,86 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
-
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
-
       - name: Install control-plane dependencies
         run: python -m pip install --upgrade pip -r requirements-ci.txt
-
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
-
-      - name: Download triggering producer signal
+      - name: Resolve producer identity
         if: ${{ github.event_name == 'workflow_run' }}
         env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
           set -euo pipefail
           case "$WORKFLOW_NAME" in
-            "Entity Graph Build") signal=graph ;;
-            "Ukraine Open Data Discovery") signal=ingestion ;;
-            *) echo "Unsupported producer workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
+            "Entity Graph Build") echo 'SIGNAL=graph' >> "$GITHUB_ENV" ;;
+            "Ukraine Open Data Discovery"|"Ukraine data CI") echo 'SIGNAL=' >> "$GITHUB_ENV" ;;
+            "Train Ukraine Models"|"Kaggle GPU Training") echo 'SIGNAL=training' >> "$GITHUB_ENV" ;;
+            "Ukraine Open Data -> Hugging Face"|"Discovered Open Data -> Hugging Face"|"EDRSR -> Hugging Face"|"EDRSR full texts"|"Ukraine Pages Dashboard"|"Kaggle Results") echo 'SIGNAL=publication' >> "$GITHUB_ENV" ;;
+            *) echo "Unsupported workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
           esac
-          rm -rf artifacts/status/signals
-          mkdir -p artifacts/status/signals
-          gh run download "$RUN_ID" --name "status-signal-$signal" --dir artifacts/status/signals
-          test -s "artifacts/status/signals/$signal.json"
-
-      - name: Aggregate canonical status index
+      - name: Download producer signal or synthesize run signal
+        if: ${{ github.event_name == 'workflow_run' && env.SIGNAL != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          SIGNAL: ${{ env.SIGNAL }}
         run: |
-          python scripts/aggregate_status_signals.py \
-            --manifest artifacts/status/release-manifest.json \
-            --signals-dir artifacts/status/signals \
-            --output artifacts/status/status-index.json
-
-      - name: Validate repository contract
+          set -euo pipefail
+          rm -rf artifacts/status/signals; mkdir -p artifacts/status/signals
+          if gh run download "$RUN_ID" --name "status-signal-$SIGNAL" --dir artifacts/status/signals >/dev/null 2>&1 && test -s "artifacts/status/signals/$SIGNAL.json"; then
+            echo "Using producer signal artifact for $SIGNAL"
+          else
+            case "$RUN_CONCLUSION" in
+              success) state=green ;;
+              failure|timed_out|action_required) state=red ;;
+              cancelled|skipped|stale|neutral) state=unknown ;;
+              *) state=unknown ;;
+            esac
+            python scripts/write_status_signal.py --signal "$SIGNAL" --state "$state" --detail "workflow run conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
+          fi
+      - name: Synthesize CI-quality signal
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Ukraine data CI' }}
+        env:
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          state=red; if [ "$RUN_CONCLUSION" = "success" ]; then state=green; elif [ "$RUN_CONCLUSION" = "cancelled" ] || [ "$RUN_CONCLUSION" = "skipped" ]; then state=unknown; fi
+          python scripts/write_status_signal.py --signal quality --state "$state" --detail "repository CI conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
+      - name: Synthesize ingestion signal
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Ukraine Open Data Discovery' }}
+        env:
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          state=red; if [ "$RUN_CONCLUSION" = "success" ]; then state=green; elif [ "$RUN_CONCLUSION" = "cancelled" ] || [ "$RUN_CONCLUSION" = "skipped" ]; then state=unknown; fi
+          python scripts/write_status_signal.py --signal ingestion --state "$state" --detail "discovery workflow conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
+      - name: Aggregate canonical status index
+        run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --output artifacts/status/status-index.json
+      - name: Validate canonical control plane
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          manifest = json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
-          status = json.loads(Path('artifacts/status/status-index.json').read_text(encoding='utf-8'))
-          if status.get('release', {}).get('git_commit') != manifest.get('git_commit'):
-              raise SystemExit('Status index release identity does not match manifest')
-          required = {'ci', 'ingestion', 'quality', 'graph', 'training', 'publication', 'security'}
-          if set(status.get('signals', {})) != required:
-              raise SystemExit('Status index signal set is incomplete')
-          print('Control-plane status contract OK')
+          m=json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
+          s=json.loads(Path('artifacts/status/status-index.json').read_text(encoding='utf-8'))
+          required={'ci','ingestion','quality','graph','training','publication','security'}
+          if s.get('release',{}).get('git_commit') != m.get('git_commit'): raise SystemExit('status/release identity mismatch')
+          if set(s.get('signals',{})) != required: raise SystemExit('status signal set incomplete')
+          print('Canonical control-plane contract OK')
           PY
-
       - name: Upload canonical control-plane snapshot
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-control-plane
           path: artifacts/status/*.json
