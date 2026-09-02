@@ -35,7 +35,7 @@ jobs:
       - name: Run release contract tests
         run: python -m pytest tests/test_release_contract.py tests/test_release_manifest.py tests/test_status_index.py tests/test_write_status_signal.py tests/test_aggregate_status_signals.py tests/test_recovery_checkpoint.py -q
       - name: Upload release control-plane snapshot
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-manifest-observability
           path: artifacts/status/*.json
