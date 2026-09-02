@@ -18,75 +18,48 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 1
-
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
-
       - name: Install test dependencies
         run: python -m pip install --upgrade pip -r requirements-ci.txt
-
       - name: Ruff lint
         run: ruff check --config ruff.toml scripts tests
-
       - name: Compile all Python sources
         run: python -m compileall scripts tests
-
       - name: Run unit tests
         run: python -m pytest tests/ -q
-
       - name: Validate release contract
         run: python scripts/validate_release.py
-
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
-
       - name: Validate generated release manifest
         run: python -c "from pathlib import Path; from scripts.validate_release import validate_release_manifest; errors = validate_release_manifest(Path('artifacts/status/release-manifest.json')); print('Release manifest contract OK') if not errors else (_ for _ in ()).throw(SystemExit('\\n'.join(errors)))"
-
       - name: Generate platform status index
         run: python scripts/generate_status_index.py --output artifacts/status/status-index.json
-
       - name: Validate repository contract
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          required = [
-              Path('README.md'),
-              Path('docs/ARCHITECTURE.md'),
-              Path('docs/ROADMAP.md'),
-              Path('docs/DATA_QUALITY.md'),
-              Path('docs/REPRODUCIBILITY.md'),
-              Path('docs/MODEL_EVALUATION.md'),
-              Path('docs/OBSERVABILITY.md'),
-              Path('docs/SECURITY.md'),
-              Path('artifacts/status/release-manifest.json'),
-              Path('artifacts/status/status-index.json'),
-          ]
+          required = [Path('README.md'), Path('docs/ARCHITECTURE.md'), Path('docs/ROADMAP.md'), Path('docs/DATA_QUALITY.md'), Path('docs/REPRODUCIBILITY.md'), Path('docs/MODEL_EVALUATION.md'), Path('docs/OBSERVABILITY.md'), Path('docs/SECURITY.md'), Path('artifacts/status/release-manifest.json'), Path('artifacts/status/status-index.json')]
           missing = [str(p) for p in required if not p.is_file()]
-          if missing:
-              raise SystemExit(f'Missing required files: {missing}')
+          if missing: raise SystemExit(f'Missing required files: {missing}')
           manifest = json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
           status = json.loads(Path('artifacts/status/status-index.json').read_text(encoding='utf-8'))
-          if manifest.get('schema_version') != 1 or not manifest.get('git_commit'):
-              raise SystemExit('Invalid release manifest')
-          if status.get('schema_version') != 1 or status.get('release', {}).get('git_commit') != manifest.get('git_commit'):
-              raise SystemExit('Status index release identity does not match manifest')
-          if set(status.get('signals', {})) != {'ci', 'ingestion', 'quality', 'graph', 'training', 'publication', 'security'}:
-              raise SystemExit('Status index signal set is incomplete')
+          if manifest.get('schema_version') != 1 or not manifest.get('git_commit'): raise SystemExit('Invalid release manifest')
+          if status.get('schema_version') != 1 or status.get('release', {}).get('git_commit') != manifest.get('git_commit'): raise SystemExit('Status index release identity does not match manifest')
+          if set(status.get('signals', {})) != {'ci', 'ingestion', 'quality', 'graph', 'training', 'publication', 'security'}: raise SystemExit('Status index signal set is incomplete')
           print('Repository contract OK')
           PY
-
       - name: Upload release manifest and status index
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-status
           path: artifacts/status/*.json
           if-no-files-found: error
           retention-days: 30
-
       - name: Write quality status signal
         if: ${{ always() }}
         env:
@@ -98,14 +71,10 @@ jobs:
           state=red
           if [ "$JOB_STATUS" = "success" ]; then state=green; fi
           detail="repository data quality/release validation completed with job status: $JOB_STATUS"
-          python scripts/write_status_signal.py \
-            --signal quality --state "$state" --detail "$detail" \
-            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
-            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/status/release-manifest.json
-
+          python scripts/write_status_signal.py --signal quality --state "$state" --detail "$detail" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/status/release-manifest.json
       - name: Upload quality status signal
         if: ${{ always() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: status-signal-quality
           path: artifacts/status/signals/quality.json
