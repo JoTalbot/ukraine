@@ -27,7 +27,7 @@ jobs:
     env:
       HF_EDRSR_REPO: JoTalbot/ua-edrsr
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
