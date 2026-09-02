@@ -39,9 +39,13 @@ jobs:
       - name: Validate release contract
         run: python scripts/validate_release.py
 
+      - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
+
       - name: Validate repository contract
         run: |
           python - <<'PY'
+          import json
           from pathlib import Path
           required = [
               Path('README.md'),
@@ -52,9 +56,21 @@ jobs:
               Path('docs/MODEL_EVALUATION.md'),
               Path('docs/OBSERVABILITY.md'),
               Path('docs/SECURITY.md'),
+              Path('artifacts/status/release-manifest.json'),
           ]
           missing = [str(p) for p in required if not p.is_file()]
           if missing:
               raise SystemExit(f'Missing required files: {missing}')
+          manifest = json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
+          if manifest.get('schema_version') != 1 or not manifest.get('git_commit'):
+              raise SystemExit('Invalid release manifest')
           print('Repository contract OK')
           PY
+
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-manifest
+          path: artifacts/status/release-manifest.json
+          if-no-files-found: error
+          retention-days: 30
