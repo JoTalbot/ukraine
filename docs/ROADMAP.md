@@ -15,6 +15,7 @@ The repository is considered production-ready when every automated data/model re
 - Repository-level release manifests with commit identity, runtime metadata, and file checksums, published as CI artifacts.
 - Release-manifest schema validation covering identity, UTC timestamp, file uniqueness, SHA-256 format, excluded paths, and byte-size integrity.
 - Pages dashboard release identity: generated manifest commit, branch, UTC timestamp, and file count are surfaced alongside operational model/data status.
+- Canonical machine-readable platform status index linking operational signals to the exact release manifest identity.
 
 ## Final hardening track
 
