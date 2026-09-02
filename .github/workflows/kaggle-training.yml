@@ -153,18 +153,27 @@ jobs:
           VERSION=$(printf '%s\n' "$PUSH_OUTPUT" | grep -oE 'Kernel version [0-9]+' | tail -1 | awk '{print $3}' || true)
           test -n "$VERSION" || { echo 'Could not determine pushed Kaggle kernel version'; cat /tmp/kaggle-push.log; exit 1; }
           echo "Kernel $KERNEL_ID version $VERSION pushed."
-          printf '%s\n' "$VERSION" > "$STATE_DIR/kernel-version.txt"
-          printf '%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" "$KERNEL_ID" "${GITHUB_SHA}" >> "$STATE_DIR/launch-history.tsv"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "$STATE_DIR/kernel-version.txt" "$STATE_DIR/launch-history.tsv"
-          git commit -m "chore: record Kaggle kernel version ${{ matrix.slug }} v$VERSION"
+          # Idempotent write, re-applied onto latest main on every push retry.
+          persist_version() {
+            printf '%s\n' "$VERSION" > "$STATE_DIR/kernel-version.txt"
+            if ! grep -qF "$(printf '\t')$VERSION$(printf '\t')" "$STATE_DIR/launch-history.tsv" 2>/dev/null; then
+              printf '%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" "$KERNEL_ID" "${GITHUB_SHA}" >> "$STATE_DIR/launch-history.tsv"
+            fi
+            git add "$STATE_DIR/kernel-version.txt" "$STATE_DIR/launch-history.tsv"
+            if git diff --cached --quiet; then echo 'Kernel version state already persisted.'; return 0; fi
+            git commit -m "chore: record Kaggle kernel version ${{ matrix.slug }} v$VERSION"
+            git push
+          }
+          persisted=false
           for attempt in 1 2 3 4 5; do
-            if git push; then break; fi
+            if persist_version; then persisted=true; break; fi
+            echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
             git fetch origin main
-            git rebase origin/main
-            if [ "$attempt" = 5 ]; then echo 'Failed to persist Kaggle version state' >&2; exit 1; fi
+            git reset --hard origin/main
           done
+          if [ "$persisted" != true ]; then echo 'Failed to persist Kaggle version state' >&2; exit 1; fi
           for attempt in 1 2 3 4 5 6; do
             sleep 10
             STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)

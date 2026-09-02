@@ -127,13 +127,19 @@ jobs:
           git add .training-manifests/entity-graph/stats.json
           if git diff --cached --quiet; then echo 'No stat changes.'; else
             git commit -m 'chore: update entity graph stats'
+            pushed=false
             for attempt in 1 2 3 4 5; do
-              if git push; then exit 0; fi
+              if git push; then pushed=true; break; fi
+              echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
               git fetch origin main
-              git rebase origin/main
+              git reset --hard origin/main
+              mkdir -p .training-manifests/entity-graph
+              cp graph_stats.json .training-manifests/entity-graph/stats.json
+              git add .training-manifests/entity-graph/stats.json
+              if git diff --cached --quiet; then echo 'No stat changes after reset.'; pushed=true; break; fi
+              git commit -m 'chore: update entity graph stats'
             done
-            echo 'Failed to push graph stats after retries' >&2
-            exit 1
+            if [ "$pushed" != true ]; then echo 'Failed to push graph stats after retries' >&2; exit 1; fi
           fi
 
       - name: Run summary

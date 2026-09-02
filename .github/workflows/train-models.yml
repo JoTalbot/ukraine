@@ -174,11 +174,18 @@ jobs:
             echo 'No metric changes.'
           else
             git commit -m "chore: update legal-lm training metrics"
+            pushed=false
             for attempt in 1 2 3 4 5; do
-              if git push; then exit 0; fi
+              if git push; then pushed=true; break; fi
+              echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
               git fetch origin main
-              git rebase origin/main
+              git reset --hard origin/main
+              mkdir -p .training-manifests/legal-lm
+              cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true
+              cp artifacts/lm/model/samples.txt .training-manifests/legal-lm/ 2>/dev/null || true
+              git add .training-manifests/legal-lm
+              if git diff --cached --quiet; then echo 'No metric changes after reset.'; pushed=true; break; fi
+              git commit -m "chore: update legal-lm training metrics"
             done
-            echo 'Failed to push metrics after retries' >&2
-            exit 1
+            if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi
           fi

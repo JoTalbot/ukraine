@@ -88,19 +88,26 @@ jobs:
           esac
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ".training-manifests/${{ matrix.slug }}"
           if git diff --cached --quiet; then
             echo 'No diagnostic changes.'
             exit 0
           fi
           git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
+          # Держим копию файлов в /tmp: reset --hard на откате пуша их сотрёт,
+          # а регенерировать их здесь нельзя (они собраны из output кернела).
+          BACKUP=$(mktemp -d)
+          mkdir -p "$BACKUP/slug"
+          cp -r ".training-manifests/${{ matrix.slug }}/." "$BACKUP/slug/"
+          pushed=false
           for attempt in 1 2 3 4 5; do
-            if git push; then exit 0; fi
+            if git push; then pushed=true; break; fi
+            echo "persist attempt $attempt failed; resetting onto origin/main and restoring files"
             git fetch origin main
-            if git rebase origin/main; then continue; fi
-            git rebase --abort || true
-            git reset --soft origin/main
-            git commit -C HEAD --no-edit || true
+            git reset --hard origin/main
+            mkdir -p ".training-manifests/${{ matrix.slug }}"
+            cp -r "$BACKUP/slug/." ".training-manifests/${{ matrix.slug }}/"
+            git add ".training-manifests/${{ matrix.slug }}"
+            if git diff --cached --quiet; then echo 'No diagnostic changes after reset.'; pushed=true; break; fi
+            git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
           done
-          echo 'Unable to push diagnostics after retries' >&2
-          exit 1
+          if [ "$pushed" != true ]; then echo 'Unable to push diagnostics after retries' >&2; exit 1; fi

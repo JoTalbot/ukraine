@@ -76,8 +76,36 @@ jobs:
             echo "Kernel status unchanged ($STATUS); history not appended."
           fi
           printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/status.txt"
-          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add ".training-manifests/${{ matrix.slug }}/status-history.tsv" ".training-manifests/${{ matrix.slug }}/status.txt"
-          if git diff --cached --quiet; then echo 'No status changes to persist.'; else git commit -m "chore: record ${{ matrix.slug }} Kaggle status"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to persist status after retries' >&2; exit 1; fi; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Concurrency-safe persistence: bot workflows commit to main every few
+          # minutes, so a rebase-based retry can conflict. The status write is
+          # deterministic, so on push failure we reset onto latest main and
+          # re-apply the write instead of rebasing.
+          persist_status() {
+            HIST=".training-manifests/${{ matrix.slug }}/status-history.tsv"
+            mkdir -p ".training-manifests/${{ matrix.slug }}"
+            touch "$HIST"
+            LAST=$(tail -n 1 "$HIST" | sed 's/\\t/\t/g' | awk -F'\t' '{print $NF}' || true)
+            if [ "$LAST" != "$STATUS" ]; then
+              printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STATUS" >> "$HIST"
+              tail -n 96 "$HIST" > /tmp/status-history.tsv
+              mv /tmp/status-history.tsv "$HIST"
+            fi
+            printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/status.txt"
+            git add ".training-manifests/${{ matrix.slug }}/status-history.tsv" ".training-manifests/${{ matrix.slug }}/status.txt"
+            if git diff --cached --quiet; then echo 'No status changes to persist.'; return 0; fi
+            git commit -m "chore: record ${{ matrix.slug }} Kaggle status"
+            git push
+          }
+          persisted=false
+          for attempt in 1 2 3 4 5; do
+            if persist_status; then persisted=true; break; fi
+            echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
+            git fetch origin main
+            git reset --hard origin/main
+          done
+          if [ "$persisted" != true ]; then echo 'Failed to persist status after retries' >&2; exit 1; fi
           case "$STATUS" in
             running|queued|new_script|cancel_requested|cancel_acknowledged) echo 'Kernel is not complete; this scheduled check will retry later.'; exit 0 ;;
             error|failed|cancelled|canceled) echo "Kernel is in a failure state: $STATUS"; mkdir -p "artifacts/${{ matrix.slug }}"; printf '%s\n' "$STATUS" > "artifacts/${{ matrix.slug }}/error.txt"; exit 1 ;;
@@ -314,16 +342,27 @@ jobs:
           CURRENT=""
           [ -f "$DIR/processed-version.txt" ] && CURRENT=$(tr -d '\r\n ' < "$DIR/processed-version.txt" || true)
           if [ "$CURRENT" = "$VERSION" ]; then echo "Kaggle version $VERSION is already marked processed."; exit 0; fi
-          printf '%s\n' "$VERSION" > "$DIR/processed-version.txt"
-          printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" >> "$DIR/processed-history.tsv"
-          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR/processed-version.txt" "$DIR/processed-history.tsv"; git commit -m "chore: mark Kaggle ${{ matrix.slug }} v$VERSION processed"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          # Idempotent write, re-applied onto latest main on every push retry.
+          persist_processed() {
+            printf '%s\n' "$VERSION" > "$DIR/processed-version.txt"
+            if ! grep -qF "$(printf '\t')$VERSION" "$DIR/processed-history.tsv" 2>/dev/null; then
+              printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" >> "$DIR/processed-history.tsv"
+            fi
+            git add "$DIR/processed-version.txt" "$DIR/processed-history.tsv"
+            if git diff --cached --quiet; then echo 'Processed marker already persisted.'; return 0; fi
+            git commit -m "chore: mark Kaggle ${{ matrix.slug }} v$VERSION processed"
+            git push
+          }
+          persisted=false
           for attempt in 1 2 3 4 5; do
-            if git push; then exit 0; fi
+            if persist_processed; then persisted=true; break; fi
+            echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
             git fetch origin main
-            git rebase origin/main
+            git reset --hard origin/main
           done
-          echo 'Failed to persist processed version after retries' >&2
-          exit 1
+          if [ "$persisted" != true ]; then echo 'Failed to persist processed version after retries' >&2; exit 1; fi
       - name: Run summary
         if: ${{ always() }}
         run: |
@@ -356,4 +395,18 @@ jobs:
           DIR=".training-manifests/${{ matrix.slug }}"; mkdir -p "$DIR"
           find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
           git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR"
-          if git diff --cached --quiet; then echo 'No metric changes.'; else git commit -m "chore: update ${{ matrix.slug }} training metrics"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi; fi
+          if git diff --cached --quiet; then echo 'No metric changes.'; else
+            git commit -m "chore: update ${{ matrix.slug }} training metrics"
+            pushed=false
+            for attempt in 1 2 3 4 5; do
+              if git push; then pushed=true; break; fi
+              echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
+              git fetch origin main
+              git reset --hard origin/main
+              find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
+              git add "$DIR"
+              if git diff --cached --quiet; then echo 'No metric changes after reset.'; pushed=true; break; fi
+              git commit -m "chore: update ${{ matrix.slug }} training metrics"
+            done
+            if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi
+          fi
