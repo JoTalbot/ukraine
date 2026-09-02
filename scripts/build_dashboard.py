@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Generate a self-contained static dashboard (index.html) for GitHub Pages.
 
-Reads only files already tracked in this repository (training manifests,
-configs, discovery catalog) — no network access required. The output has
-inline styles and zero external assets so it renders anywhere.
+Reads only files already tracked in this repository plus a generated release
+manifest when present. The output has inline styles and zero external assets.
 """
 from __future__ import annotations
 
@@ -31,6 +30,13 @@ def read_text(path: Path) -> str | None:
         return None
 
 
+def read_json(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
 def read_metrics(path: Path) -> list[dict]:
     metrics = []
     try:
@@ -43,6 +49,20 @@ def read_metrics(path: Path) -> list[dict]:
     except OSError:
         pass
     return metrics
+
+
+def release_row(root: Path) -> str:
+    manifest = read_json(root / "artifacts" / "status" / "release-manifest.json")
+    if not manifest:
+        return "<tr><td colspan='4'><span class='pill mute'>нет manifest</span></td></tr>"
+    commit = manifest.get("git_commit", "unknown")
+    branch = manifest.get("git_branch", "unknown")
+    generated = manifest.get("generated_at_utc", "unknown")
+    count = len(manifest.get("files", []))
+    return (
+        f"<tr><td><code>{esc(commit)}</code></td><td>{esc(branch)}</td>"
+        f"<td>{esc(generated)}</td><td>{esc(count)}</td></tr>"
+    )
 
 
 def kernel_row(root: Path, slug: str, title: str, link: str) -> str:
@@ -67,9 +87,8 @@ def kernel_row(root: Path, slug: str, title: str, link: str) -> str:
 
 def dataset_rows(root: Path) -> str:
     catalog = root / "config" / "ukraine_open_data_catalog.json"
-    try:
-        data = json.loads(catalog.read_text(encoding="utf-8"))
-    except OSError:
+    data = read_json(catalog)
+    if not data:
         return "<tr><td colspan='3'>каталог не найден</td></tr>"
     rows = []
     for item in sorted(data.get("datasets", []), key=lambda x: x.get("priority", 99)):
@@ -83,12 +102,8 @@ def dataset_rows(root: Path) -> str:
 
 
 def discovery_count(root: Path) -> str:
-    catalog = root / "artifacts" / "discovery" / "data_gov_ua_catalog.json"
-    try:
-        data = json.loads(catalog.read_text(encoding="utf-8"))
-        return str(len(data.get("datasets", [])))
-    except OSError:
-        return "—"
+    data = read_json(root / "artifacts" / "discovery" / "data_gov_ua_catalog.json")
+    return str(len(data.get("datasets", []))) if data else "—"
 
 
 CSS = """
@@ -111,6 +126,7 @@ a:hover { text-decoration: underline; }
 .pill.run { background: #0d2d4d; color: #58a6ff; }
 .pill.bad { background: #4d1520; color: #f85149; }
 .pill.mute { background: #2d333b; color: #9da7b3; }
+code { font-size: 12px; }
 footer { color: #9da7b3; font-size: 13px; text-align: center; padding: 30px 0; }
 """
 
@@ -128,6 +144,12 @@ PAGE = """<!DOCTYPE html>
   <p>Serverless pipeline: data.gov.ua → GitHub Actions → Hugging Face · обновлено {generated} UTC</p>
 </header>
 <main>
+  <h2>Release identity</h2>
+  <table>
+    <tr><th>commit</th><th>branch</th><th>manifest UTC</th><th>files</th></tr>
+    {release_row}
+  </table>
+
   <h2>Модели (Kaggle GPU + CPU CI)</h2>
   <table>
     <tr><th>модель</th><th>статус</th><th>версия кернела</th><th>конвейер</th><th>steps</th><th>val_loss (last)</th><th>val_loss (best)</th></tr>
@@ -164,6 +186,7 @@ def build(root: Path, output: Path) -> None:
     page = PAGE.format(
         css=CSS,
         generated=generated,
+        release_row=release_row(root),
         model_rows=model_rows,
         dataset_rows=dataset_rows(root),
         discovered=discovery_count(root),
