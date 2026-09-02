@@ -12,6 +12,7 @@ The repository is considered production-ready when every automated data/model re
 - Entity-link graph construction.
 - CPU/GPU model-training paths.
 - GitHub Actions orchestration, failure alerts, Pages dashboard, and race-safe persistence.
+- Repository-level release manifests with commit identity, runtime metadata, and file checksums, published as CI artifacts.
 
 ## Final hardening track
 
