@@ -45,6 +45,9 @@ jobs:
       - name: Validate generated release manifest
         run: python -c "from pathlib import Path; from scripts.validate_release import validate_release_manifest; errors = validate_release_manifest(Path('artifacts/status/release-manifest.json')); print('Release manifest contract OK') if not errors else (_ for _ in ()).throw(SystemExit('\\n'.join(errors)))"
 
+      - name: Generate platform status index
+        run: python scripts/generate_status_index.py --output artifacts/status/status-index.json
+
       - name: Validate repository contract
         run: |
           python - <<'PY'
@@ -60,20 +63,26 @@ jobs:
               Path('docs/OBSERVABILITY.md'),
               Path('docs/SECURITY.md'),
               Path('artifacts/status/release-manifest.json'),
+              Path('artifacts/status/status-index.json'),
           ]
           missing = [str(p) for p in required if not p.is_file()]
           if missing:
               raise SystemExit(f'Missing required files: {missing}')
           manifest = json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
+          status = json.loads(Path('artifacts/status/status-index.json').read_text(encoding='utf-8'))
           if manifest.get('schema_version') != 1 or not manifest.get('git_commit'):
               raise SystemExit('Invalid release manifest')
+          if status.get('schema_version') != 1 or status.get('release', {}).get('git_commit') != manifest.get('git_commit'):
+              raise SystemExit('Status index release identity does not match manifest')
+          if set(status.get('signals', {})) != {'ci', 'ingestion', 'quality', 'graph', 'training', 'publication', 'security'}:
+              raise SystemExit('Status index signal set is incomplete')
           print('Repository contract OK')
           PY
 
-      - name: Upload release manifest
+      - name: Upload release manifest and status index
         uses: actions/upload-artifact@v7
         with:
-          name: release-manifest
-          path: artifacts/status/release-manifest.json
+          name: release-status
+          path: artifacts/status/*.json
           if-no-files-found: error
           retention-days: 30
