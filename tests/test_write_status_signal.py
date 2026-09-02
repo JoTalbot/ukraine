@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def run_signal(*args: str) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603
         [sys.executable, "scripts/write_status_signal.py", *args],
         check=False,
         capture_output=True,
