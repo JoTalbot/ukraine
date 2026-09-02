@@ -9,9 +9,12 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import http.client
 import json
 import re
 import tempfile
+import time
+import urllib.error
 import zipfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -25,6 +28,7 @@ DOWNLOAD_TIMEOUT = 300
 CHUNK_SIZE = 10_000
 PART_ROWS = 250_000
 USER_AGENT = "JoTalbot/ukraine-edrsr-pipeline"
+FETCH_ATTEMPTS = 4
 # Explicit output schema: batches where a column is entirely None must not
 # change the inferred type between parts.
 RECORD_SCHEMA = None  # initialized lazily in write_parquet
@@ -53,9 +57,27 @@ def record_schema():
 PIPELINE_VERSION = 2
 
 
+def open_with_retries(req: Request, timeout: int, attempts: int = FETCH_ATTEMPTS):
+    """Open a URL with retries on transient network failures.
+
+    data.gov.ua and the court registry regularly drop or truncate connections;
+    a single failure must not kill the 30-minute matrix without a fight.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return urlopen(req, timeout=timeout)
+        except (http.client.HTTPException, urllib.error.URLError, TimeoutError) as exc:
+            if attempt == attempts:
+                raise
+            wait = min(2 ** attempt, 30)
+            print(f"HTTP attempt {attempt}/{attempts} failed: {exc!r}; retrying in {wait}s")
+            time.sleep(wait)
+    raise RuntimeError("unreachable")
+
+
 def http_json(url: str) -> dict[str, Any]:
     req = Request(url, headers={"User-Agent": USER_AGENT})
-    with urlopen(req, timeout=60) as response:
+    with open_with_retries(req, timeout=60) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -96,23 +118,32 @@ def remote_change_tag(url: str) -> str | None:
     """Best-effort change indicator (ETag, or Last-Modified) for the archive."""
     req = Request(url, method="HEAD", headers={"User-Agent": USER_AGENT})
     try:
-        with urlopen(req, timeout=60) as response:
+        with open_with_retries(req, timeout=60, attempts=2) as response:
             return response.headers.get("ETag") or response.headers.get("Last-Modified")
     except Exception:
         return None
 
 
 def download(url: str, target: Path) -> str:
-    req = Request(url, headers={"User-Agent": USER_AGENT})
-    digest = hashlib.sha256()
-    with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as response, target.open("wb") as out:
-        while True:
-            chunk = response.read(1024 * 1024)
-            if not chunk:
-                break
-            out.write(chunk)
-            digest.update(chunk)
-    return digest.hexdigest()
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        req = Request(url, headers={"User-Agent": USER_AGENT})
+        digest = hashlib.sha256()
+        try:
+            with urlopen(req, timeout=DOWNLOAD_TIMEOUT) as response, target.open("wb") as out:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    out.write(chunk)
+                    digest.update(chunk)
+            return digest.hexdigest()
+        except (http.client.HTTPException, urllib.error.URLError, TimeoutError) as exc:
+            print(f"download attempt {attempt}/{FETCH_ATTEMPTS} failed: {exc!r}")
+            if attempt == FETCH_ATTEMPTS:
+                target.unlink(missing_ok=True)  # never leave a truncated archive behind
+                raise
+            time.sleep(min(2 ** attempt, 30))
+    raise RuntimeError("unreachable")
 
 
 def safe_extract(zf: zipfile.ZipFile, root: Path) -> None:

@@ -8,14 +8,17 @@ libraries are optional so the metadata pipeline remains lightweight.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import re
 import time
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
 USER_AGENT = "JoTalbot/ukraine-edrsr-texts (+polite rate-limited mirror)"
+FETCH_ATTEMPTS = 4
 META_COLUMNS = ("document_id", "source_url", "case_number", "court", "category", "judge", "decision_date")
 SUPPORTED_EXTENSIONS = (".rtf", ".doc", ".docx", ".pdf", ".txt", ".html", ".htm")
 
@@ -55,8 +58,17 @@ def iter_pending(parts: list[Path], done: set[str]):
 
 def fetch(url: str, timeout: int = 60) -> bytes:
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        return response.read()
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return response.read()
+        except (http.client.HTTPException, urllib.error.URLError, TimeoutError) as exc:
+            if attempt == FETCH_ATTEMPTS:
+                raise
+            wait = min(2 ** attempt, 30)
+            print(f"fetch attempt {attempt}/{FETCH_ATTEMPTS} failed for {url}: {exc!r}; retrying in {wait}s")
+            time.sleep(wait)
+    raise RuntimeError("unreachable")
 
 
 def rtf_to_plain(data: bytes) -> str:

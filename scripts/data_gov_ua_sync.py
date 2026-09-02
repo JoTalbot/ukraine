@@ -14,11 +14,33 @@ from huggingface_hub import HfApi
 API = "https://data.gov.ua/api/3/action"
 TIMEOUT = 60
 CHUNK = 1024 * 1024
+FETCH_ATTEMPTS = 4
+HEADERS = {"User-Agent": "JoTalbot/ukraine-open-data-sync"}
+
+
+def get_with_retries(url, *, stream=False, attempts=FETCH_ATTEMPTS, **kwargs):
+    """GET with retries on transient transport failures and 5xx responses."""
+    kwargs.setdefault("headers", HEADERS)
+    for attempt in range(1, attempts + 1):
+        try:
+            r = requests.get(url, stream=stream, **kwargs)
+            if r.status_code < 500:
+                r.raise_for_status()
+                return r
+            exc = requests.HTTPError(f"server replied {r.status_code}", response=r)
+            r.close()
+        except (requests.ConnectionError, requests.Timeout, requests.ChunkedEncodingError) as err:
+            exc = err
+        if attempt == attempts:
+            raise exc
+        wait = min(2 ** attempt, 30)
+        print(f"GET {url} attempt {attempt}/{attempts} failed: {exc!r}; retrying in {wait}s")
+        time.sleep(wait)
+    raise RuntimeError("unreachable")
 
 
 def api_get(action, params):
-    r = requests.get(f"{API}/{action}", params=params, timeout=TIMEOUT)
-    r.raise_for_status()
+    r = get_with_retries(f"{API}/{action}", params=params, timeout=TIMEOUT)
     data = r.json()
     if not data.get("success"):
         raise RuntimeError(f"Data.gov.ua API error: {data.get('error')}")
@@ -47,13 +69,16 @@ def safe_name(value):
 
 
 def download(url, dest):
-    with requests.get(url, stream=True, timeout=TIMEOUT, headers={"User-Agent": "JoTalbot/ukraine-open-data-sync"}) as r:
-        r.raise_for_status()
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        with dest.open("wb") as f:
-            for chunk in r.iter_content(CHUNK):
-                if chunk:
-                    f.write(chunk)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with get_with_retries(url, stream=True, timeout=TIMEOUT) as r:
+            with dest.open("wb") as f:
+                for chunk in r.iter_content(CHUNK):
+                    if chunk:
+                        f.write(chunk)
+    except Exception:
+        dest.unlink(missing_ok=True)  # never leave a truncated file behind
+        raise
 
 
 def main():

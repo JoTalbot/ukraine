@@ -5,13 +5,40 @@ Downloads every discovered structured resource without artificial file-count or
 size limits. The runner timeout and Hugging Face storage limits still apply.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, re
+import argparse, hashlib, json, os, re, time
 from pathlib import Path
 import requests
 from huggingface_hub import HfApi
 
 CHUNK = 8 * 1024 * 1024
+FETCH_ATTEMPTS = 4
+HEADERS = {"User-Agent": "JoTalbot/ukraine-open-data-sync"}
 STRUCTURED = {"CSV", "TSV", "JSON", "JSONL", "NDJSON", "XML", "XLS", "XLSX", "ODS", "PARQUET", "ZIP", "7Z", "GZ", "GZIP"}
+
+
+def download_with_retries(url: str, dest: Path) -> int:
+    """Stream a resource with retries on transient failures and 5xx replies."""
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            with requests.get(url, stream=True, timeout=600, headers=HEADERS) as resp:
+                if resp.status_code >= 500:
+                    raise requests.HTTPError(f"server replied {resp.status_code}", response=resp)
+                resp.raise_for_status()
+                total = 0
+                with dest.open("wb") as f:
+                    for chunk in resp.iter_content(CHUNK):
+                        if chunk:
+                            total += len(chunk)
+                            f.write(chunk)
+            return total
+        except (requests.ConnectionError, requests.Timeout, requests.ChunkedEncodingError, requests.HTTPError) as exc:
+            dest.unlink(missing_ok=True)  # never leave a truncated file behind
+            if attempt == FETCH_ATTEMPTS:
+                raise
+            wait = min(2 ** attempt, 30)
+            print(f"download attempt {attempt}/{FETCH_ATTEMPTS} failed for {url}: {exc!r}; retrying in {wait}s")
+            time.sleep(wait)
+    raise RuntimeError("unreachable")
 
 
 def safe(s: str) -> str:
@@ -54,14 +81,7 @@ def main() -> None:
                 name = safe(r.get("name") or Path(url.split("?")[0]).name or f"resource-{i}")
                 if "." not in name: name += "." + r.get("format", "bin").lower()
                 dest = root / ds_id / name; dest.parent.mkdir(parents=True, exist_ok=True)
-                with requests.get(url, stream=True, timeout=600, headers={"User-Agent":"JoTalbot/ukraine-open-data-sync"}) as resp:
-                    resp.raise_for_status()
-                    total = 0
-                    with dest.open("wb") as f:
-                        for chunk in resp.iter_content(CHUNK):
-                            if chunk:
-                                total += len(chunk)
-                                f.write(chunk)
+                total = download_with_retries(url, dest)
                 sha = file_sha256(dest)
                 target = f"discovered/{ds_id}/{name}"
                 hf.upload_file(path_or_fileobj=str(dest), path_in_repo=target, repo_id=repo, repo_type="dataset")

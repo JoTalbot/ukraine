@@ -1,0 +1,70 @@
+name: Workflow Failure Alerts
+
+on:
+  workflow_run:
+    workflows:
+      - 'Ukraine data CI'
+      - 'Ukraine Open Data Discovery'
+      - 'Ukraine Open Data -> Hugging Face'
+      - 'Discovered Ukraine Open Data -> Hugging Face'
+      - 'EDRSR Hugging Face Upload'
+      - 'EDRSR Full Texts'
+      - 'Train Ukraine Models'
+      - 'Kaggle GPU Training'
+      - 'Kaggle Kernel Results'
+    types: [completed]
+
+permissions:
+  issues: write
+  contents: read
+
+concurrency:
+  group: failure-alerts-${{ github.event.workflow_run.name }}
+  cancel-in-progress: true
+
+jobs:
+  alert:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Open, update, or close the alert issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WF_NAME: ${{ github.event.workflow_run.name }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          MARKER="[alert] ${WF_NAME}"
+          echo "workflow='${WF_NAME}' conclusion=${CONCLUSION}"
+          # Find an open alert for this workflow (client-side exact match).
+          NUMBER=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "alert in:title" --limit 50 --json number,title \
+            | python3 -c "
+          import json, os, sys
+          marker = os.environ['MARKER']
+          for issue in json.load(sys.stdin):
+              if issue['title'].startswith(marker):
+                  print(issue['number']); break
+          ")
+          if [ "$CONCLUSION" = "success" ]; then
+            if [ -n "$NUMBER" ]; then
+              gh issue close "$NUMBER" --repo "$GITHUB_REPOSITORY" \
+                --comment "✅ Recovered: ${RUN_URL}"
+              echo "Closed recovered alert #${NUMBER}."
+            else
+              echo "No open alert for '${WF_NAME}'; nothing to do."
+            fi
+            exit 0
+          fi
+          if [ "$CONCLUSION" != "failure" ]; then
+            echo "Conclusion '${CONCLUSION}' is not actionable; skipping."
+            exit 0
+          fi
+          BODY="Workflow **${WF_NAME}** failed."$'\n\n'"Run: ${RUN_URL}"$'\n'"Time (UTC): $(date -u +%Y-%m-%dT%H:%M:%SZ)"$'\n\n'"Managed by the failure-alerts workflow: repeated failures are commented here; the issue closes automatically on recovery."
+          if [ -n "$NUMBER" ]; then
+            gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+            echo "Commented on existing alert #${NUMBER}."
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "${MARKER} failing" --body "$BODY"
+            echo "Created a new alert issue."
+          fi

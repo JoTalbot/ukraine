@@ -1,5 +1,10 @@
 # Ukraine Open Legal & Public Data
 
+[![Ukraine data CI](https://github.com/JoTalbot/ukraine/actions/workflows/ukraine-data-ci.yml/badge.svg)](https://github.com/JoTalbot/ukraine/actions/workflows/ukraine-data-ci.yml)
+[![Kaggle Kernel Results](https://github.com/JoTalbot/ukraine/actions/workflows/kaggle-results.yml/badge.svg)](https://github.com/JoTalbot/ukraine/actions/workflows/kaggle-results.yml)
+[![EDRSR → HF](https://github.com/JoTalbot/ukraine/actions/workflows/edrsr-huggingface.yml/badge.svg)](https://github.com/JoTalbot/ukraine/actions/workflows/edrsr-huggingface.yml)
+[![Train Ukraine Models](https://github.com/JoTalbot/ukraine/actions/workflows/train-models.yml/badge.svg)](https://github.com/JoTalbot/ukraine/actions/workflows/train-models.yml)
+
 Проект воспроизводимого AI-ready pipeline открытых данных Украины:
 от официальных источников до датасетов на Hugging Face, графа связей и обученных моделей.
 
@@ -45,6 +50,7 @@ data.gov.ua → discovery → скачивание → SHA-256 → нормал�
 | Kaggle GPU Training | 2×/неделю + при изменении кода обучения | push GPU-кернела (статус-чек активной версии, защита GPU-квоты) |
 | Kaggle Kernel Results | каждые 15 мин | автосбор результатов и публикация моделей |
 | Ukraine data CI | на push | pytest + compileall + контракт репозитория |
+| Workflow Failure Alerts | по завершению | авто-issue при падении, закрытие при восстановлении |
 
 ## Граф связей
 
@@ -62,3 +68,9 @@ data.gov.ua → discovery → скачивание → SHA-256 → нормал�
 
 - `JoTalbot/ukraine` — ingestion, схемы, граф связей, обучение, публикация.
 - `JoTalbot/UASEP` — автономная разработка и maintenance automation.
+
+## Лицензия
+
+Код — MIT (см. `LICENSE`). Данные и производные артефакты остаются под лицензиями
+первоисточников (data.gov.ua — преимущественно CC BY; решения ЄДРСР — официальные
+публичные документы). При переиспользовании данных сохраняйте атрибуцию источника.

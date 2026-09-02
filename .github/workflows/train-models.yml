@@ -7,11 +7,11 @@ on:
         description: 'Training steps'
         required: true
         default: '600'
+  # Scheduled cadence only. Retraining after every EDRSR upload (every 30 min)
+  # saturated the runner queue and starved other workflows — new data lands in
+  # the corpus anyway on the next scheduled pass.
   schedule:
     - cron: '40 3,15 * * *'
-  workflow_run:
-    workflows: ['EDRSR Hugging Face Upload']
-    types: [completed]
 
 permissions:
   contents: write
@@ -24,7 +24,6 @@ jobs:
   train:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     env:
       HF_EDRSR_REPO: JoTalbot/ua-edrsr
     steps:
