@@ -99,7 +99,19 @@ jobs:
           if [ -n "$PENDING" ] && [ "$PENDING" != "$PROCESSED" ]; then
             case "$STATUS" in
               *running*|*queued*) echo "Version $PENDING is still active; skipping push."; exit 0 ;;
-              *complete*|*error*|*failed*|*cancelled*|*canceled*) echo "Version $PENDING has terminal status $STATUS and is awaiting result processing; skipping push."; exit 0 ;;
+              *complete*) echo "Version $PENDING is complete and pending result collection; skipping push to keep it collectible."; exit 0 ;;
+              *error*|*failed*|*cancelled*|*canceled*)
+                # A crashed version has no output to collect, so it would never be
+                # marked processed. Allow a retrain, but only when the code has
+                # changed since that launch — otherwise the same broken kernel
+                # would be pushed in a loop and burn GPU quota.
+                LAST_SHA=$(tail -n 1 "$STATE_DIR/launch-history.tsv" 2>/dev/null | awk -F'\t' '{print $4}' || true)
+                if [ -n "$LAST_SHA" ] && [ "$LAST_SHA" = "$GITHUB_SHA" ]; then
+                  echo "Version $PENDING failed on the same commit ($GITHUB_SHA); waiting for a code change before retrying. Skipping push."
+                  exit 0
+                fi
+                echo "Version $PENDING has failure status $STATUS and code changed since launch — re-pushing."
+                ;;
             esac
           fi
           FORCE="${{ github.event.inputs.force || 'false' }}"

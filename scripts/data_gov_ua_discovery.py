@@ -7,22 +7,37 @@ results. The final catalog can still be bounded explicitly with --limit.
 from __future__ import annotations
 
 import argparse
+import http.client
 import json
 import re
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 API = "https://data.gov.ua/api/3/action/package_search"
 PAGE_SIZE = 100
+FETCH_ATTEMPTS = 5
 
 
 def fetch(q: str, rows: int = PAGE_SIZE, start: int = 0) -> dict:
     params = urllib.parse.urlencode({"q": q, "rows": rows, "start": start})
     # data.gov.ua rejects requests without a User-Agent header with HTTP 403.
     req = urllib.request.Request(f"{API}?{params}", headers={"User-Agent": "JoTalbot/ukraine-discovery"})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.load(r)
+    # The CKAN API occasionally truncates responses (IncompleteRead) or drops
+    # connections; these are transient and must not kill the whole workflow.
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return json.load(r)
+        except (http.client.HTTPException, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+            if attempt == FETCH_ATTEMPTS:
+                raise
+            wait = min(2 ** attempt, 30)
+            print(f"data.gov.ua fetch attempt {attempt}/{FETCH_ATTEMPTS} failed: {exc!r}; retrying in {wait}s")
+            time.sleep(wait)
+    raise RuntimeError("unreachable")
 
 
 def clean(s: str) -> str:
