@@ -33,11 +33,16 @@ jobs:
           if next_step < 0:
               raise SystemExit('Next workflow step not found')
           body = s[body_start:next_step]
+          expr = chr(36) + '{{ matrix.slug }}'
           if 'STATUS=$(tr -d' in body and 'Skipping validation because Kaggle status' in body:
               print('Validation guard already present; nothing to change.')
           else:
-              guard = '''          STATUS=$(tr -d '\\r\\n ' < ".training-manifests/${{ matrix.slug }}/status.txt" 2>/dev/null || true)\n          if [ "$STATUS" != "complete" ]; then\n            echo "Skipping validation because Kaggle status is ${STATUS:-unknown}."\n            exit 0\n          fi\n'''
-              needle = '          ROOT="artifacts/${{ matrix.slug }}"\n'
+              guard = "          STATUS=$(tr -d '\\r\\n ' < \".training-manifests/" + expr + "/status.txt\" 2>/dev/null || true)\n" \
+                      + '          if [ "$STATUS" != "complete" ]; then\n' \
+                      + '            echo "Skipping validation because Kaggle status is ${STATUS:-unknown}."\n' \
+                      + '            exit 0\n' \
+                      + '          fi\n'
+              needle = '          ROOT="artifacts/' + expr + '"\n'
               if needle not in body:
                   raise SystemExit('Expected ROOT line not found; refusing to modify workflow')
               body = body.replace(needle, needle + guard, 1)
