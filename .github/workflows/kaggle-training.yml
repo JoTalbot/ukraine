@@ -14,7 +14,7 @@ on:
     types: [completed]
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: kaggle-gpu-training
@@ -90,6 +90,18 @@ jobs:
           KERNEL_ID="${USERNAME}/${{ matrix.slug }}"
           STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
           echo "current kernel status [$KERNEL_ID]: ${STATUS:-unknown}"
+          STATE_DIR=".training-manifests/${{ matrix.slug }}"
+          mkdir -p "$STATE_DIR"
+          PENDING=""
+          PROCESSED=""
+          [ -f "$STATE_DIR/kernel-version.txt" ] && PENDING=$(tr -d '\r\n ' < "$STATE_DIR/kernel-version.txt" || true)
+          [ -f "$STATE_DIR/processed-version.txt" ] && PROCESSED=$(tr -d '\r\n ' < "$STATE_DIR/processed-version.txt" || true)
+          if [ -n "$PENDING" ] && [ "$PENDING" != "$PROCESSED" ]; then
+            case "$STATUS" in
+              *running*|*queued*) echo "Version $PENDING is still active; skipping push."; exit 0 ;;
+              *complete*|*error*|*failed*|*cancelled*|*canceled*) echo "Version $PENDING has terminal status $STATUS and is awaiting result processing; skipping push."; exit 0 ;;
+            esac
+          fi
           FORCE="${{ github.event.inputs.force || 'false' }}"
           case "$STATUS" in
             *running*|*queued*)
@@ -117,8 +129,22 @@ jobs:
           }
           pathlib.Path('/tmp/kernel/kernel-metadata.json').write_text(json.dumps(meta, indent=2))
           PY
-          kaggle kernels push -p /tmp/kernel
-          echo "Kernel $KERNEL_ID pushed."
+          PUSH_OUTPUT=$(kaggle kernels push -p /tmp/kernel 2>&1 | tee /tmp/kaggle-push.log)
+          VERSION=$(printf '%s\n' "$PUSH_OUTPUT" | grep -oE 'Kernel version [0-9]+' | tail -1 | awk '{print $3}' || true)
+          test -n "$VERSION" || { echo 'Could not determine pushed Kaggle kernel version'; cat /tmp/kaggle-push.log; exit 1; }
+          echo "Kernel $KERNEL_ID version $VERSION pushed."
+          printf '%s\n' "$VERSION" > "$STATE_DIR/kernel-version.txt"
+          printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)\t$VERSION\t$KERNEL_ID\t${GITHUB_SHA}" >> "$STATE_DIR/launch-history.tsv"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$STATE_DIR/kernel-version.txt" "$STATE_DIR/launch-history.tsv"
+          git commit -m "chore: record Kaggle kernel version ${{ matrix.slug }} v$VERSION"
+          for attempt in 1 2 3 4 5; do
+            if git push; then break; fi
+            git fetch origin main
+            git rebase origin/main
+            if [ "$attempt" = 5 ]; then echo 'Failed to persist Kaggle version state' >&2; exit 1; fi
+          done
           for attempt in 1 2 3 4 5 6; do
             sleep 10
             STATUS=$(kaggle kernels status "$KERNEL_ID" 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' || true)
