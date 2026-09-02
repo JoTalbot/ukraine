@@ -27,7 +27,7 @@ jobs:
       - name: Generate dashboard
         run: python scripts/build_dashboard.py --output dashboard
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b6a1d36c20c97666d06b  # v3
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dashboard
 
@@ -40,4 +40,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e  # v4
+        uses: actions/deploy-pages@v4
