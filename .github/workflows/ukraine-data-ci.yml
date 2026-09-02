@@ -42,6 +42,9 @@ jobs:
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
 
+      - name: Validate generated release manifest
+        run: python -c "from pathlib import Path; from scripts.validate_release import validate_release_manifest; errors = validate_release_manifest(Path('artifacts/status/release-manifest.json')); print('Release manifest contract OK') if not errors else (_ for _ in ()).throw(SystemExit('\\n'.join(errors)))"
+
       - name: Validate repository contract
         run: |
           python - <<'PY'
