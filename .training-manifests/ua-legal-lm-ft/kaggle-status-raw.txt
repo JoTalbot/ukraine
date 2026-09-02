@@ -1,1 +1,1 @@
-jotalbot/ua-legal-lm-ft has status "KernelWorkerStatus.ERROR"
+jotalbot/ua-legal-lm-ft has status "KernelWorkerStatus.RUNNING"
