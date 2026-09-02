@@ -22,7 +22,18 @@ jobs:
           python-version: "3.12"
       - name: Install CI dependencies
         run: python -m pip install --upgrade pip -r requirements-ci.txt
-      - name: Validate release contract
+      - name: Validate repository contract
         run: python scripts/validate_release.py
+      - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
+      - name: Validate generated release manifest
+        run: python -c "from pathlib import Path; from scripts.validate_release import validate_release_manifest; errors = validate_release_manifest(Path('artifacts/status/release-manifest.json')); print('Release manifest contract OK') if not errors else (_ for _ in ()).throw(SystemExit('\\n'.join(errors)))"
       - name: Run release contract tests
-        run: python -m pytest tests/test_release_contract.py -q
+        run: python -m pytest tests/test_release_contract.py tests/test_release_manifest.py -q
+      - name: Upload release manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-manifest-observability
+          path: artifacts/status/release-manifest.json
+          if-no-files-found: error
+          retention-days: 7
