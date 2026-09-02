@@ -46,7 +46,8 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
         "if token and os.path.isdir('model-ft/final'):\n"
     )
     patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
-    assert "uninstall -y torchvision" in patched
+    assert "subprocess.run(['pip', 'uninstall', '-y', 'torchvision'], check=True)" in patched
+    assert "subprocess.run(['pip', '-q', 'install'" in patched
     assert "transformers==4.57.1" in patched
     assert "peft==0.17.1" in patched
     assert "raise SystemExit(r.returncode)" in patched
