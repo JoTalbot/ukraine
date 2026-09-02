@@ -27,6 +27,7 @@ data.gov.ua → discovery → скачивание → SHA-256 → нормал�
 | ЄДРСР — судовые решения 2006–2026 | [JoTalbot/ua-edrsr](https://huggingface.co/datasets/JoTalbot/ua-edrsr) | 21 год, Parquet |
 | Открытые данные (27 наборов) | [JoTalbot/ua-open-data](https://huggingface.co/datasets/JoTalbot/ua-open-data) | ЄДР, ПДВ, декларації, санкції… |
 | Українська legal-LM | [JoTalbot/ua-legal-lm](https://huggingface.co/JoTalbot/ua-legal-lm) | GPT, обучена с нуля |
+| Граф связей сущностей | [JoTalbot/ua-entity-graph](https://huggingface.co/datasets/JoTalbot/ua-entity-graph) | SQLite: entities/mentions/edges |
 
 ## Состав репозитория
 
@@ -49,7 +50,9 @@ data.gov.ua → discovery → скачивание → SHA-256 → нормал�
 | Train Ukraine Models | 2×/день | корпус → GPT на CPU → публикация в HF Hub |
 | Kaggle GPU Training | 2×/неделю + при изменении кода обучения | push GPU-кернела (статус-чек активной версии, защита GPU-квоты) |
 | Kaggle Kernel Results | каждые 15 мин | автосбор результатов и публикация моделей |
-| Ukraine data CI | на push | pytest + compileall + контракт репозитория |
+| Ukraine data CI | на push | ruff + pytest + compileall + контракт репозитория |
+| Entity Graph Build | еженедельно | граф связей сущностей → HF |
+| Pages Dashboard | ежедневно | статусная витрина на GitHub Pages |
 | Workflow Failure Alerts | по завершению | авто-issue при падении, закрытие при восстановлении |
 
 ## Граф связей

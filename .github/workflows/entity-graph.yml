@@ -1,0 +1,151 @@
+name: Entity Graph Build
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '35 4 * * 0'  # weekly, Sunday
+
+permissions:
+  contents: write
+
+concurrency:
+  group: entity-graph
+  cancel-in-progress: false
+
+env:
+  HF_DATASET_GRAPH: JoTalbot/ua-entity-graph
+  HF_OPEN: JoTalbot/ua-open-data
+  HF_EDRSR: JoTalbot/ua-edrsr
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyarrow huggingface_hub
+
+      - name: Download graph inputs from Hugging Face
+        run: |
+          set -euo pipefail
+          mkdir -p data/edrsr
+          # Спина графа: ЄДР (UO.zip) + реестр плательщиков ПДВ.
+          curl -fsSL --retry 5 --retry-all-errors -o data/UO.zip \
+            "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/edr/UO.zip"
+          curl -fsSL --retry 5 --retry-all-errors -o data/pdv.csv \
+            "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/vat_payers/pdv_actual.csv"
+          # Метаданные ЄДРСР: последние годы, ограниченное число частей (память раннера).
+          python - <<'PY'
+          import json, subprocess, urllib.request
+          YEARS, PARTS = ['2024', '2025', '2026'], 4
+          for year in YEARS:
+              url = f'https://huggingface.co/api/datasets/JoTalbot/ua-edrsr/tree/main/{year}'
+              req = urllib.request.Request(url, headers={'User-Agent': 'ukraine-entity-graph'})
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as r:
+                      entries = json.load(r)
+              except Exception as e:
+                  print(f'no parts for {year}: {e}')
+                  continue
+              for entry in sorted(entries, key=lambda e: e['path'])[:PARTS]:
+                  dest = 'data/edrsr/' + entry['path'].replace('/', '_')
+                  print('download', entry['path'])
+                  subprocess.run(['curl', '-fsSL', '--retry', '5', '--retry-all-errors', '-o', dest,
+                                  f'https://huggingface.co/datasets/JoTalbot/ua-edrsr/resolve/main/{entry["path"]}'], check=True)
+          PY
+          du -sh data data/edrsr
+
+      - name: Build entity graph
+        run: |
+          set -euo pipefail
+          python scripts/entity_links.py build --db links.db \
+            --edr data/UO.zip --vat data/pdv.csv \
+            --edrsr-parquet 'data/edrsr/*.parquet'
+
+      - name: Validate graph contents
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, sqlite3
+          db = sqlite3.connect('links.db')
+          stats = {
+              'entities': db.execute('SELECT COUNT(*) FROM entities').fetchone()[0],
+              'mentions': db.execute('SELECT COUNT(*) FROM mentions').fetchone()[0],
+              'edges': db.execute('SELECT COUNT(*) FROM edges').fetchone()[0],
+          }
+          print(json.dumps(stats, indent=2))
+          if stats['entities'] < 1000 or stats['edges'] < 1000:
+              raise SystemExit('graph is unexpectedly small; refusing to publish')
+          with open('graph_stats.json', 'w', encoding='utf-8') as fh:
+              json.dump(stats, fh)
+          PY
+
+      - name: Publish graph to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing'; exit 1; }
+          python - <<'PY'
+          import datetime, json, os
+          from huggingface_hub import HfApi
+          stats = json.load(open('graph_stats.json', encoding='utf-8'))
+          repo = os.environ.get('HF_DATASET_GRAPH', 'JoTalbot/ua-entity-graph')
+          card = '\n'.join([
+              '---', 'language: uk', 'tags:', '- entity-linkage', '- ukraine', '- open-data',
+              '- graph', '---', '',
+              '# ua-entity-graph — граф связей сущностей украинских открытых данных', '',
+              f"- Сущностей: **{stats['entities']:,}**",
+              f"- Упоминаний: **{stats['mentions']:,}**",
+              f"- Рёбер: **{stats['edges']:,}**",
+              f"- Сборка: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", '',
+              'Файл `links.db` — SQLite: таблицы `entities`, `mentions`, `edges`.',
+              'Запросы: `python scripts/entity_links.py search --db links.db --id <ЄДРПОУ>`.', '',
+              'Источники: ЄДР, ПДВ, ЄДРСР (метаданные). Только законно опубликованные открытые данные;', 'обезличивание источника сохраняется (no_deanonymization).', ''])
+          with open('GRAPH_CARD.md', 'w', encoding='utf-8') as fh:
+              fh.write(card)
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.create_repo(repo_id=repo, repo_type='dataset', exist_ok=True, private=False)
+          api.update_repo_settings(repo_id=repo, repo_type='dataset', private=False)
+          api.upload_file(path_or_fileobj='GRAPH_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='dataset')
+          api.upload_file(path_or_fileobj='links.db', path_in_repo='links.db', repo_id=repo, repo_type='dataset')
+          api.upload_file(path_or_fileobj='graph_stats.json', path_in_repo='graph_stats.json', repo_id=repo, repo_type='dataset')
+          print('published entity graph to', repo, stats)
+          PY
+
+      - name: Persist graph stats
+        run: |
+          set -euo pipefail
+          mkdir -p .training-manifests/entity-graph
+          cp graph_stats.json .training-manifests/entity-graph/stats.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .training-manifests/entity-graph/stats.json
+          if git diff --cached --quiet; then echo 'No stat changes.'; else
+            git commit -m 'chore: update entity graph stats'
+            for attempt in 1 2 3 4 5; do
+              if git push; then exit 0; fi
+              git fetch origin main
+              git rebase origin/main
+            done
+            echo 'Failed to push graph stats after retries' >&2
+            exit 1
+          fi
+
+      - name: Run summary
+        if: ${{ always() }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> статистика графа недоступна (сборка не завершилась)' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          stats = json.load(open('graph_stats.json', encoding='utf-8'))
+          print('## Entity Graph\n')
+          print('| метрика | значение |')
+          print('|---|---|')
+          for key in ('entities', 'mentions', 'edges'):
+              print(f"| {key} | {stats.get(key, '—'):,} |")
+          print('\n[ua-entity-graph на Hugging Face](https://huggingface.co/datasets/JoTalbot/ua-entity-graph)')
+          PY

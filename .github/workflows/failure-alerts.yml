@@ -12,6 +12,8 @@ on:
       - 'Train Ukraine Models'
       - 'Kaggle GPU Training'
       - 'Kaggle Kernel Results'
+      - 'Entity Graph Build'
+      - 'Pages Dashboard'
     types: [completed]
 
 permissions:
