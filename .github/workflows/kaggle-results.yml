@@ -101,7 +101,10 @@ jobs:
           FILE_LIST=$(find "artifacts/${{ matrix.slug }}" -type f -print | sort)
           printf '%s\n' "$FILE_LIST" | head -100
           echo '--- end collected files ---'
-          ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -type f -name error.txt -print)
+          # Only inspect the kernel's own outputs (top level and model dirs). The
+          # download may contain a full clone of this repo whose committed
+          # .training-manifests/**/error.txt files are stale and must not fail the job.
+          ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f -name error.txt -print)
           if [ -n "$ERROR_FILES" ]; then while IFS= read -r error_file; do if [ -s "$error_file" ] && [ "$(tr -d '\r\n' < "$error_file")" != "ok" ]; then echo "Training reported an error in $error_file:"; cat "$error_file"; exit 1; fi; done <<< "$ERROR_FILES"; fi
       - name: Validate completed training artifacts
         run: |
@@ -178,6 +181,6 @@ jobs:
         run: |
           set -euo pipefail
           DIR=".training-manifests/${{ matrix.slug }}"; mkdir -p "$DIR"
-          find "artifacts/${{ matrix.slug }}" -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
+          find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
           git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR"
           if git diff --cached --quiet; then echo 'No metric changes.'; else git commit -m "chore: update ${{ matrix.slug }} training metrics"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi; fi
