@@ -1,0 +1,56 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+
+def test_write_status_signal_creates_safe_payload(tmp_path: Path) -> None:
+    output = tmp_path / "signals"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/write_status_signal.py",
+            "--signal",
+            "graph",
+            "--state",
+            "green",
+            "--detail",
+            "graph build completed",
+            "--artifact",
+            "graph_stats.json",
+            "--output",
+            str(output),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert "status signal written" in result.stdout
+    payload = json.loads((output / "graph.json").read_text(encoding="utf-8"))
+    assert payload["schema_version"] == 1
+    assert payload["signal"] == "graph"
+    assert payload["state"] == "green"
+    assert payload["artifact"] == "graph_stats.json"
+    assert payload["git_commit"]
+    assert payload["generated_at_utc"].endswith("Z")
+
+
+def test_write_status_signal_rejects_oversized_detail(tmp_path: Path) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/write_status_signal.py",
+            "--signal",
+            "quality",
+            "--state",
+            "green",
+            "--detail",
+            "x" * 501,
+            "--output",
+            str(tmp_path / "signals"),
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "exceeds 500" in result.stderr
