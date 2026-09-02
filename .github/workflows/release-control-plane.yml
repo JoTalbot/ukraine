@@ -1,0 +1,76 @@
+name: Release Control Plane
+
+on:
+  workflow_run:
+    workflows:
+      - Entity Graph Build
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  aggregate:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source release
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+
+      - name: Install control-plane dependencies
+        run: python -m pip install --upgrade pip -r requirements-ci.txt
+
+      - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
+
+      - name: Download triggering producer signal
+        if: ${{ github.event_name == 'workflow_run' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          rm -rf artifacts/status/signals
+          mkdir -p artifacts/status/signals
+          gh run download "$RUN_ID" --name status-signal-graph --dir artifacts/status/signals
+          test -s artifacts/status/signals/graph.json
+
+      - name: Aggregate canonical status index
+        run: |
+          python scripts/aggregate_status_signals.py \
+            --manifest artifacts/status/release-manifest.json \
+            --signals-dir artifacts/status/signals \
+            --output artifacts/status/status-index.json
+
+      - name: Validate repository contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
+          status = json.loads(Path('artifacts/status/status-index.json').read_text(encoding='utf-8'))
+          if status.get('release', {}).get('git_commit') != manifest.get('git_commit'):
+              raise SystemExit('Status index release identity does not match manifest')
+          required = {'ci', 'ingestion', 'quality', 'graph', 'training', 'publication', 'security'}
+          if set(status.get('signals', {})) != required:
+              raise SystemExit('Status index signal set is incomplete')
+          print('Control-plane status contract OK')
+          PY
+
+      - name: Upload canonical control-plane snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-control-plane
+          path: artifacts/status/*.json
+          if-no-files-found: error
+          retention-days: 30
