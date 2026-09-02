@@ -12,7 +12,8 @@ from pathlib import Path
 
 def git_value(root: Path, *args: str) -> str:
     try:
-        return subprocess.check_output(["git", *args], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()
+        # Arguments are supplied only by this module's fixed internal calls.
+        return subprocess.check_output(["git", *args], cwd=root, text=True, stderr=subprocess.DEVNULL).strip()  # noqa: S603
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
 
