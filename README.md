@@ -5,19 +5,18 @@
 [![EDRSR → HF](https://github.com/JoTalbot/ukraine/actions/workflows/edrsr-huggingface.yml/badge.svg)](https://github.com/JoTalbot/ukraine/actions/workflows/edrsr-huggingface.yml)
 [![Train Ukraine Models](https://github.com/JoTalbot/ukraine/actions/workflows/train-models.yml/badge.svg)](https://github.com/JoTalbot/ukraine/actions/workflows/train-models.yml)
 
-Проект воспроизводимого AI-ready pipeline открытых данных Украины:
-от официальных источников до датасетов на Hugging Face, графа связей и обученных моделей.
+Проект воспроизводимого AI-ready pipeline открытых данных Украины: от официальных источников до датасетов на Hugging Face, графа связей и обученных моделей.
 
-## Контур (работает)
+## Контур
 
-```
-data.gov.ua → discovery → скачивание → SHA-256 → нормализация → Parquet → Hugging Face
+```text
+data.gov.ua → discovery → download → SHA-256 → normalize → Parquet → Hugging Face
                                                                     ↓
-                                              граф связей сущностей (entity linkage)
+                                              entity-link graph
                                                                     ↓
-                                              корпус → обучение LM (CPU CI + GPU Kaggle)
+                                              corpus → LM training
                                                                     ↓
-                                              публикация моделей в Hugging Face Hub
+                                              evaluation → release
 ```
 
 ## Публичные артефакты
@@ -25,55 +24,45 @@ data.gov.ua → discovery → скачивание → SHA-256 → нормал�
 | Артефакт | Ссылка | Объём |
 |---|---|---|
 | ЄДРСР — судовые решения 2006–2026 | [JoTalbot/ua-edrsr](https://huggingface.co/datasets/JoTalbot/ua-edrsr) | 21 год, Parquet |
-| Открытые данные (27 наборов) | [JoTalbot/ua-open-data](https://huggingface.co/datasets/JoTalbot/ua-open-data) | ЄДР, ПДВ, декларації, санкції… |
+| Открытые данные | [JoTalbot/ua-open-data](https://huggingface.co/datasets/JoTalbot/ua-open-data) | официальные открытые наборы |
 | Українська legal-LM | [JoTalbot/ua-legal-lm](https://huggingface.co/JoTalbot/ua-legal-lm) | GPT, обучена с нуля |
-| Граф связей сущностей | [JoTalbot/ua-entity-graph](https://huggingface.co/datasets/JoTalbot/ua-entity-graph) | SQLite: entities/mentions/edges |
+| Граф связей сущностей | [JoTalbot/ua-entity-graph](https://huggingface.co/datasets/JoTalbot/ua-entity-graph) | entities/mentions/edges |
 
-## Состав репозитория
+## Состав
 
-- `scripts/` — синхронизация данных (`data_gov_ua_*`, `edrsr_sync.py`), сборка корпуса
-  (`build_lm_corpus.py`), обучение (`train_lm.py`), граф связей (`entity_links.py`)
-- `config/` — каталог зеркалируемых наборов и реестр приоритетных источников
-- `schemas/` — канонические схемы данных и графа связей
-- `training/kaggle/` — GPU-кернел для Kaggle T4
-- `docs/` — архитектура, пайплайн ЄДРСР, entity linkage, разбор источников imena.ua (2015)
-- `tests/` — юнит-тесты (парсер, граф, LM); запускаются в CI
+- `scripts/` — ingestion, нормализация, корпус, обучение, entity linkage и release validation.
+- `config/` — каталоги источников и приоритетов.
+- `schemas/` — канонические схемы.
+- `training/kaggle/` — GPU training.
+- `docs/` — архитектура, data quality, provenance, evaluation, observability, security и roadmap.
+- `tests/` — unit/contract tests.
 
-## Автоматизация (GitHub Actions)
+## Автоматизация
 
-| Workflow | Расписание | Что делает |
-|---|---|---|
-| Ukraine Open Data Discovery | ежедневно | обнаружение наборов data.gov.ua |
-| Ukraine Open Data → HF | 2×/день | зеркалирование каталога |
-| Discovered Open Data → HF | по событию | зеркалирование найденных наборов |
-| EDRSR → HF | каждые 30 мин | годы 2006–2026, skip по ETag, параллельная матрица |
-| Train Ukraine Models | 2×/день | корпус → GPT на CPU → публикация в HF Hub |
-| Kaggle GPU Training | 2×/неделю + при изменении кода обучения | push GPU-кернела (статус-чек активной версии, защита GPU-квоты) |
-| Kaggle Kernel Results | каждые 15 мин | автосбор результатов и публикация моделей |
-| Ukraine data CI | на push | ruff + pytest + compileall + контракт репозитория |
-| Entity Graph Build | еженедельно | граф связей сущностей → HF |
-| Pages Dashboard | ежедневно | статусная витрина на GitHub Pages |
-| Workflow Failure Alerts | по завершению | авто-issue при падении, закрытие при восстановлении |
+Работают discovery, зеркалирование в HF, EDRSR, CPU/GPU training, Kaggle result collection, entity graph, Pages dashboard, failure alerts и CI. Дополнительно введён отдельный **Release observability** workflow, который регулярно проверяет production contract.
 
-## Граф связей
+## Production contract
 
-`scripts/entity_links.py` строит и опрашивает граф: сущности (ЄДРПОУ / ІПН / имена),
-упоминания в базах, рёбра (учредитель, подписант, судья↔суд, соистцы). Демо на реальных
-данных: 4,4 млн сущностей, 4,9 млн рёбер. Подробнее — `docs/ENTITY_LINKS.md`.
+Каждый release должен быть проверяемым, трассируемым, воспроизводимым и безопасным. Минимум: источник, время получения, версия/ETag когда доступно, SHA-256, revision трансформации, идентичность артефакта, лицензия и результаты quality/evaluation gates.
+
+Подробные правила:
+
+- `docs/ROADMAP.md` — единая дорожная карта и Definition of Done.
+- `docs/DATA_QUALITY.md` — data contracts и quality gates.
+- `docs/REPRODUCIBILITY.md` — provenance и replay protocol.
+- `docs/MODEL_EVALUATION.md` — правила оценки моделей.
+- `docs/OBSERVABILITY.md` — operational signals и failure semantics.
+- `docs/SECURITY.md` — security/privacy checklist.
 
 ## Приватность
 
-Используются только законно опубликованные открытые данные. Не собираются банковская
-тайна, закрытые телеком-данные, учётные данные, утечки; обезличивание физических лиц,
-предусмотренное источником, сохраняется и не обращается (`no_deanonymization`).
+Используются только законно опубликованные открытые данные. Не собираются банковская тайна, закрытые телеком-данные, учётные данные или утечки; обезличивание физических лиц, предусмотренное источником, сохраняется и не обращается (`no_deanonymization`).
 
 ## Репозитории и роли
 
-- `JoTalbot/ukraine` — ingestion, схемы, граф связей, обучение, публикация.
+- `JoTalbot/ukraine` — ingestion, схемы, граф связей, обучение, evaluation и публикация.
 - `JoTalbot/UASEP` — автономная разработка и maintenance automation.
 
 ## Лицензия
 
-Код — MIT (см. `LICENSE`). Данные и производные артефакты остаются под лицензиями
-первоисточников (data.gov.ua — преимущественно CC BY; решения ЄДРСР — официальные
-публичные документы). При переиспользовании данных сохраняйте атрибуцию источника.
+Код — MIT (см. `LICENSE`). Данные и производные артефакты остаются под лицензиями первоисточников. При переиспользовании сохраняйте атрибуцию источника.

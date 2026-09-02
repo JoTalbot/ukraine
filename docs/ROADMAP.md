@@ -1,0 +1,31 @@
+# Ukraine Platform Roadmap
+
+## Definition of done
+
+The repository is considered production-ready when every automated data/model release is traceable, validated, reproducible, observable, privacy-safe, and recoverable without manual editing of generated state.
+
+## Completed foundations
+
+- Official-source ingestion and discovery.
+- SHA-256 integrity checks and Parquet normalization.
+- EDRSR synchronization and Hugging Face publication.
+- Entity-link graph construction.
+- CPU/GPU model-training paths.
+- GitHub Actions orchestration, failure alerts, Pages dashboard, and race-safe persistence.
+
+## Final hardening track
+
+1. **Data contracts** — validate source manifests, schemas, required metadata, checksums, and non-empty outputs before publication.
+2. **Quality gates** — detect malformed records, duplicate IDs, suspicious row-count changes, missing provenance, and schema drift.
+3. **Lineage/provenance** — record source URL, retrieval time, source version/ETag, checksum, transformation version, and artifact revision.
+4. **Reproducibility** — pin CI actions, Python dependencies, deterministic build metadata, and release manifests.
+5. **Model evaluation** — keep immutable evaluation metadata and reject publication when required metrics are missing or regress beyond configured thresholds.
+6. **Release management** — generate machine-readable release manifests and human-readable release notes for data, graph, and model artifacts.
+7. **Security/privacy** — continuously scan repository configuration and enforce the existing no-deanonymization boundary.
+8. **Observability** — expose health, freshness, quality, training, publication, and failure signals in one status artifact.
+9. **Recovery** — make failed runs resumable/idempotent and preserve enough state to diagnose and replay them.
+10. **Documentation** — keep architecture, operational procedures, data contracts, and release criteria in-repository.
+
+## Operating rule
+
+When a useful improvement is discovered during implementation, add it to this roadmap or an explicit backlog entry before applying it. Do not silently drop product or architecture changes.

@@ -36,11 +36,23 @@ jobs:
       - name: Run unit tests
         run: python -m pytest tests/ -q
 
+      - name: Validate release contract
+        run: python scripts/validate_release.py
+
       - name: Validate repository contract
         run: |
           python - <<'PY'
           from pathlib import Path
-          required = [Path('README.md'), Path('docs/ARCHITECTURE.md')]
+          required = [
+              Path('README.md'),
+              Path('docs/ARCHITECTURE.md'),
+              Path('docs/ROADMAP.md'),
+              Path('docs/DATA_QUALITY.md'),
+              Path('docs/REPRODUCIBILITY.md'),
+              Path('docs/MODEL_EVALUATION.md'),
+              Path('docs/OBSERVABILITY.md'),
+              Path('docs/SECURITY.md'),
+          ]
           missing = [str(p) for p in required if not p.is_file()]
           if missing:
               raise SystemExit(f'Missing required files: {missing}')
