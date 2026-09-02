@@ -28,6 +28,24 @@ jobs:
       - name: Discover datasets
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 500
 
+      - name: Run summary
+        if: ${{ always() }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> каталог не создан (шаг discovery упал до записи файла)' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          with open('artifacts/discovery/data_gov_ua_catalog.json', encoding='utf-8') as fh:
+              data = json.load(fh)
+          n = len(data.get('datasets', []))
+          top = data.get('datasets', [])[:10]
+          print(f'## Discovery: {n} datasets\n')
+          print('| # | dataset | org |')
+          print('|---|---|---|')
+          for i, d in enumerate(top, 1):
+              print(f"| {i} | [{d.get('name','')[:60]}]({d.get('url','')}) | {(d.get('organization') or '')[:40]} |")
+          if n > len(top):
+              print(f'\n_…и ещё {n - len(top)}_')
+          PY
+
       - name: Publish discovery catalog
         run: |
           git config user.name 'github-actions[bot]'

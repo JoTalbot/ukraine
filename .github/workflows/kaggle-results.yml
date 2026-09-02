@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  issues: write  # создание issue при регрессии модели (quality gate)
 
 concurrency:
   group: kaggle-kernel-results
@@ -131,36 +132,174 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL_REPO: JoTalbot/ua-legal-lm-ft
+          REGRESSION_FILE: artifacts/ua-legal-lm-ft/regression.txt
         run: |
           test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; refusing to publish'; exit 1; }
           python -m pip install --quiet huggingface_hub
           python - <<'PY'
-          import datetime, json, os
+          import datetime, json, os, urllib.request
           from pathlib import Path
           from huggingface_hub import HfApi
-          repo=os.environ['HF_MODEL_REPO']; root=Path('artifacts/ua-legal-lm-ft/model-ft'); metrics=[json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]; val=[m for m in metrics if 'val_loss' in m]; last_val=val[-1]['val_loss'] if val else None; last_step=max((m.get('step',0) for m in metrics),default=0)
-          card='\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- lora','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-ft — Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних','','',f'- Кроків донавчання: {last_step}',f'- Val loss: {last_val}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}' ,'','Приватність: лише законно опубліковані відкриті дані.','']); Path('FT_CARD.md').write_text(card,encoding='utf-8'); api=HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo,repo_type='model',exist_ok=True,private=False); api.update_repo_settings(repo_id=repo,repo_type='model',private=False); api.upload_file(path_or_fileobj='FT_CARD.md',path_in_repo='README.md',repo_id=repo,repo_type='model'); api.upload_folder(folder_path=str(root/'final'),repo_id=repo,repo_type='model',commit_message='ua-legal-lm-ft LoRA merge')
-          for name in ('metrics.jsonl','samples.txt'):
-              if (root/name).is_file(): api.upload_file(path_or_fileobj=str(root/name),path_in_repo=name,repo_id=repo,repo_type='model')
-          print('Published fine-tuned model to',repo)
+
+          repo = os.environ['HF_MODEL_REPO']
+          root = Path('artifacts/ua-legal-lm-ft/model-ft')
+          metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+          val = [m for m in metrics if 'val_loss' in m]
+          last_val = val[-1]['val_loss'] if val else None
+          last_step = max((m.get('step', 0) for m in metrics), default=0)
+
+          # --- quality gate: не публиковать модель хуже уже опубликованной ---
+          prev_val = None
+          try:
+              req = urllib.request.Request(
+                  f'https://huggingface.co/{repo}/resolve/main/metrics.jsonl',
+                  headers={'User-Agent': 'ukraine-quality-gate'})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  prev = [json.loads(l) for l in r.read().decode('utf-8').splitlines() if l.strip()]
+              prev_vals = [m['val_loss'] for m in prev if 'val_loss' in m]
+              prev_val = prev_vals[-1] if prev_vals else None
+          except Exception as e:
+              print('no previous published metrics found:', e)
+          tol = float(os.environ.get('VAL_LOSS_TOLERANCE', '1.02'))
+          if prev_val is not None and last_val is not None and last_val > prev_val * tol:
+              msg = (f'MODEL REGRESSION ({repo}): new val_loss {last_val} is worse than published '
+                     f'{prev_val} beyond {round((tol - 1) * 100)}% tolerance; publish blocked.')
+              Path(os.environ['REGRESSION_FILE']).write_text(msg + '\n', encoding='utf-8')
+              print(msg)
+              # Не ошибка: сборщик дойдёт до шага репорта регрессии и пометит версию processed.
+              raise SystemExit(0)
+
+          compare = (f' \u2014 prev published: {prev_val}' if prev_val is not None else '')
+          card = '\n'.join([
+              '---', 'language: uk', 'tags:', '- legal', '- ukraine', '- ukrainian',
+              '- text-generation', '- lora', '- open-data', 'base_model: Qwen/Qwen2.5-0.5B', '---', '',
+              '# ua-legal-lm-ft \u2014 Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних', '',
+              f'- Кроків донавчання: {last_step}',
+              f'- Val loss: {last_val}{compare}',
+              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}', '',
+              'LoRA-адаптер: директорія `adapter/`.', '',
+              'Приватність: лише законно опубліковані відкриті дані.', ''])
+          Path('FT_CARD.md').write_text(card, encoding='utf-8')
+
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
+          api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
+          api.upload_file(path_or_fileobj='FT_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
+          api.upload_folder(folder_path=str(root/'final'), repo_id=repo, repo_type='model', commit_message='ua-legal-lm-ft LoRA merge')
+          if (root/'adapter'/'adapter_model.safetensors').is_file():
+              api.upload_folder(folder_path=str(root/'adapter'), path_in_repo='adapter', repo_id=repo,
+                                repo_type='model', commit_message='ua-legal-lm-ft LoRA adapter')
+          for name in ('metrics.jsonl', 'samples.txt'):
+              if (root/name).is_file():
+                  api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
+          ver_file = Path('.training-manifests/ua-legal-lm-ft/kernel-version.txt')
+          ver = ver_file.read_text(encoding='utf-8').strip() if ver_file.is_file() else '0'
+          tag = f"v{ver}-{datetime.date.today():%Y%m%d}"
+          try:
+              api.create_tag(repo_id=repo, repo_type='model', tag=tag)
+              print('tagged model:', tag)
+          except Exception as e:
+              print('tag skipped:', e)
+          print('Published fine-tuned model to', repo, '| val_loss:', last_val, '| prev:', prev_val)
           PY
       - name: Publish GPU from-scratch model to Hugging Face Hub
         if: ${{ matrix.slug == 'ua-legal-lm-gpu' && hashFiles('artifacts/ua-legal-lm-gpu/model/model.pt') != '' }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           HF_MODEL_REPO: JoTalbot/ua-legal-lm-gpu
+          REGRESSION_FILE: artifacts/ua-legal-lm-gpu/regression.txt
         run: |
           test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; refusing to publish'; exit 1; }
           python -m pip install --quiet huggingface_hub
           python - <<'PY'
-          import datetime,json,math,os
+          import datetime, json, math, os, urllib.request
           from pathlib import Path
           from huggingface_hub import HfApi
-          repo=os.environ['HF_MODEL_REPO']; root=Path('artifacts/ua-legal-lm-gpu/model'); metrics=[json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]; val=[m for m in metrics if 'val_loss' in m]; last_val=val[-1]['val_loss'] if val else None; last_step=max((m.get('step',0) for m in metrics),default=0); ppl=round(math.exp(last_val),2) if last_val is not None else None
-          card='\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- from-scratch','- open-data','datasets:','- JoTalbot/ua-edrsr','- JoTalbot/ua-open-data','---','','# ua-legal-lm-gpu — українська legal-LM (~29M), навчана з нуля на GPU','','',f'- Кроків навчання: {last_step}',f'- Val loss: {last_val} (perplexity ≈ {ppl})',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані.','']); Path('GPU_CARD.md').write_text(card,encoding='utf-8'); api=HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo,repo_type='model',exist_ok=True,private=False); api.update_repo_settings(repo_id=repo,repo_type='model',private=False); api.upload_file(path_or_fileobj='GPU_CARD.md',path_in_repo='README.md',repo_id=repo,repo_type='model')
-          for name in ('model.pt','tokenizer.json','metrics.jsonl','samples.txt'): api.upload_file(path_or_fileobj=str(root/name),path_in_repo=name,repo_id=repo,repo_type='model')
-          print('Published GPU model to',repo,'| val_loss:',last_val)
+
+          repo = os.environ['HF_MODEL_REPO']
+          root = Path('artifacts/ua-legal-lm-gpu/model')
+          metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
+          val = [m for m in metrics if 'val_loss' in m]
+          last_val = val[-1]['val_loss'] if val else None
+          last_step = max((m.get('step', 0) for m in metrics), default=0)
+          ppl = round(math.exp(last_val), 2) if last_val is not None else None
+
+          # --- quality gate: не публиковать модель хуже уже опубликованной ---
+          prev_val = None
+          try:
+              req = urllib.request.Request(
+                  f'https://huggingface.co/{repo}/resolve/main/metrics.jsonl',
+                  headers={'User-Agent': 'ukraine-quality-gate'})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  prev = [json.loads(l) for l in r.read().decode('utf-8').splitlines() if l.strip()]
+              prev_vals = [m['val_loss'] for m in prev if 'val_loss' in m]
+              prev_val = prev_vals[-1] if prev_vals else None
+          except Exception as e:
+              print('no previous published metrics found:', e)
+          tol = float(os.environ.get('VAL_LOSS_TOLERANCE', '1.02'))
+          if prev_val is not None and last_val is not None and last_val > prev_val * tol:
+              msg = (f'MODEL REGRESSION ({repo}): new val_loss {last_val} is worse than published '
+                     f'{prev_val} beyond {round((tol - 1) * 100)}% tolerance; publish blocked.')
+              Path(os.environ['REGRESSION_FILE']).write_text(msg + '\n', encoding='utf-8')
+              print(msg)
+              raise SystemExit(0)
+
+          compare = (f' \u2014 prev published: {prev_val}' if prev_val is not None else '')
+          card = '\n'.join([
+              '---', 'language: uk', 'tags:', '- legal', '- ukraine', '- ukrainian',
+              '- from-scratch', '- open-data', 'datasets:', '- JoTalbot/ua-edrsr',
+              '- JoTalbot/ua-open-data', '---', '',
+              '# ua-legal-lm-gpu \u2014 українська legal-LM (~29M), навчана з нуля на GPU', '',
+              f'- Кроків навчання: {last_step}',
+              f'- Val loss: {last_val} (perplexity ~ {ppl}){compare}',
+              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}', '',
+              'Приватність: лише законно опубліковані відкриті дані.', ''])
+          Path('GPU_CARD.md').write_text(card, encoding='utf-8')
+
+          api = HfApi(token=os.environ['HF_TOKEN'])
+          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
+          api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
+          api.upload_file(path_or_fileobj='GPU_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
+          for name in ('model.pt', 'tokenizer.json', 'metrics.jsonl', 'samples.txt'):
+              api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
+          ver_file = Path('.training-manifests/ua-legal-lm-gpu/kernel-version.txt')
+          ver = ver_file.read_text(encoding='utf-8').strip() if ver_file.is_file() else '0'
+          tag = f"v{ver}-{datetime.date.today():%Y%m%d}"
+          try:
+              api.create_tag(repo_id=repo, repo_type='model', tag=tag)
+              print('tagged model:', tag)
+          except Exception as e:
+              print('tag skipped:', e)
+          print('Published GPU model to', repo, '| val_loss:', last_val, '| prev:', prev_val)
           PY
+
+      - name: Report model regression
+        if: ${{ hashFiles(format('artifacts/{0}/regression.txt', matrix.slug)) != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLUG: ${{ matrix.slug }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          export MARKER="[alert] model regression"
+          export TITLE="$MARKER: $SLUG"
+          DETAILS=$(cat "artifacts/${SLUG}/regression.txt")
+          BODY="${DETAILS}"$'\n\n'"Run: ${RUN_URL}"$'\n\n'"Публикация заблокирована качественным гейтом. Проверьте прогон; при необходимости опубликуйте вручную или дождитесь следующего расписания."
+          NUMBER=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "alert in:title" --limit 50 --json number,title             | python3 -c "
+          import json, os, sys
+          marker = os.environ['MARKER']
+          slug = os.environ['SLUG']
+          for issue in json.load(sys.stdin):
+              if issue['title'] == os.environ['TITLE']:
+                  print(issue['number']); break
+          ")
+          if [ -n "$NUMBER" ]; then
+            gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
+            echo "Commented on regression issue #${NUMBER}."
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
+            echo "Created regression issue."
+          fi
       - name: Mark processed Kaggle kernel version
         if: ${{ success() }}
         run: |
@@ -185,6 +324,31 @@ jobs:
           done
           echo 'Failed to persist processed version after retries' >&2
           exit 1
+      - name: Run summary
+        if: ${{ always() }}
+        run: |
+          python - "${{ matrix.slug }}" <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> артефактов пока нет (кернель обучается или неуспешен)' >> "$GITHUB_STEP_SUMMARY"
+          import glob, json, sys
+          slug = sys.argv[1]
+          files = sorted(glob.glob(f'artifacts/{slug}/model*/metrics.jsonl'))
+          rows = []
+          for f in files:
+              with open(f, encoding='utf-8') as fh:
+                  rows += [json.loads(l) for l in fh if l.strip()]
+          val = [r for r in rows if 'val_loss' in r]
+          print(f'## Kaggle: {slug}\n')
+          if rows:
+              print('| метрика | значение |')
+              print('|---|---|')
+              print(f"| steps | {max(r.get('step', 0) for r in rows)} |")
+              print(f"| train loss (last) | {rows[-1].get('loss', '?')} |")
+              if val:
+                  print(f"| val_loss (last) | {val[-1]['val_loss']} |")
+                  print(f"| val_loss (best) | {min(v['val_loss'] for v in val)} |")
+          else:
+              print('метрики пусты')
+          PY
+
       - name: Persist completed kernel metrics
         if: ${{ always() && (hashFiles(format('artifacts/{0}/model*/metrics.jsonl', matrix.slug)) != '' || hashFiles(format('artifacts/{0}/model*/error.txt', matrix.slug)) != '') }}
         run: |

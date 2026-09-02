@@ -141,6 +141,25 @@ jobs:
           print('Published model to', repo, '| val_loss:', last_val)
           PY
 
+      - name: Training summary
+        if: ${{ always() }}
+        run: |
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> метрики отсутствуют (обучение не завершилось)' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          rows = [json.loads(l) for l in open('artifacts/lm/model/metrics.jsonl', encoding='utf-8') if l.strip()]
+          val = [r for r in rows if 'val_loss' in r]
+          last = rows[-1] if rows else {}
+          print('## Train Ukraine Models — прогон завершён\n')
+          print('| метрика | значение |')
+          print('|---|---|')
+          print(f"| steps | {last.get('step', '?')} |")
+          print(f"| train loss (last) | {last.get('loss', '?')} |")
+          if val:
+              print(f"| val_loss (last) | {val[-1]['val_loss']} |")
+              print(f"| val_loss (best) | {min(v['val_loss'] for v in val)} |")
+          print(f"\n[Модель на Hugging Face](https://huggingface.co/JoTalbot/ua-legal-lm)")
+          PY
+
       - name: Persist training metrics
         shell: bash
         run: |
