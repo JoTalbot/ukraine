@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ukraine Open Legal & Public Data — статус</title>
+<style>
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body { font: 15px/1.55 -apple-system, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #0d1117; color: #e6edf3; }
+header { background: #161b22; border-bottom: 3px solid #f0b429; padding: 28px 24px; }
+header h1 { margin: 0 0 6px; font-size: 24px; }
+header p { margin: 0; color: #9da7b3; }
+main { max-width: 1060px; margin: 0 auto; padding: 24px; }
+h2 { font-size: 18px; border-left: 4px solid #f0b429; padding-left: 10px; margin-top: 36px; }
+table { border-collapse: collapse; width: 100%; margin-top: 12px; background: #161b22; }
+th, td { border: 1px solid #30363d; padding: 8px 10px; text-align: left; vertical-align: top; }
+th { background: #1c2129; }
+a { color: #58a6ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+.muted { color: #9da7b3; font-size: 12px; }
+.pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pill.ok { background: #12381f; color: #3fb950; }
+.pill.run { background: #0d2d4d; color: #58a6ff; }
+.pill.bad { background: #4d1520; color: #f85149; }
+.pill.mute { background: #2d333b; color: #9da7b3; }
+footer { color: #9da7b3; font-size: 13px; text-align: center; padding: 30px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Ukraine Open Legal & Public Data</h1>
+  <p>Serverless pipeline: data.gov.ua → GitHub Actions → Hugging Face · обновлено 2026-09-02 18:39 UTC</p>
+</header>
+<main>
+  <h2>Модели (Kaggle GPU + CPU CI)</h2>
+  <table>
+    <tr><th>модель</th><th>статус</th><th>версия кернела</th><th>конвейер</th><th>steps</th><th>val_loss (last)</th><th>val_loss (best)</th></tr>
+    <tr><td><a href='https://huggingface.co/JoTalbot/ua-legal-lm-ft'>Fine-tune Qwen2.5-0.5B (LoRA)</a><div class='muted'>ua-legal-lm-ft</div></td><td><span class='pill ok'>complete</span></td><td>21</td><td>pending</td><td>2000</td><td>0.529</td><td>0.529</td></tr><tr><td><a href='https://huggingface.co/JoTalbot/ua-legal-lm-gpu'>From-scratch ~29M GPT</a><div class='muted'>ua-legal-lm-gpu</div></td><td><span class='pill ok'>complete</span></td><td>25</td><td>up-to-date</td><td>8000</td><td>0.7122</td><td>0.7122</td></tr><tr><td><a href='https://huggingface.co/JoTalbot/ua-legal-lm'>CPU legal-LM (GitHub Actions)</a><div class='muted'>legal-lm</div></td><td><span class='pill mute'>unknown</span></td><td>—</td><td>training</td><td>600</td><td>4.5521</td><td>4.5521</td></tr>
+  </table>
+
+  <h2>Зеркалируемые наборы data.gov.ua</h2>
+  <p class="muted">Каталог: <a href="https://huggingface.co/datasets/JoTalbot/ua-open-data">ua-open-data</a> ·
+  ЄДРСР 2006–2026: <a href="https://huggingface.co/datasets/JoTalbot/ua-edrsr">ua-edrsr</a> ·
+  discovery нашёл <b>500</b> наборов.</p>
+  <table>
+    <tr><th>id</th><th>назва</th><th>пріоритет</th></tr>
+    <tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>edrsr</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>edr</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>declarations</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>sanctions</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>prozorro</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>court_cases</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>debtors</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>enforcement_proceedings</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>notaries</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>court_experts</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>arbitration_managers</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>missing_persons</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>audit_register</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>vat_payers</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>wanted_weapons</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>wanted_fugitives</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>bank_ownership</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>financial_institutions</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>medicines</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>advocates</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>lost_phones</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>rro</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>universities</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>vocational_schools</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>ships_small</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>insurance_brokers</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>notary_blank_forms</a></td><td></td><td>3</td></tr>
+  </table>
+
+  <h2>Ссылки</h2>
+  <p>
+    <a href="https://github.com/JoTalbot/ukraine">Репозиторий</a> ·
+    <a href="https://github.com/JoTalbot/ukraine/actions">GitHub Actions</a> ·
+    <a href="https://huggingface.co/JoTalbot">Hugging Face</a>
+  </p>
+</main>
+<footer>Страница сгенерирована scripts/build_dashboard.py — без сервера, только GitHub.</footer>
+</body>
+</html>

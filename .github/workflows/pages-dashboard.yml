@@ -1,0 +1,43 @@
+name: Pages Dashboard
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '25 4 * * *'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/build_dashboard.py'
+      - '.github/workflows/pages-dashboard.yml'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-dashboard
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Generate dashboard
+        run: python scripts/build_dashboard.py --output dashboard
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b6a1d36c20c97666d06b  # v3
+        with:
+          path: dashboard
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e  # v4
