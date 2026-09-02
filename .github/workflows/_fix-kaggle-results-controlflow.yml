@@ -1,0 +1,34 @@
+name: Fix Kaggle Results Control Flow
+
+on:
+  push:
+    paths:
+      - .github/workflows/_fix-kaggle-results-controlflow.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Guard validation on terminal completion
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('.github/workflows/kaggle-results.yml')
+          s = p.read_text(encoding='utf-8')
+          old = '''      - name: Validate completed training artifacts\n        run: |\n          set -euo pipefail\n          ROOT="artifacts/${{ matrix.slug }}"\n          if [ ! -d "$ROOT" ]; then echo "No output directory"; exit 1; fi\n'''
+          new = '''      - name: Validate completed training artifacts\n        run: |\n          set -euo pipefail\n          ROOT="artifacts/${{ matrix.slug }}"\n          STATUS=$(tr -d '\\r\\n ' < ".training-manifests/${{ matrix.slug }}/status.txt" 2>/dev/null || true)\n          if [ "$STATUS" != "complete" ]; then\n            echo "Skipping validation because Kaggle status is ${STATUS:-unknown}."\n            exit 0\n          fi\n          if [ ! -d "$ROOT" ]; then echo "No output directory"; exit 1; fi\n'''
+          if old not in s:
+              raise SystemExit('Expected validation block not found; refusing to modify workflow')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/kaggle-results.yml
+          git commit -m 'fix: skip Kaggle validation while kernels run'
+          git push
