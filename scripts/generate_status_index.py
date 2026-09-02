@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Build a safe machine-readable platform status index from local artifacts."""
 from __future__ import annotations
 
