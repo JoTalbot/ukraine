@@ -1,7 +1,6 @@
 name: Kaggle GPU Training
 
 on:
-  # Baseline retrain cadence (data grows over time): Mon/Thu.
   schedule:
     - cron: '45 5 * * 1,4'
   workflow_dispatch:
@@ -10,9 +9,6 @@ on:
         description: 'Push even if a version is already running'
         type: boolean
         default: false
-  # Retrain when the training code itself changes. Bot commits and routine
-  # pipeline churn intentionally do NOT retrigger training: Kaggle grants a
-  # limited weekly GPU quota that continuous retraining would exhaust.
   push:
     branches: [main]
     paths:
@@ -34,7 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Validate Kaggle secret
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
@@ -46,7 +42,7 @@ jobs:
           mkdir -p artifacts/kaggle
           printf '%s\n' '{"status":"ready","training_scope":"public_open_data_only","deanonymization":false}' > artifacts/kaggle/training_manifest.json
       - name: Upload manifest
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: kaggle-training-manifest
           path: artifacts/kaggle/training_manifest.json
@@ -65,7 +61,7 @@ jobs:
           - slug: ua-legal-lm-ft
             file: legal_lm_finetune.ipynb
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Configure and verify Kaggle authentication
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
@@ -109,10 +105,6 @@ jobs:
               *running*|*queued*) echo "Version $PENDING is still active; skipping push."; exit 0 ;;
               *complete*) echo "Version $PENDING is complete and pending result collection; skipping push to keep it collectible."; exit 0 ;;
               *error*|*failed*|*cancelled*|*canceled*)
-                # A crashed version has no output to collect, so it would never be
-                # marked processed. Allow a retrain, but only when the code has
-                # changed since that launch — otherwise the same broken kernel
-                # would be pushed in a loop and burn GPU quota.
                 LAST_SHA=$(tail -n 1 "$STATE_DIR/launch-history.tsv" 2>/dev/null | sed 's/\\t/\t/g' | awk -F'\t' '{print $NF}' || true)
                 if [ -n "$LAST_SHA" ] && [ "$LAST_SHA" = "$GITHUB_SHA" ]; then
                   echo "Version $PENDING failed on the same commit ($GITHUB_SHA); waiting for a code change before retrying. Skipping push."
@@ -134,19 +126,7 @@ jobs:
           python - "$USERNAME" "${{ matrix.slug }}" "${{ matrix.file }}" <<'PY'
           import json, sys, pathlib
           username, slug, code_file = sys.argv[1], sys.argv[2], sys.argv[3]
-          meta = {
-              "id": f"{username}/{slug}",
-              "title": slug,
-              "code_file": code_file,
-              "language": "python",
-              "kernel_type": "notebook",
-              "is_private": True,
-              "enable_gpu": True,
-              "enable_internet": True,
-              "dataset_sources": [],
-              "kernel_sources": [],
-              "competition_sources": [],
-          }
+          meta = {"id": f"{username}/{slug}", "title": slug, "code_file": code_file, "language": "python", "kernel_type": "notebook", "is_private": True, "enable_gpu": True, "enable_internet": True, "dataset_sources": [], "kernel_sources": [], "competition_sources": []}
           pathlib.Path('/tmp/kernel/kernel-metadata.json').write_text(json.dumps(meta, indent=2))
           PY
           PUSH_OUTPUT=$(kaggle kernels push -p /tmp/kernel 2>&1 | tee /tmp/kaggle-push.log)
@@ -155,7 +135,6 @@ jobs:
           echo "Kernel $KERNEL_ID version $VERSION pushed."
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          # Idempotent write, re-applied onto latest main on every push retry.
           persist_version() {
             printf '%s\n' "$VERSION" > "$STATE_DIR/kernel-version.txt"
             if ! grep -qF "$(printf '\t')$VERSION$(printf '\t')" "$STATE_DIR/launch-history.tsv" 2>/dev/null; then
@@ -185,3 +164,31 @@ jobs:
           done
           echo 'No queued/running status observed within verification window.'
           exit 1
+
+  control-signal:
+    needs: [dispatch]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Write training status signal
+        env:
+          NEEDS_RESULT: ${{ needs.dispatch.result }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$NEEDS_RESULT" = "success" ]; then state=green; fi
+          detail="Kaggle training dispatch completed with result: $NEEDS_RESULT"
+          python scripts/write_status_signal.py --signal training --state "$state" --detail "$detail" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$WORKFLOW_RUN_ID"
+      - name: Upload training status signal
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: status-signal-training
+          path: artifacts/status/signals/training.json
+          if-no-files-found: error
+          retention-days: 30
