@@ -60,8 +60,10 @@ def validate_release_manifest(path: Path) -> list[str]:
         rel = item.get("path")
         digest = item.get("sha256")
         size = item.get("bytes")
-        if not isinstance(rel, str) or not rel or rel in seen:
-            errors.append(f"manifest file entry {index} has a missing or duplicate path")
+        if not isinstance(rel, str) or not rel:
+            errors.append(f"manifest file entry {index} has a missing path")
+        elif rel in seen:
+            errors.append(f"manifest file entry {index} has a duplicate path")
         elif rel == "release-manifest.json" or rel.startswith(".git/"):
             errors.append(f"manifest file entry {index} contains an excluded path")
         else:
