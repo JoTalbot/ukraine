@@ -1,5 +1,5 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 from scripts.validate_release import validate_release_manifest, validate_repository_contract, validate_sha256
 
