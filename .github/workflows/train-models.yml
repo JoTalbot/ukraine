@@ -7,9 +7,6 @@ on:
         description: 'Training steps'
         required: true
         default: '600'
-  # Scheduled cadence only. Retraining after every EDRSR upload (every 30 min)
-  # saturated the runner queue and starved other workflows — new data lands in
-  # the corpus anyway on the next scheduled pass.
   schedule:
     - cron: '40 3,15 * * *'
 
@@ -20,19 +17,20 @@ concurrency:
   group: ukraine-model-training
   cancel-in-progress: false
 
+env:
+  HF_EDRSR_REPO: JoTalbot/ua-edrsr
+
 jobs:
   train:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    env:
-      HF_EDRSR_REPO: JoTalbot/ua-edrsr
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 1
 
       - name: Setup Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
 
@@ -45,8 +43,8 @@ jobs:
       - name: Download EDRSR sample (public Parquet parts)
         run: |
           mkdir -p artifacts/lm-src
-          curl -sL "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00000.parquet" -o artifacts/lm-src/part-00000.parquet
-          curl -sL "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00001.parquet" -o artifacts/lm-src/part-00001.parquet
+          curl -fsSL --retry 5 --retry-all-errors "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00000.parquet" -o artifacts/lm-src/part-00000.parquet
+          curl -fsSL --retry 5 --retry-all-errors "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00001.parquet" -o artifacts/lm-src/part-00001.parquet
           ls -la artifacts/lm-src
 
       - name: Build Ukrainian legal corpus
@@ -91,47 +89,26 @@ jobs:
           import datetime, json, math, os
           from pathlib import Path
           from huggingface_hub import HfApi
-
           repo = os.environ['HF_MODEL_REPO']
           root = Path('artifacts/lm/model')
           metrics = [json.loads(l) for l in (root / 'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
           val = [m for m in metrics if 'val_loss' in m]
-          train = [m for m in metrics if 'loss' in m]
           last_val = val[-1]['val_loss'] if val else None
           last_step = max((m.get('step', 0) for m in metrics), default=0)
           ppl = round(math.exp(last_val), 1) if last_val else None
-
           card_lines = [
-              '---',
-              'language: uk',
-              'tags:',
-              '- legal',
-              '- ukraine',
-              '- ukrainian',
-              '- from-scratch',
-              '- open-data',
-              'datasets:',
-              '- JoTalbot/ua-edrsr',
-              '- JoTalbot/ua-open-data',
-              '---',
-              '',
-              '# ua-legal-lm — українська legal-LM, навчана з нуля',
-              '',
+              '---', 'language: uk', 'tags:', '- legal', '- ukraine', '- ukrainian', '- from-scratch', '- open-data',
+              'datasets:', '- JoTalbot/ua-edrsr', '- JoTalbot/ua-open-data', '---', '',
+              '# ua-legal-lm — українська legal-LM, навчана з нуля', '',
               'Модель GPT (PyTorch) навчена виключно на відкритих даних України:',
-              'метадані судових рішень ЄДРСР, ЄДР (компанії, засновники, статути), реєстр платників ПДВ.',
-              '',
+              'метадані судових рішень ЄДРСР, ЄДР (компанії, засновники, статути), реєстр платників ПДВ.', '',
               '- Джерело пайплайну: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine)',
-              f'- Кроків навчання: {last_step}',
-              f'- Val loss: {last_val} (perplexity ≈ {ppl})',
-              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}',
-              '',
-              'Файли: `model.pt` (state_dict + config), `tokenizer.json` (BPE), `metrics.jsonl`, `samples.txt`.',
-              '',
-              'Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.',
-              '',
+              f'- Кроків навчання: {last_step}', f'- Val loss: {last_val} (perplexity ≈ {ppl})',
+              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}', '',
+              'Файли: `model.pt` (state_dict + config), `tokenizer.json` (BPE), `metrics.jsonl`, `samples.txt`.', '',
+              'Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.', '',
           ]
           Path('MODEL_CARD.md').write_text('\n'.join(card_lines), encoding='utf-8')
-
           api = HfApi(token=os.environ['HF_TOKEN'])
           api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
           api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
@@ -182,10 +159,35 @@ jobs:
               git reset --hard origin/main
               mkdir -p .training-manifests/legal-lm
               cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true
-              cp artifacts/lm/model/samples.txt .training-manifests/legal-lm/ 2>/dev/null || true
+              cp artifacts/lm/model/samples.txt .training-manifests/legal-lm 2>/dev/null || true
               git add .training-manifests/legal-lm
               if git diff --cached --quiet; then echo 'No metric changes after reset.'; pushed=true; break; fi
               git commit -m "chore: update legal-lm training metrics"
             done
             if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi
           fi
+
+      - name: Write training status signal
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="legal LM training workflow completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py \
+            --signal training --state "$state" --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/lm/model/metrics.jsonl
+
+      - name: Upload training status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: status-signal-training
+          path: artifacts/status/signals/training.json
+          if-no-files-found: error
+          retention-days: 30
