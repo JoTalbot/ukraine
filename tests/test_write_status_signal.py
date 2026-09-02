@@ -24,6 +24,12 @@ def test_write_status_signal_creates_safe_payload(tmp_path: Path) -> None:
         "graph build completed",
         "--artifact",
         "graph_stats.json",
+        "--source-commit",
+        "a" * 40,
+        "--workflow-name",
+        "Entity graph",
+        "--workflow-run-id",
+        "123",
         "--output",
         str(output),
     )
@@ -34,7 +40,9 @@ def test_write_status_signal_creates_safe_payload(tmp_path: Path) -> None:
     assert payload["signal"] == "graph"
     assert payload["state"] == "green"
     assert payload["artifact"] == "graph_stats.json"
-    assert payload["git_commit"]
+    assert payload["source_commit"] == "a" * 40
+    assert payload["workflow_name"] == "Entity graph"
+    assert payload["workflow_run_id"] == "123"
     assert payload["generated_at_utc"].endswith("Z")
 
 
