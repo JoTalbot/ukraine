@@ -17,6 +17,8 @@ The repository is considered production-ready when every automated data/model re
 - Pages dashboard release identity: generated manifest commit, branch, UTC timestamp, and file count are surfaced alongside operational model/data status.
 - Canonical machine-readable platform status index linking operational signals to the exact release manifest identity.
 - Standard producer-signal schema and writer for ingestion, quality, graph, training, and publication workflows.
+- Workflow-run control-plane aggregation foundation with external signal artifacts, exact source-commit matching, stale-signal rejection, and canonical snapshot publication.
+- Entity Graph producer integrated with the standard `graph` signal artifact contract.
 
 ## Final hardening track
 
@@ -33,9 +35,11 @@ The repository is considered production-ready when every automated data/model re
 
 ## Newly identified hardening items
 
-- **OBS-01 — Producer signal aggregation:** collect workflow artifacts from completed producer runs and reconcile them into the canonical status index without copying stale signals forward.
+- **OBS-01 — Producer signal aggregation:** collect workflow artifacts from completed producer runs and reconcile them into the canonical status index without copying stale signals forward. **Foundation implemented; remaining work is to wire all producer workflows.**
 - **OBS-02 — Action pinning audit:** replace mutable GitHub Action tags with immutable commit SHAs where practical, matching the reproducibility policy.
 - **OBS-03 — Release validation consolidation:** remove duplicated inline manifest/status validation from CI and use the tested `validate_release.py` contract as the single validator.
+- **REC-01 — Recovery/replay contract:** define durable checkpoints, idempotency keys, replay manifests, and last-successful state for long-running ingestion, graph, and training workflows.
+- **CTRL-01 — Unified control-plane policy:** define freshness windows, producer priority, and status precedence so the dashboard can distinguish missing, stale, degraded, and current signals across independent schedules.
 
 ## Operating rule
 
