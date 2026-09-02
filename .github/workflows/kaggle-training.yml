@@ -1,6 +1,7 @@
 name: Kaggle GPU Training
 
 on:
+  # Baseline retrain cadence (data grows over time): Mon/Thu.
   schedule:
     - cron: '45 5 * * 1,4'
   workflow_dispatch:
@@ -9,9 +10,17 @@ on:
         description: 'Push even if a version is already running'
         type: boolean
         default: false
-  workflow_run:
-    workflows: ['Ukraine data CI', 'Kaggle Kernel Results']
-    types: [completed]
+  # Retrain when the training code itself changes. Bot commits and routine
+  # pipeline churn intentionally do NOT retrigger training: Kaggle grants a
+  # limited weekly GPU quota that continuous retraining would exhaust.
+  push:
+    branches: [main]
+    paths:
+      - 'training/**'
+      - 'scripts/train_lm.py'
+      - 'scripts/build_lm_corpus.py'
+      - 'scripts/patch_kaggle_notebooks.py'
+      - '.github/workflows/kaggle-training.yml'
 
 permissions:
   contents: write
@@ -22,7 +31,6 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

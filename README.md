@@ -42,8 +42,8 @@ data.gov.ua → discovery → скачивание → SHA-256 → нормал�
 | Discovered Open Data → HF | по событию | зеркалирование найденных наборов |
 | EDRSR → HF | каждые 30 мин | годы 2006–2026, skip по ETag, параллельная матрица |
 | Train Ukraine Models | 2×/день | корпус → GPT на CPU → публикация в HF Hub |
-| Kaggle GPU Training | 2×/неделю | push GPU-кернела (со статус-чеком квоты) |
-| Kaggle Kernel Results | ежедневно | автосбор результатов GPU-обучения |
+| Kaggle GPU Training | 2×/неделю + при изменении кода обучения | push GPU-кернела (статус-чек активной версии, защита GPU-квоты) |
+| Kaggle Kernel Results | каждые 15 мин | автосбор результатов и публикация моделей |
 | Ukraine data CI | на push | pytest + compileall + контракт репозитория |
 
 ## Граф связей

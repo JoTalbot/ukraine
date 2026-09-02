@@ -62,9 +62,18 @@ jobs:
           STATUS="${STATUS:-unknown}"
           echo "normalized kernel status [$KERNEL_ID]: $STATUS"
           mkdir -p ".training-manifests/${{ matrix.slug }}"
-          printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STATUS" >> ".training-manifests/${{ matrix.slug }}/status-history.tsv"
-          tail -n 96 ".training-manifests/${{ matrix.slug }}/status-history.tsv" > /tmp/status-history.tsv
-          mv /tmp/status-history.tsv ".training-manifests/${{ matrix.slug }}/status-history.tsv"
+          HIST=".training-manifests/${{ matrix.slug }}/status-history.tsv"
+          # Append only on real status transitions; a timestamped line on every
+          # tick produced a commit every 15 min even while nothing changed.
+          touch "$HIST"
+          LAST=$(tail -n 1 "$HIST" | sed 's/\\t/\t/g' | awk -F'\t' '{print $NF}' || true)
+          if [ "$LAST" != "$STATUS" ]; then
+            printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$STATUS" >> "$HIST"
+            tail -n 96 "$HIST" > /tmp/status-history.tsv
+            mv /tmp/status-history.tsv "$HIST"
+          else
+            echo "Kernel status unchanged ($STATUS); history not appended."
+          fi
           printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/status.txt"
           git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add ".training-manifests/${{ matrix.slug }}/status-history.tsv" ".training-manifests/${{ matrix.slug }}/status.txt"
           if git diff --cached --quiet; then echo 'No status changes to persist.'; else git commit -m "chore: record ${{ matrix.slug }} Kaggle status"; pushed=false; for attempt in 1 2 3 4 5; do if git push; then pushed=true; break; fi; git fetch origin main; git rebase origin/main; done; if [ "$pushed" != true ]; then echo 'Failed to persist status after retries' >&2; exit 1; fi; fi
