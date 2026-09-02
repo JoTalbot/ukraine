@@ -26,6 +26,9 @@ def main() -> None:
     parser.add_argument("--state", required=True, choices=sorted(STATES))
     parser.add_argument("--detail", required=True)
     parser.add_argument("--artifact", default="")
+    parser.add_argument("--source-commit", default="")
+    parser.add_argument("--workflow-name", default="")
+    parser.add_argument("--workflow-run-id", default="")
     parser.add_argument("--output", default="artifacts/status/signals")
     args = parser.parse_args()
 
@@ -36,9 +39,13 @@ def main() -> None:
         "signal": args.signal,
         "state": args.state,
         "detail": args.detail,
-        "git_commit": git_commit(),
+        "source_commit": args.source_commit or git_commit(),
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
+    if args.workflow_name:
+        payload["workflow_name"] = args.workflow_name
+    if args.workflow_run_id:
+        payload["workflow_run_id"] = args.workflow_run_id
     if args.artifact:
         payload["artifact"] = args.artifact
 
