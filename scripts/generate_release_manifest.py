@@ -1,4 +1,4 @@
-"""Generate a deterministic repository release manifest for auditability."""
+"""Generate an auditable repository release manifest."""
 from __future__ import annotations
 
 import argparse
@@ -6,7 +6,6 @@ import hashlib
 import json
 import platform
 import subprocess
-import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
