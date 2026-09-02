@@ -9,17 +9,13 @@ on:
         default: '600'
   schedule:
     - cron: '40 3,15 * * *'
-
 permissions:
   contents: write
-
 concurrency:
   group: ukraine-model-training
   cancel-in-progress: false
-
 env:
   HF_EDRSR_REPO: JoTalbot/ua-edrsr
-
 jobs:
   train:
     runs-on: ubuntu-24.04
@@ -28,46 +24,28 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 1
-
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
           pip install tokenizers pyarrow numpy
-
       - name: Download EDRSR sample (public Parquet parts)
         run: |
           mkdir -p artifacts/lm-src
           curl -fsSL --retry 5 --retry-all-errors "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00000.parquet" -o artifacts/lm-src/part-00000.parquet
           curl -fsSL --retry 5 --retry-all-errors "https://huggingface.co/datasets/${{ env.HF_EDRSR_REPO }}/resolve/main/2026/part-00001.parquet" -o artifacts/lm-src/part-00001.parquet
-          ls -la artifacts/lm-src
-
       - name: Build Ukrainian legal corpus
-        run: |
-          python scripts/build_lm_corpus.py \
-            --edrsr-parquet 'artifacts/lm-src/part-*.parquet' \
-            --edrsr-limit 400000 \
-            --output artifacts/lm/corpus.txt
-
+        run: python scripts/build_lm_corpus.py --edrsr-parquet 'artifacts/lm-src/part-*.parquet' --edrsr-limit 400000 --output artifacts/lm/corpus.txt
       - name: Train legal LM (CPU)
-        run: |
-          python scripts/train_lm.py \
-            --corpus artifacts/lm/corpus.txt \
-            --out artifacts/lm/model \
-            --steps ${{ inputs.steps || '600' }} \
-            --dim 256 --layers 6 --ctx 256 --batch 8 \
-            --eval-every 150 --sample-every 300
-
+        run: python scripts/train_lm.py --corpus artifacts/lm/corpus.txt --out artifacts/lm/model --steps ${{ inputs.steps || '600' }} --dim 256 --layers 6 --ctx 256 --batch 8 --eval-every 150 --sample-every 300
       - name: Show samples
         run: cat artifacts/lm/model/samples.txt
-
       - name: Upload model artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ua-legal-lm
           path: |
@@ -77,7 +55,6 @@ jobs:
             artifacts/lm/model/samples.txt
           retention-days: 30
           if-no-files-found: error
-
       - name: Publish model to Hugging Face Hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -89,84 +66,25 @@ jobs:
           import datetime, json, math, os
           from pathlib import Path
           from huggingface_hub import HfApi
-          repo = os.environ['HF_MODEL_REPO']
-          root = Path('artifacts/lm/model')
-          metrics = [json.loads(l) for l in (root / 'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
-          val = [m for m in metrics if 'val_loss' in m]
-          last_val = val[-1]['val_loss'] if val else None
-          last_step = max((m.get('step', 0) for m in metrics), default=0)
-          ppl = round(math.exp(last_val), 1) if last_val else None
-          card_lines = [
-              '---', 'language: uk', 'tags:', '- legal', '- ukraine', '- ukrainian', '- from-scratch', '- open-data',
-              'datasets:', '- JoTalbot/ua-edrsr', '- JoTalbot/ua-open-data', '---', '',
-              '# ua-legal-lm — українська legal-LM, навчана з нуля', '',
-              'Модель GPT (PyTorch) навчена виключно на відкритих даних України:',
-              'метадані судових рішень ЄДРСР, ЄДР (компанії, засновники, статути), реєстр платників ПДВ.', '',
-              '- Джерело пайплайну: [JoTalbot/ukraine](https://github.com/JoTalbot/ukraine)',
-              f'- Кроків навчання: {last_step}', f'- Val loss: {last_val} (perplexity ≈ {ppl})',
-              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}', '',
-              'Файли: `model.pt` (state_dict + config), `tokenizer.json` (BPE), `metrics.jsonl`, `samples.txt`.', '',
-              'Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.', '',
-          ]
-          Path('MODEL_CARD.md').write_text('\n'.join(card_lines), encoding='utf-8')
-          api = HfApi(token=os.environ['HF_TOKEN'])
-          api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
-          api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
-          api.upload_file(path_or_fileobj='MODEL_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
-          for name in ('model.pt', 'tokenizer.json', 'metrics.jsonl', 'samples.txt'):
-              api.upload_file(path_or_fileobj=str(root / name), path_in_repo=name, repo_id=repo, repo_type='model')
-          print('Published model to', repo, '| val_loss:', last_val)
+          repo=os.environ['HF_MODEL_REPO']; root=Path('artifacts/lm/model'); metrics=[json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]; val=[m for m in metrics if 'val_loss' in m]; last_val=val[-1]['val_loss'] if val else None; last_step=max((m.get('step',0) for m in metrics),default=0); ppl=round(math.exp(last_val),1) if last_val else None
+          card='\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- from-scratch','- open-data','datasets:','- JoTalbot/ua-edrsr','- JoTalbot/ua-open-data','---','','# ua-legal-lm — українська legal-LM, навчана з нуля','',f'- Кроків навчання: {last_step}',f'- Val loss: {last_val} (perplexity ≈ {ppl})',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані; знеособлення джерела збережено.',''])
+          Path('MODEL_CARD.md').write_text(card,encoding='utf-8'); api=HfApi(token=os.environ['HF_TOKEN']); api.create_repo(repo_id=repo,repo_type='model',exist_ok=True,private=False); api.update_repo_settings(repo_id=repo,repo_type='model',private=False); api.upload_file(path_or_fileobj='MODEL_CARD.md',path_in_repo='README.md',repo_id=repo,repo_type='model')
+          for name in ('model.pt','tokenizer.json','metrics.jsonl','samples.txt'): api.upload_file(path_or_fileobj=str(root/name),path_in_repo=name,repo_id=repo,repo_type='model')
+          print('Published model to',repo,'| val_loss:',last_val)
           PY
-
       - name: Training summary
         if: ${{ always() }}
         run: |
-          python - <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> метрики отсутствуют (обучение не завершилось)' >> "$GITHUB_STEP_SUMMARY"
+          python - <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> метрики отсутствуют' >> "$GITHUB_STEP_SUMMARY"
           import json
-          rows = [json.loads(l) for l in open('artifacts/lm/model/metrics.jsonl', encoding='utf-8') if l.strip()]
-          val = [r for r in rows if 'val_loss' in r]
-          last = rows[-1] if rows else {}
-          print('## Train Ukraine Models — прогон завершён\n')
-          print('| метрика | значение |')
-          print('|---|---|')
-          print(f"| steps | {last.get('step', '?')} |")
-          print(f"| train loss (last) | {last.get('loss', '?')} |")
-          if val:
-              print(f"| val_loss (last) | {val[-1]['val_loss']} |")
-              print(f"| val_loss (best) | {min(v['val_loss'] for v in val)} |")
-          print(f"\n[Модель на Hugging Face](https://huggingface.co/JoTalbot/ua-legal-lm)")
+          rows=[json.loads(l) for l in open('artifacts/lm/model/metrics.jsonl',encoding='utf-8') if l.strip()]; val=[r for r in rows if 'val_loss' in r]; last=rows[-1] if rows else {}
+          print('## Train Ukraine Models\n'); print('| метрика | значение |'); print('|---|---|'); print(f"| steps | {last.get('step','?')} |"); print(f"| train loss | {last.get('loss','?')} |");
+          if val: print(f"| val_loss | {val[-1]['val_loss']} |")
           PY
-
       - name: Persist training metrics
         shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p .training-manifests/legal-lm
-          cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true
-          cp artifacts/lm/model/samples.txt .training-manifests/legal-lm/ 2>/dev/null || true
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .training-manifests/legal-lm
-          if git diff --cached --quiet; then
-            echo 'No metric changes.'
-          else
-            git commit -m "chore: update legal-lm training metrics"
-            pushed=false
-            for attempt in 1 2 3 4 5; do
-              if git push; then pushed=true; break; fi
-              echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
-              git fetch origin main
-              git reset --hard origin/main
-              mkdir -p .training-manifests/legal-lm
-              cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true
-              cp artifacts/lm/model/samples.txt .training-manifests/legal-lm 2>/dev/null || true
-              git add .training-manifests/legal-lm
-              if git diff --cached --quiet; then echo 'No metric changes after reset.'; pushed=true; break; fi
-              git commit -m "chore: update legal-lm training metrics"
-            done
-            if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi
-          fi
-
+          set -euo pipefail; mkdir -p .training-manifests/legal-lm; cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true; cp artifacts/lm/model/samples.txt .training-manifests/legal-lm/ 2>/dev/null || true; git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add .training-manifests/legal-lm; if git diff --cached --quiet; then echo 'No metric changes.'; else git commit -m 'chore: update legal-lm training metrics'; for attempt in 1 2 3 4 5; do git push && break || { git fetch origin main; git reset --hard origin/main; mkdir -p .training-manifests/legal-lm; cp artifacts/lm/model/metrics.jsonl .training-manifests/legal-lm/ 2>/dev/null || true; cp artifacts/lm/model/samples.txt .training-manifests/legal-lm/ 2>/dev/null || true; git add .training-manifests/legal-lm; git diff --cached --quiet || git commit -m 'chore: update legal-lm training metrics'; }; done; fi
       - name: Write training status signal
         if: ${{ always() }}
         env:
@@ -175,17 +93,11 @@ jobs:
           WORKFLOW_NAME: ${{ github.workflow }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
         run: |
-          state=red
-          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
-          detail="legal LM training workflow completed with job status: $JOB_STATUS"
-          python scripts/write_status_signal.py \
-            --signal training --state "$state" --detail "$detail" \
-            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
-            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/lm/model/metrics.jsonl
-
+          state=red; if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          python scripts/write_status_signal.py --signal training --state "$state" --detail "legal LM training workflow completed with job status: $JOB_STATUS" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/lm/model/metrics.jsonl
       - name: Upload training status signal
         if: ${{ always() }}
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: status-signal-training
           path: artifacts/status/signals/training.json
