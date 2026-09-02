@@ -105,7 +105,7 @@ jobs:
                 # marked processed. Allow a retrain, but only when the code has
                 # changed since that launch — otherwise the same broken kernel
                 # would be pushed in a loop and burn GPU quota.
-                LAST_SHA=$(tail -n 1 "$STATE_DIR/launch-history.tsv" 2>/dev/null | awk -F'\t' '{print $4}' || true)
+                LAST_SHA=$(tail -n 1 "$STATE_DIR/launch-history.tsv" 2>/dev/null | sed 's/\\t/\t/g' | awk -F'\t' '{print $NF}' || true)
                 if [ -n "$LAST_SHA" ] && [ "$LAST_SHA" = "$GITHUB_SHA" ]; then
                   echo "Version $PENDING failed on the same commit ($GITHUB_SHA); waiting for a code change before retrying. Skipping push."
                   exit 0
@@ -146,7 +146,7 @@ jobs:
           test -n "$VERSION" || { echo 'Could not determine pushed Kaggle kernel version'; cat /tmp/kaggle-push.log; exit 1; }
           echo "Kernel $KERNEL_ID version $VERSION pushed."
           printf '%s\n' "$VERSION" > "$STATE_DIR/kernel-version.txt"
-          printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)\t$VERSION\t$KERNEL_ID\t${GITHUB_SHA}" >> "$STATE_DIR/launch-history.tsv"
+          printf '%s\t%s\t%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" "$KERNEL_ID" "${GITHUB_SHA}" >> "$STATE_DIR/launch-history.tsv"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$STATE_DIR/kernel-version.txt" "$STATE_DIR/launch-history.tsv"
