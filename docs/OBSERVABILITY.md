@@ -8,6 +8,14 @@ The platform status is represented by machine-readable artifacts under `artifact
 
 The status index must reference the exact `git_commit` recorded by `artifacts/status/release-manifest.json`. A mismatch is a release-contract failure, not a cosmetic dashboard problem.
 
+## Producer signals
+
+Producer workflows publish one JSON signal per operational subsystem under `artifacts/status/signals/<signal>.json`. The schema is intentionally small: schema version, signal name, state, bounded human-readable detail, producer commit, timestamp, and optional artifact reference.
+
+A producer signal is accepted into the canonical index only when its recorded commit matches the release manifest commit. Signals from another release are downgraded to `unknown` rather than silently carried forward. This prevents a successful graph or training result from being displayed as current after the repository has moved on.
+
+The standard writer is `scripts/write_status_signal.py`; producers should call it only after their own validation/publication gate has succeeded. Secrets, credentials, private URLs, and sensitive personal data must never be placed in the signal payload.
+
 ## Signals
 
 | Signal | Meaning | Healthy condition |
@@ -28,8 +36,6 @@ Signals without a producer-specific status artifact are explicitly `unknown`; th
 - **yellow**: stale, degraded, or warning condition
 - **red**: failed quality/release gate or unrecoverable workflow failure
 - **unknown**: no trustworthy producer signal has been recorded yet
-
-Observability data must be safe to publish. Never include tokens, credentials, private URLs, raw secrets, or sensitive personal data in status artifacts or logs.
 
 ## Operational principle
 
