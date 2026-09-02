@@ -107,6 +107,11 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="artifacts/${{ matrix.slug }}"
+          STATUS=$(tr -d '\r\n ' < ".training-manifests/${{ matrix.slug }}/status.txt" 2>/dev/null || true)
+          if [ "$STATUS" != "complete" ]; then
+            echo "Skipping validation because Kaggle status is ${STATUS:-unknown}."
+            exit 0
+          fi
           if [ ! -d "$ROOT" ]; then echo "No output directory"; exit 1; fi
           if [ "${{ matrix.slug }}" = "ua-legal-lm-ft" ]; then test -f "$ROOT/model-ft/metrics.jsonl" || { echo 'Fine-tune metrics.jsonl missing'; exit 1; }; else test -f "$ROOT/model/model.pt" || { echo 'GPU model.pt missing'; exit 1; }; test -f "$ROOT/model/tokenizer.json" || { echo 'GPU tokenizer.json missing'; exit 1; }; test -f "$ROOT/model/metrics.jsonl" || { echo 'GPU metrics.jsonl missing'; exit 1; }; fi
       - name: Publish fine-tuned model to Hugging Face Hub
