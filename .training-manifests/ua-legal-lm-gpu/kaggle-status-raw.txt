@@ -1,0 +1,1 @@
+jotalbot/ua-legal-lm-gpu has status "KernelWorkerStatus.COMPLETE"
