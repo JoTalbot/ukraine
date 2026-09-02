@@ -10,11 +10,17 @@ The status index must reference the exact `git_commit` recorded by `artifacts/st
 
 ## Producer signals
 
-Producer workflows publish one JSON signal per operational subsystem under `artifacts/status/signals/<signal>.json`. The schema is intentionally small: schema version, signal name, state, bounded human-readable detail, producer commit, timestamp, and optional artifact reference.
+Producer workflows publish one JSON signal per operational subsystem as a workflow artifact named `status-signal-<signal>`. The signal schema is intentionally small: schema version, signal name, state, bounded human-readable detail, source commit, timestamp, workflow identity, and optional artifact reference.
 
-A producer signal is accepted into the canonical index only when its recorded commit matches the release manifest commit. Signals from another release are downgraded to `unknown` rather than silently carried forward. This prevents a successful graph or training result from being displayed as current after the repository has moved on.
+A producer signal is accepted into the canonical index only when its `source_commit` matches the release manifest commit. Signals from another release are downgraded to `unknown` rather than silently carried forward. This prevents a successful graph or training result from being displayed as current after the repository has moved on.
 
-The standard writer is `scripts/write_status_signal.py`; producers should call it only after their own validation/publication gate has succeeded. Secrets, credentials, private URLs, and sensitive personal data must never be placed in the signal payload.
+The standard writer is `scripts/write_status_signal.py`; producers should call it after their validation/publication gate, including with `if: always()` when a red failure signal is useful. Secrets, credentials, private URLs, and sensitive personal data must never be placed in the signal payload.
+
+## Workflow-run control plane
+
+`.github/workflows/release-control-plane.yml` reacts to completed producer workflows, checks out the producer run's exact `head_sha`, downloads its status-signal artifact, regenerates the release manifest, and produces a canonical status snapshot. This avoids committing transient health signals back into the repository, which would otherwise change the commit being described and create a self-referential identity problem.
+
+The aggregation implementation is `scripts/aggregate_status_signals.py`. It accepts only schema-valid signals whose source commit matches the release manifest. Missing producer signals remain `unknown`; malformed signals become `red`; stale signals become `unknown`.
 
 ## Signals
 
