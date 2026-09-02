@@ -16,6 +16,7 @@ The repository is considered production-ready when every automated data/model re
 - Release-manifest schema validation covering identity, UTC timestamp, file uniqueness, SHA-256 format, excluded paths, and byte-size integrity.
 - Pages dashboard release identity: generated manifest commit, branch, UTC timestamp, and file count are surfaced alongside operational model/data status.
 - Canonical machine-readable platform status index linking operational signals to the exact release manifest identity.
+- Standard producer-signal schema and writer for ingestion, quality, graph, training, and publication workflows.
 
 ## Final hardening track
 
@@ -26,9 +27,15 @@ The repository is considered production-ready when every automated data/model re
 5. **Model evaluation** — keep immutable evaluation metadata and reject publication when required metrics are missing or regress beyond configured thresholds.
 6. **Release management** — generate machine-readable release manifests and human-readable release notes for data, graph, and model artifacts.
 7. **Security/privacy** — continuously scan repository configuration and enforce the existing no-deanonymization boundary.
-8. **Observability** — expose health, freshness, quality, training, publication, and failure signals in one status artifact.
+8. **Observability** — expose health, freshness, quality, training, publication, and failure signals in one status artifact; wire every producer workflow to the standard signal contract.
 9. **Recovery** — make failed runs resumable/idempotent and preserve enough state to diagnose and replay them.
 10. **Documentation** — keep architecture, operational procedures, data contracts, and release criteria in-repository.
+
+## Newly identified hardening items
+
+- **OBS-01 — Producer signal aggregation:** collect workflow artifacts from completed producer runs and reconcile them into the canonical status index without copying stale signals forward.
+- **OBS-02 — Action pinning audit:** replace mutable GitHub Action tags with immutable commit SHAs where practical, matching the reproducibility policy.
+- **OBS-03 — Release validation consolidation:** remove duplicated inline manifest/status validation from CI and use the tested `validate_release.py` contract as the single validator.
 
 ## Operating rule
 
