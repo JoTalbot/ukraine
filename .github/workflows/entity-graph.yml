@@ -33,12 +33,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p data/edrsr
-          # Спина графа: ЄДР (UO.zip) + реестр плательщиков ПДВ.
           curl -fsSL --retry 5 --retry-all-errors -o data/UO.zip \
             "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/edr/UO.zip"
           curl -fsSL --retry 5 --retry-all-errors -o data/pdv.csv \
             "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/vat_payers/pdv_actual.csv"
-          # Метаданные ЄДРСР: последние годы, ограниченное число частей (память раннера).
           python - <<'PY'
           import json, subprocess, urllib.request
           YEARS, PARTS = ['2024', '2025', '2026'], 4
@@ -155,3 +153,28 @@ jobs:
               print(f"| {key} | {stats.get(key, '—'):,} |")
           print('\n[ua-entity-graph на Hugging Face](https://huggingface.co/datasets/JoTalbot/ua-entity-graph)')
           PY
+
+      - name: Write graph status signal
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="entity graph workflow completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py \
+            --signal graph --state "$state" --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact graph_stats.json
+
+      - name: Upload graph status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: status-signal-graph
+          path: artifacts/status/signals/graph.json
+          if-no-files-found: error
+          retention-days: 30
