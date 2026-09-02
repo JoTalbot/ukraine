@@ -14,11 +14,13 @@ INSTALL_MARKERS = {
 # Kaggle's preinstalled transformers/peft stack can drift independently.  The
 # FT notebook imports PEFT before training, so keep a known-compatible pair and
 # remove torchvision, which can break transformers' lazy vision imports on the
-# Kaggle torch build.
+# Kaggle torch build.  Use subprocess with check=True because an IPython `!pip`
+# failure can otherwise leave the cell running with the broken package intact.
 FT_INSTALL = (
-    "!pip -q uninstall -y torchvision\n"
-    "!pip -q install tokenizers pyarrow striprtf "
-    "transformers==4.57.1 peft==0.17.1\n"
+    "import subprocess\n"
+    "subprocess.run(['pip', 'uninstall', '-y', 'torchvision'], check=True)\n"
+    "subprocess.run(['pip', '-q', 'install', 'tokenizers', 'pyarrow', 'striprtf', "
+    "'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
 )
 
 
