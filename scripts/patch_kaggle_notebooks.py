@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 INSTALL_MARKERS = {
     "legal_lm_gpu.ipynb": "!pip -q install tokenizers pyarrow huggingface_hub\n",
     "legal_lm_finetune.ipynb": "!pip -q install tokenizers pyarrow peft striprtf\n",

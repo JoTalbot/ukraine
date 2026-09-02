@@ -20,9 +20,9 @@ from pathlib import Path
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from tokenizers import Tokenizer, models, trainers, pre_tokenizers, decoders
+from tokenizers import Tokenizer, decoders, models, pre_tokenizers, trainers
+from torch import nn
 
 DEFAULT_VOCAB = 8192
 
@@ -71,7 +71,7 @@ class GPT(nn.Module):
 # ---------------------------------------------------------------- data
 
 def train_tokenizer(corpus: Path, vocab: int, out: Path) -> Tokenizer:
-    tok = Tokenizer(models.BPE(unk_token="<unk>"))
+    tok = Tokenizer(models.BPE(unk_token="<unk>"))  # noqa: S106 -- не секрет, спецтокен разметки
     tok.pre_tokenizer = pre_tokenizers.ByteLevel(add_prefix_space=False)
     tok.decoder = decoders.ByteLevel()
     trainer = trainers.BpeTrainer(
@@ -213,7 +213,6 @@ def main() -> None:
 
     metrics_path = out / "metrics.jsonl"
     samples_path = out / "samples.txt"
-    pad = tok.token_to_id("<pad>")
     g = torch.Generator().manual_seed(args.seed)
     n = len(data) - args.ctx - 1
     start_time = time.time()

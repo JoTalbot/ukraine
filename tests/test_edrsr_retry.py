@@ -1,7 +1,7 @@
 """Retry hardening for court-registry / data.gov.ua fetchers (EDRSR)."""
 import http.client
-import io
 import importlib.util
+import io
 from pathlib import Path
 from unittest import mock
 

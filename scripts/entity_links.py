@@ -230,7 +230,7 @@ def detect_register_fields(sample: dict) -> tuple[str | None, str | None]:
     person = org = None
     for key in sample:
         upper = key.upper()
-        if person is None and upper in {"FIO", "PIB", "NAME_PERSON", "FULLNAME", "SECONDNAME"} or (person is None and upper in {"AK_NAME"}):
+        if (person is None and upper in {"FIO", "PIB", "NAME_PERSON", "FULLNAME", "SECONDNAME"}) or (person is None and upper == "AK_NAME"):
             person = key
         if org is None and upper in {"NAME_OBJ", "ORGANIZATION", "NAME", "SUBJECT_NAME", "AUDITOR_FIRM"}:
             org = key
@@ -261,7 +261,7 @@ def cmd_build(args: argparse.Namespace) -> None:
                 person = store.entity("name", normalize_name(name), name)
                 store.edge(person, company, "founder", "edr")
             for signer in rec["signers"]:
-                name, role = parse_person_role(signer)
+                name, _role = parse_person_role(signer)
                 if not name or EDRPOU_RE.fullmatch(name) or normalize_name(name) in SENTINEL_NAMES:
                     continue
                 person = store.entity("name", normalize_name(name), name)

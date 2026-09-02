@@ -1,8 +1,8 @@
 """The CKAN API truncates responses sometimes; fetch() must retry transient errors."""
 import http.client
+import importlib.util
 import io
 import json
-import importlib.util
 from pathlib import Path
 from unittest import mock
 

@@ -4,9 +4,12 @@
 The source is the official Ukrainian open-data portal CKAN API.
 Only datasets explicitly enabled in config/ukraine_open_data_catalog.json are mirrored.
 """
-import argparse, json, os, re, sys, time
+import argparse
+import json
+import os
+import re
+import time
 from pathlib import Path
-from urllib.parse import quote
 
 import requests
 from huggingface_hub import HfApi
@@ -23,7 +26,7 @@ def get_with_retries(url, *, stream=False, attempts=FETCH_ATTEMPTS, **kwargs):
     kwargs.setdefault("headers", HEADERS)
     for attempt in range(1, attempts + 1):
         try:
-            r = requests.get(url, stream=stream, **kwargs)
+            r = requests.get(url, stream=stream, **kwargs)  # noqa: S113 -- timeout всегда передаётся вызывающим кодом через kwargs
             if r.status_code < 500:
                 r.raise_for_status()
                 return r
@@ -71,11 +74,10 @@ def safe_name(value):
 def download(url, dest):
     dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with get_with_retries(url, stream=True, timeout=TIMEOUT) as r:
-            with dest.open("wb") as f:
-                for chunk in r.iter_content(CHUNK):
-                    if chunk:
-                        f.write(chunk)
+        with get_with_retries(url, stream=True, timeout=TIMEOUT) as r, dest.open("wb") as f:
+            for chunk in r.iter_content(CHUNK):
+                if chunk:
+                    f.write(chunk)
     except Exception:
         dest.unlink(missing_ok=True)  # never leave a truncated file behind
         raise

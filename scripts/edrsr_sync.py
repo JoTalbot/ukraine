@@ -15,10 +15,11 @@ import re
 import tempfile
 import time
 import urllib.error
-import zipfile
 import xml.etree.ElementTree as ET
+import zipfile
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 

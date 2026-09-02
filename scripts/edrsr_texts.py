@@ -79,13 +79,14 @@ def rtf_to_plain(data: bytes) -> str:
 def _html_to_plain(data: bytes) -> str:
     import html
     raw = data.decode("utf-8", errors="replace")
-    raw = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw, flags=re.S | re.I)
+    raw = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", raw, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"<[^>]+>", " ", raw)
     return html.unescape(re.sub(r"\s+", " ", text)).strip()
 
 
 def _pdf_to_plain(data: bytes) -> str:
     from io import BytesIO
+
     from pypdf import PdfReader
     reader = PdfReader(BytesIO(data))
     return "\n".join((page.extract_text() or "") for page in reader.pages).strip()
@@ -93,6 +94,7 @@ def _pdf_to_plain(data: bytes) -> str:
 
 def _docx_to_plain(data: bytes) -> str:
     from io import BytesIO
+
     from docx import Document
     document = Document(BytesIO(data))
     chunks = [p.text.strip() for p in document.paragraphs if p.text.strip()]

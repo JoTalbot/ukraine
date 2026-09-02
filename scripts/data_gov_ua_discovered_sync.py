@@ -5,8 +5,16 @@ Downloads every discovered structured resource without artificial file-count or
 size limits. The runner timeout and Hugging Face storage limits still apply.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, re, time
+
+import argparse
+import contextlib
+import hashlib
+import json
+import os
+import re
+import time
 from pathlib import Path
+
 import requests
 from huggingface_hub import HfApi
 
@@ -92,8 +100,8 @@ def main() -> None:
                 print(f"Resource failed, continuing: {url}: {exc}")
             finally:
                 if dest is not None:
-                    try: dest.unlink(missing_ok=True)
-                    except Exception: pass
+                    with contextlib.suppress(Exception):
+                        dest.unlink(missing_ok=True)
         decisions.append(entry)
     manifest = root / "discovered-manifest.json"
     manifest.write_text(json.dumps(decisions, ensure_ascii=False, indent=2), encoding="utf-8")

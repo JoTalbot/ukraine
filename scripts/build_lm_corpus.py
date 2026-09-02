@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 import re
 import zipfile
 from pathlib import Path
@@ -114,7 +113,6 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=17)
     args = ap.parse_args()
 
-    rng = random.Random(args.seed)
     out = Path(args.output)
     out.parent.mkdir(parents=True, exist_ok=True)
     raw = out.with_suffix(".raw")
@@ -132,6 +130,7 @@ def main() -> None:
 
     if args.edrsr_parquet:
         import glob as globlib
+
         import pyarrow.parquet as pq
         files = []
         for pattern in args.edrsr_parquet:
@@ -156,6 +155,7 @@ def main() -> None:
 
     if args.texts_parquet:
         import glob as globlib
+
         import pyarrow.parquet as pq
         files = []
         for pattern in args.texts_parquet:
@@ -205,7 +205,7 @@ def main() -> None:
     # External dedup + deterministic shuffle-free sampling: exact duplicates
     # removed by sort; a stride sample keeps memory flat.
     import subprocess
-    subprocess.run(["sort", "-u", "-o", str(raw), str(raw)], check=True)
+    subprocess.run(["sort", "-u", "-o", str(raw), str(raw)], check=True)  # noqa: S603 -- argv фиксирован, входных данных извне нет
     deduped = sum(1 for _ in raw.open("r", encoding="utf-8"))
     stride = max(1, deduped // 1_600_000)
     with raw.open("r", encoding="utf-8") as src, out.open("w", encoding="utf-8") as dst:

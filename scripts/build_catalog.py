@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Build a reproducible catalog from the configured public-data sources."""
-import hashlib, json, subprocess
+import hashlib
+import json
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 

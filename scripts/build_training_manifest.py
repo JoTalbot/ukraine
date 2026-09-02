@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Create a deterministic manifest for HF training jobs."""
-import hashlib, json
+import hashlib
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 
