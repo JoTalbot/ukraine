@@ -35,7 +35,7 @@ jobs:
           RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
           set -euo pipefail
-          MARKER="[alert] ${WF_NAME}"
+          export MARKER="[alert] ${WF_NAME}"
           echo "workflow='${WF_NAME}' conclusion=${CONCLUSION}"
           # Find an open alert for this workflow (client-side exact match).
           NUMBER=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "alert in:title" --limit 50 --json number,title \
