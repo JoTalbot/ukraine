@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/build_dashboard.py'
+      - 'scripts/generate_release_manifest.py'
       - '.github/workflows/pages-dashboard.yml'
 
 permissions:
@@ -24,6 +25,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
+      - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
       - name: Generate dashboard
         run: python scripts/build_dashboard.py --output dashboard
       - name: Upload Pages artifact
