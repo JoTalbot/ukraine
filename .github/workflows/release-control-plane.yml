@@ -9,18 +9,16 @@ on:
       - Train Ukraine Models
       - Kaggle GPU Training
       - Ukraine Open Data -> Hugging Face
-      - Discovered Open Data -> Hugging Face
-      - EDRSR -> Hugging Face
-      - EDRSR full texts
-      - Ukraine Pages Dashboard
-      - Kaggle Results
+      - Discovered Ukraine Open Data -> Hugging Face
+      - EDRSR Hugging Face Upload
+      - EDRSR Full Texts
+      - Pages Dashboard
+      - Kaggle Kernel Results
     types: [completed]
   workflow_dispatch:
-
 permissions:
   actions: read
   contents: read
-
 jobs:
   aggregate:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled' }}
@@ -47,13 +45,14 @@ jobs:
           set -euo pipefail
           case "$WORKFLOW_NAME" in
             "Entity Graph Build") echo 'SIGNAL=graph' >> "$GITHUB_ENV" ;;
-            "Ukraine Open Data Discovery"|"Ukraine data CI") echo 'SIGNAL=' >> "$GITHUB_ENV" ;;
+            "Ukraine data CI") echo 'SIGNAL=quality' >> "$GITHUB_ENV" ;;
+            "Ukraine Open Data Discovery") echo 'SIGNAL=ingestion' >> "$GITHUB_ENV" ;;
             "Train Ukraine Models"|"Kaggle GPU Training") echo 'SIGNAL=training' >> "$GITHUB_ENV" ;;
-            "Ukraine Open Data -> Hugging Face"|"Discovered Open Data -> Hugging Face"|"EDRSR -> Hugging Face"|"EDRSR full texts"|"Ukraine Pages Dashboard"|"Kaggle Results") echo 'SIGNAL=publication' >> "$GITHUB_ENV" ;;
+            "Ukraine Open Data -> Hugging Face"|"Discovered Ukraine Open Data -> Hugging Face"|"EDRSR Hugging Face Upload"|"EDRSR Full Texts"|"Pages Dashboard"|"Kaggle Kernel Results") echo 'SIGNAL=publication' >> "$GITHUB_ENV" ;;
             *) echo "Unsupported workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
           esac
       - name: Download producer signal or synthesize run signal
-        if: ${{ github.event_name == 'workflow_run' && env.SIGNAL != '' }}
+        if: ${{ github.event_name == 'workflow_run' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
@@ -75,40 +74,10 @@ jobs:
             esac
             python scripts/write_status_signal.py --signal "$SIGNAL" --state "$state" --detail "workflow run conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
           fi
-      - name: Synthesize CI-quality signal
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Ukraine data CI' }}
-        env:
-          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-        run: |
-          state=red; if [ "$RUN_CONCLUSION" = "success" ]; then state=green; elif [ "$RUN_CONCLUSION" = "cancelled" ] || [ "$RUN_CONCLUSION" = "skipped" ]; then state=unknown; fi
-          python scripts/write_status_signal.py --signal quality --state "$state" --detail "repository CI conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
-      - name: Synthesize ingestion signal
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Ukraine Open Data Discovery' }}
-        env:
-          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-        run: |
-          state=red; if [ "$RUN_CONCLUSION" = "success" ]; then state=green; elif [ "$RUN_CONCLUSION" = "cancelled" ] || [ "$RUN_CONCLUSION" = "skipped" ]; then state=unknown; fi
-          python scripts/write_status_signal.py --signal ingestion --state "$state" --detail "discovery workflow conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
       - name: Aggregate canonical status index
         run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --output artifacts/status/status-index.json
       - name: Validate canonical control plane
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          m=json.loads(Path('artifacts/status/release-manifest.json').read_text(encoding='utf-8'))
-          s=json.loads(Path('artifacts/status/status-index.json').read_text(encoding='utf-8'))
-          required={'ci','ingestion','quality','graph','training','publication','security'}
-          if s.get('release',{}).get('git_commit') != m.get('git_commit'): raise SystemExit('status/release identity mismatch')
-          if set(s.get('signals',{})) != required: raise SystemExit('status signal set incomplete')
-          print('Canonical control-plane contract OK')
-          PY
+        run: python scripts/validate_release.py
       - name: Upload canonical control-plane snapshot
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
