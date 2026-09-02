@@ -1,7 +1,11 @@
 import json
 from pathlib import Path
 
-from scripts.validate_release import validate_release_manifest, validate_repository_contract, validate_sha256
+from scripts.validate_release import (
+    validate_release_manifest,
+    validate_repository_contract,
+    validate_sha256,
+)
 
 
 def test_sha256_contract() -> None:
