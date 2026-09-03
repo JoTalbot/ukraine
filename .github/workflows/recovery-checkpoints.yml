@@ -54,6 +54,7 @@ jobs:
             --output artifacts/recovery/checkpoints
       - name: Validate checkpoint JSON
         run: |
+          set -euo pipefail
           python - <<'PY'
           import json
           from pathlib import Path
@@ -71,10 +72,37 @@ jobs:
               raise SystemExit('checkpoint source_commit must be a git SHA')
           print('Recovery checkpoint contract OK:', files[0])
           PY
-      - name: Upload recovery checkpoint
+      - name: Generate deterministic replay manifest
+        run: |
+          set -euo pipefail
+          python scripts/generate_replay_manifest.py \
+            --input artifacts/recovery/checkpoints/*.json \
+            --output artifacts/recovery/replay-manifest.json
+      - name: Validate replay manifest
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          path = Path('artifacts/recovery/replay-manifest.json')
+          data = json.loads(path.read_text(encoding='utf-8'))
+          digest = data.pop('manifest_sha256', None)
+          canonical = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()
+          if digest != hashlib.sha256(canonical).hexdigest():
+              raise SystemExit('replay manifest checksum mismatch')
+          if data['checkpoint_count'] < 1:
+              raise SystemExit('replay manifest has no checkpoints')
+          if not data['next_action']:
+              raise SystemExit('replay manifest next_action is empty')
+          print('Replay manifest contract OK:', data['next_action'])
+          PY
+      - name: Upload recovery checkpoint and replay plan
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: recovery-checkpoint-${{ github.event.workflow_run.id }}
-          path: artifacts/recovery/checkpoints/*.json
+          path: |
+            artifacts/recovery/checkpoints/*.json
+            artifacts/recovery/replay-manifest.json
           if-no-files-found: error
           retention-days: 30
