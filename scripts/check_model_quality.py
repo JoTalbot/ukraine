@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Validate a candidate model metric against the currently published baseline."""
 
 from __future__ import annotations
