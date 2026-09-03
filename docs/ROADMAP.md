@@ -39,12 +39,12 @@ The repository is considered production-ready when every automated data/model re
 - **OBS-02 — Action pinning audit:** replace mutable GitHub Action tags with immutable commit SHAs where practical, matching the reproducibility policy. **Implemented and verified by CI.**
 - **OBS-03 — Release validation consolidation:** remove duplicated inline manifest/status validation from CI and use the tested `validate_release.py` contract as the single validator.
 - **REC-01 — Recovery/replay contract:** define durable checkpoints, idempotency keys, replay manifests, and last-successful state for long-running ingestion, graph, and training workflows.
-- **CTRL-01 — Unified control-plane policy:** define freshness windows, producer priority, and status precedence so the dashboard can distinguish missing, stale, degraded, and current signals across independent schedules.
+- **CTRL-01 — Unified control-plane policy:** define freshness windows, producer priority, and status precedence so the dashboard can distinguish missing, stale, degraded, and current signals across independent schedules. **Policy foundation implemented.**
 
 ## Production readiness backlog
 
-- **DEP-01 — Deterministic dependency lock:** pin CI/runtime Python dependencies and verify the lock is consumed by every relevant workflow.
-- **SUP-01 — SBOM and supply-chain evidence:** publish a machine-readable SBOM plus dependency provenance with every release-control snapshot.
+- **DEP-01 — Deterministic dependency lock:** pin CI/runtime Python dependencies and verify the lock is consumed by every relevant workflow. **CI lock baseline implemented; workflow adoption and lock verification remain.**
+- **SUP-01 — SBOM and supply-chain evidence:** publish a machine-readable SBOM plus dependency provenance with every release-control snapshot. **SBOM generation implemented; control-plane publication remains.**
 - **PROV-01 — Artifact provenance:** bind generated artifacts to source commit, workflow run, inputs, toolchain, and checksums.
 - **REPRO-01 — Reproducibility verification:** provide a deterministic verification path that compares repeated generated outputs/manifests and rejects unexplained drift.
 - **DRIFT-01 — Data drift detection:** monitor schema, row-count, field-distribution, and source-availability drift against versioned baselines.
@@ -54,6 +54,12 @@ The repository is considered production-ready when every automated data/model re
 - **PROM-01 — Release promotion:** formalize dev → validated → candidate → production promotion states with explicit gates.
 - **ROLL-01 — Automatic rollback:** retain the last known-good release and provide a safe, idempotent rollback path.
 - **READY-01 — Production readiness gate:** aggregate all hardening checks into one deterministic machine-readable readiness decision.
+
+## Implementation improvements discovered during hardening
+
+- **DEP-02 — Lock completeness contract:** the lock must include direct CI requirements plus all transitive packages required by those requirements, so `pip install -r requirements.lock` is self-contained and reproducible.
+- **PROV-02 — Release execution identity:** release evidence should include workflow name/run ID and explicit input/toolchain metadata rather than relying on commit identity alone.
+- **REPRO-02 — Generated-state exclusion:** reproducibility manifests must exclude their own mutable output and transient interpreter/build caches to avoid self-referential hashes.
 
 ## Operating rule
 
