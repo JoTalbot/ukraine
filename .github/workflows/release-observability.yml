@@ -24,12 +24,12 @@ jobs:
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.lock
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
-      - name: Generate canonical status index
-        run: python scripts/generate_status_index.py --root . --output artifacts/status/status-index.json
-      - name: Validate release and status contract
-        run: python scripts/validate_release.py
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
+      - name: Generate canonical status index
+        run: python scripts/generate_status_index.py --root . --output artifacts/status/status-index.json --sbom artifacts/status/sbom.cdx.json
+      - name: Validate release and status contract
+        run: python scripts/validate_release.py
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Run release contract tests
