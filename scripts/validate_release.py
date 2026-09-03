@@ -34,6 +34,26 @@ def validate_release_manifest(path: Path) -> list[str]:
     if not isinstance(manifest.get("python"), str) or not manifest["python"]: errors.append("release manifest python is missing")
     timestamp = manifest.get("generated_at_utc")
     if not isinstance(timestamp, str) or not ISO_UTC.fullmatch(timestamp): errors.append("release manifest generated_at_utc must be UTC ISO-8601")
+
+    execution = manifest.get("execution")
+    if not isinstance(execution, dict):
+        errors.append("release manifest execution metadata is missing")
+    else:
+        for field in ("workflow_name", "workflow_run_id", "workflow_run_attempt", "event_name", "source_sha"):
+            if not isinstance(execution.get(field), str) or not execution[field]:
+                errors.append(f"release manifest execution {field} is missing")
+        if execution.get("source_sha") not in {manifest.get("git_commit"), "unknown"}:
+            errors.append("release manifest execution source_sha does not match git_commit")
+        lock = execution.get("dependency_lock")
+        if not isinstance(lock, dict):
+            errors.append("release manifest execution dependency_lock is missing")
+        else:
+            if lock.get("path") != "requirements.lock":
+                errors.append("release manifest dependency lock path is invalid")
+            lock_sha = lock.get("sha256")
+            if not isinstance(lock_sha, str) or (lock_sha != "unknown" and not validate_sha256(lock_sha)):
+                errors.append("release manifest dependency lock SHA-256 is invalid")
+
     files = manifest.get("files")
     if not isinstance(files, list) or not files:
         errors.append("release manifest files must be a non-empty list")
