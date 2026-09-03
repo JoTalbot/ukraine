@@ -74,12 +74,12 @@ jobs:
             esac
             python scripts/write_status_signal.py --signal "$SIGNAL" --state "$state" --detail "workflow run conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
           fi
-      - name: Aggregate canonical status index
-        run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --output artifacts/status/status-index.json
-      - name: Validate canonical control plane
-        run: python scripts/validate_release.py
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
+      - name: Aggregate canonical status index
+        run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --sbom artifacts/status/sbom.cdx.json --output artifacts/status/status-index.json
+      - name: Validate canonical control plane
+        run: python scripts/validate_release.py
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Upload canonical control-plane snapshot
