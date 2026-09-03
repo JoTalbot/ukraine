@@ -1,6 +1,7 @@
 """Validate repository-level release metadata without touching source datasets."""
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -90,6 +91,12 @@ def compare_release_manifests(first: Path, second: Path) -> list[str]:
         left, right = json.loads(first.read_text(encoding="utf-8")), json.loads(second.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         return [f"invalid manifest JSON for reproducibility comparison: {exc}"]
+    errors.extend(f"first manifest: {error}" for error in validate_release_manifest(first))
+    errors.extend(f"second manifest: {error}" for error in validate_release_manifest(second))
+    if errors:
+        return errors
+    if left.get("git_commit") != right.get("git_commit"):
+        return ["reproducibility comparison requires identical git_commit values"]
     for field in REPRODUCIBLE_FIELDS:
         if left.get(field) != right.get(field):
             errors.append(f"reproducibility drift in {field}")
@@ -139,8 +146,18 @@ def validate_repository_contract(root: Path = Path(".")) -> list[str]:
 
 
 if __name__ == "__main__":
-    violations = validate_repository_contract()
-    if violations:
-        for violation in violations: print(f"ERROR: {violation}")
-        raise SystemExit(1)
-    print("Release contract OK")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--compare-manifests", nargs=2, metavar=("FIRST", "SECOND"))
+    args = parser.parse_args()
+    if args.compare_manifests:
+        violations = compare_release_manifests(Path(args.compare_manifests[0]), Path(args.compare_manifests[1]))
+        if violations:
+            for violation in violations: print(f"ERROR: {violation}")
+            raise SystemExit(1)
+        print("Reproducibility comparison OK")
+    else:
+        violations = validate_repository_contract()
+        if violations:
+            for violation in violations: print(f"ERROR: {violation}")
+            raise SystemExit(1)
+        print("Release contract OK")
