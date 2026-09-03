@@ -89,7 +89,9 @@ def check(root: Path) -> dict:
         "path": str(lock.relative_to(root)) if lock else None,
     }
     gates["sbom"] = {
-        "state": "green" if (root / "scripts/generate_sbom.py").is_file() else "red"
+        "state": "green"
+        if (root / "scripts/generate_sbom.py").is_file()
+        else "red"
     }
     gates["provenance"] = {
         "state": "green"
@@ -101,6 +103,36 @@ def check(root: Path) -> dict:
             "state": "green" if (root / path).is_file() else "red",
             "contract": path,
         }
+
+    evidence_path = root / "artifacts/status/production-hardening-evidence.json"
+    if evidence_path.is_file():
+        try:
+            evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+            contract_states = evidence.get("contracts", {})
+            identity_ok = bool(evidence.get("source_commit")) and bool(
+                evidence.get("workflow_name")
+            ) and bool(evidence.get("workflow_run_id"))
+            contracts_ok = all(
+                contract_states.get(name, {}).get("state")
+                in {"green", "quarantined"}
+                for name in HARDENING_CONTRACTS
+            )
+            gates["runtime_hardening_evidence"] = {
+                "state": "green" if identity_ok and contracts_ok else "red",
+                "identity_present": identity_ok,
+                "contracts_complete": contracts_ok,
+            }
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            gates["runtime_hardening_evidence"] = {
+                "state": "red",
+                "detail": "hardening evidence is invalid JSON",
+            }
+    else:
+        gates["runtime_hardening_evidence"] = {
+            "state": "red",
+            "detail": "runtime hardening evidence missing",
+        }
+
     gates["promotion_policy"] = {
         "state": "green"
         if (root / "docs/PRODUCTION_READINESS.md").is_file()
