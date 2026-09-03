@@ -1,6 +1,7 @@
 """Validate repository-level release metadata without touching source datasets."""
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -17,6 +18,14 @@ REQUIRED_SIGNALS = {"ci", "ingestion", "quality", "graph", "training", "publicat
 
 def validate_sha256(value: str) -> bool:
     return bool(SHA256.fullmatch(value))
+
+
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def validate_release_manifest(path: Path) -> list[str]:
@@ -83,6 +92,22 @@ def validate_status_index(path: Path, manifest_path: Path) -> list[str]:
     if status.get("schema_version") != 1: errors.append("status index schema_version must be 1")
     if status.get("release", {}).get("git_commit") != manifest.get("git_commit"): errors.append("status index release identity does not match manifest")
     if set(status.get("signals", {})) != REQUIRED_SIGNALS: errors.append("status index signal set is incomplete")
+    supply_chain = status.get("supply_chain")
+    if supply_chain is not None:
+        if not isinstance(supply_chain, dict):
+            errors.append("status index supply_chain must be an object")
+        else:
+            sbom_path = supply_chain.get("sbom")
+            if supply_chain.get("format") != "CycloneDX":
+                errors.append("status index SBOM format must be CycloneDX")
+            if not isinstance(sbom_path, str) or not sbom_path:
+                errors.append("status index SBOM path is missing")
+            else:
+                sbom = Path(sbom_path)
+                if not sbom.is_file():
+                    errors.append("status index SBOM file is missing")
+                elif supply_chain.get("sha256") != file_sha256(sbom):
+                    errors.append("status index SBOM SHA-256 does not match file")
     return errors
 
 
