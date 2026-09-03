@@ -4,7 +4,7 @@ Long-running ingestion, graph, and training workflows must be recoverable withou
 
 ## Checkpoint contract
 
-`artifacts/recovery/checkpoints/<checkpoint_id>.json` is the machine-readable checkpoint format. The writer is `scripts/write_recovery_checkpoint.py`.
+`artifacts/recovery/checkpoints/<checkpoint_id>.json` is the machine-readable checkpoint format. The writer is `scripts/write_recovery_checkpoint.py`. Schema version 2 adds optional artifact provenance and checkpoint chaining.
 
 Each checkpoint records:
 
@@ -14,9 +14,11 @@ Each checkpoint records:
 - `checkpoint` — completed stage, such as `download`, `normalize`, `build`, or `publish`.
 - `state` — `running`, `succeeded`, `failed`, or `paused`.
 - `checkpoint_id` — SHA-256 derived from workflow, source commit, and idempotency key.
+- `previous_checkpoint` — optional predecessor identifier for an explicit replay chain.
+- `artifact` — optional path, SHA-256, and byte count for the checkpoint output.
 - bounded detail and UTC update time.
 
-The derived checkpoint ID makes repeated writes for the same logical operation address the same state record. A retry must resume from the last trusted successful checkpoint rather than blindly repeating non-idempotent publication.
+The derived checkpoint ID makes repeated writes for the same logical operation address the same state record. A retry must resume from the last trusted successful checkpoint rather than blindly repeating non-idempotent publication. Artifact hashes prevent a checkpoint from silently pointing at a changed output.
 
 ## Replay rules
 
@@ -29,4 +31,4 @@ The derived checkpoint ID makes repeated writes for the same logical operation a
 
 ## Planned integration
 
-The checkpoint writer is the foundation. Producer workflows will adopt checkpoints at their long-running boundaries, then the control plane will surface the latest successful checkpoint and whether a failed run is safely replayable.
+The checkpoint writer now provides the durable identity, chaining, and artifact-integrity primitives. Producer workflows will adopt checkpoints at their long-running boundaries, then the control plane will surface the latest successful checkpoint and whether a failed run is safely replayable.
