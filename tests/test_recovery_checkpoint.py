@@ -33,6 +33,8 @@ def test_checkpoint_writer_rejects_oversized_detail(monkeypatch: pytest.MonkeyPa
 
 
 def test_checkpoint_writer_writes_payload(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    artifact = tmp_path / "output.txt"
+    artifact.write_text("hello", encoding="utf-8")
     monkeypatch.setattr(
         "sys.argv",
         [
@@ -43,14 +45,21 @@ def test_checkpoint_writer_writes_payload(tmp_path: Path, monkeypatch: pytest.Mo
             "--checkpoint", "publish",
             "--state", "succeeded",
             "--detail", "published",
+            "--artifact", str(artifact),
+            "--previous-checkpoint", "prior-1",
             "--output", str(tmp_path),
         ],
     )
     main()
-    files = list(tmp_path.glob("*.json"))
+    files = list((tmp_path / "artifacts").glob("*.json"))
+    assert len(files) == 0
+    files = [p for p in tmp_path.glob("*.json")]
     assert len(files) == 1
     payload = json.loads(files[0].read_text(encoding="utf-8"))
-    assert payload["schema_version"] == 1
+    assert payload["schema_version"] == 2
     assert payload["state"] == "succeeded"
     assert payload["checkpoint"] == "publish"
     assert payload["checkpoint_id"] == checkpoint_id("graph", "a" * 40, "run-1")
+    assert payload["previous_checkpoint"] == "prior-1"
+    assert payload["artifact"]["bytes"] == 5
+    assert len(payload["artifact"]["sha256"]) == 64
