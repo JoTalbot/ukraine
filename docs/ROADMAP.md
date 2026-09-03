@@ -36,10 +36,24 @@ The repository is considered production-ready when every automated data/model re
 ## Newly identified hardening items
 
 - **OBS-01 — Producer signal aggregation:** collect workflow artifacts from completed producer runs and reconcile them into the canonical status index without copying stale signals forward. **Foundation implemented; remaining work is to wire all producer workflows.**
-- **OBS-02 — Action pinning audit:** replace mutable GitHub Action tags with immutable commit SHAs where practical, matching the reproducibility policy.
+- **OBS-02 — Action pinning audit:** replace mutable GitHub Action tags with immutable commit SHAs where practical, matching the reproducibility policy. **Implemented and verified by CI.**
 - **OBS-03 — Release validation consolidation:** remove duplicated inline manifest/status validation from CI and use the tested `validate_release.py` contract as the single validator.
 - **REC-01 — Recovery/replay contract:** define durable checkpoints, idempotency keys, replay manifests, and last-successful state for long-running ingestion, graph, and training workflows.
 - **CTRL-01 — Unified control-plane policy:** define freshness windows, producer priority, and status precedence so the dashboard can distinguish missing, stale, degraded, and current signals across independent schedules.
+
+## Production readiness backlog
+
+- **DEP-01 — Deterministic dependency lock:** pin CI/runtime Python dependencies and verify the lock is consumed by every relevant workflow.
+- **SUP-01 — SBOM and supply-chain evidence:** publish a machine-readable SBOM plus dependency provenance with every release-control snapshot.
+- **PROV-01 — Artifact provenance:** bind generated artifacts to source commit, workflow run, inputs, toolchain, and checksums.
+- **REPRO-01 — Reproducibility verification:** provide a deterministic verification path that compares repeated generated outputs/manifests and rejects unexplained drift.
+- **DRIFT-01 — Data drift detection:** monitor schema, row-count, field-distribution, and source-availability drift against versioned baselines.
+- **QUAR-01 — Automatic quarantine:** isolate failed or suspicious datasets/artifacts from publication while retaining diagnostics and recovery metadata.
+- **REG-01 — Model registry:** maintain immutable model versions with evaluation, dataset lineage, and publication state.
+- **COMPAT-01 — Dataset/model compatibility:** enforce compatibility between model artifacts and the exact dataset/schema lineage used for training.
+- **PROM-01 — Release promotion:** formalize dev → validated → candidate → production promotion states with explicit gates.
+- **ROLL-01 — Automatic rollback:** retain the last known-good release and provide a safe, idempotent rollback path.
+- **READY-01 — Production readiness gate:** aggregate all hardening checks into one deterministic machine-readable readiness decision.
 
 ## Operating rule
 
