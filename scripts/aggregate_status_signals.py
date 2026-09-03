@@ -48,9 +48,9 @@ def build_status_index(manifest_path: Path, signals_dir: Path) -> dict:
     signals = {
         name: {"state": "unknown", "detail": "no signal artifact recorded"} for name in SIGNALS
     }
-    signals["ci"] = {"state": "healthy", "detail": "repository validation completed"}
+    signals["ci"] = {"state": "green", "detail": "repository validation completed"}
     signals["security"] = {
-        "state": "healthy",
+        "state": "green",
         "detail": "repository security contract completed",
     }
     for name in PRODUCER_SIGNALS:
