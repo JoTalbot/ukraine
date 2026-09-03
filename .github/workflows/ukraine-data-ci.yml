@@ -66,4 +66,3 @@ jobs:
           name: status-signal-quality
           path: artifacts/status/signals/quality.json
           if-no-files-found: error
-          retention-days: 30
