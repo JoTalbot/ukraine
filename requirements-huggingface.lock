@@ -1,0 +1,12 @@
+# Dedicated lock partition for Hugging Face publishers.
+# Keep this separate from the CPU-only CI lock because publisher jobs use
+# the Hugging Face package surface and may evolve independently.
+huggingface_hub==1.29.0
+pyarrow==25.0.1
+packaging==26.3
+requests==2.32.5
+tqdm==4.67.1
+pyyaml==6.0.3
+filelock==3.19.1
+fsspec==2025.12.0
+typing_extensions==4.16.0
