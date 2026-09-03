@@ -9,6 +9,10 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+env:
+  RELEASE_ARTIFACT_NAME: release-manifest-observability
 
 jobs:
   contract:
@@ -30,6 +34,23 @@ jobs:
         run: python scripts/generate_status_index.py --root . --output artifacts/status/status-index.json --sbom artifacts/status/sbom.cdx.json
       - name: Validate release and status contract
         run: python scripts/validate_release.py
+      - name: Verify reproducibility against previous snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/previous-release
+          artifact_id="$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" --jq '.artifacts | map(select(.name == env.RELEASE_ARTIFACT_NAME and .expired == false and .workflow_run.head_sha == env.GITHUB_SHA)) | sort_by(.created_at) | last | .id // empty')"
+          if [ -z "$artifact_id" ]; then
+            echo "No previous snapshot for this commit; reproducibility baseline not yet available."
+          else
+            gh api -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' \
+              "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > /tmp/previous-release/snapshot.zip
+            unzip -q /tmp/previous-release/snapshot.zip -d /tmp/previous-release
+            previous="$(find /tmp/previous-release -name release-manifest.json -type f | head -n 1)"
+            test -n "$previous" && test -f "$previous"
+            python scripts/validate_release.py --compare-manifests "$previous" artifacts/status/release-manifest.json
+          fi
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Run release contract tests
