@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 from datetime import datetime, timezone
@@ -26,6 +27,10 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def env_value(name: str) -> str:
+    return os.environ.get(name, "unknown") or "unknown"
+
+
 def build_manifest(root: Path) -> dict:
     files = []
     for path in sorted(root.rglob("*")):
@@ -35,13 +40,28 @@ def build_manifest(root: Path) -> dict:
         if rel.startswith("__pycache__/") or rel.endswith(".pyc"):
             continue
         files.append({"path": rel, "sha256": sha256(path), "bytes": path.stat().st_size})
+
+    git_commit = git_value(root, "rev-parse", "HEAD")
+    dependency_lock = root / "requirements.lock"
+    execution = {
+        "workflow_name": env_value("GITHUB_WORKFLOW"),
+        "workflow_run_id": env_value("GITHUB_RUN_ID"),
+        "workflow_run_attempt": env_value("GITHUB_RUN_ATTEMPT"),
+        "event_name": env_value("GITHUB_EVENT_NAME"),
+        "source_sha": env_value("GITHUB_SHA") if env_value("GITHUB_SHA") != "unknown" else git_commit,
+        "dependency_lock": {
+            "path": "requirements.lock",
+            "sha256": sha256(dependency_lock) if dependency_lock.is_file() else "unknown",
+        },
+    }
     return {
         "schema_version": 1,
         "release_class": "repository",
-        "git_commit": git_value(root, "rev-parse", "HEAD"),
+        "git_commit": git_commit,
         "git_branch": git_value(root, "rev-parse", "--abbrev-ref", "HEAD"),
         "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "python": platform.python_version(),
+        "execution": execution,
         "files": files,
     }
 
