@@ -48,7 +48,7 @@ def build_manifest(root: Path) -> dict:
         "workflow_run_id": env_value("GITHUB_RUN_ID"),
         "workflow_run_attempt": env_value("GITHUB_RUN_ATTEMPT"),
         "event_name": env_value("GITHUB_EVENT_NAME"),
-        "source_sha": env_value("GITHUB_SHA") if env_value("GITHUB_SHA") != "unknown" else git_commit,
+        "source_sha": git_commit,
         "dependency_lock": {
             "path": "requirements.lock",
             "sha256": sha256(dependency_lock) if dependency_lock.is_file() else "unknown",
