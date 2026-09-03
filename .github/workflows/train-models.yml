@@ -44,6 +44,20 @@ jobs:
         run: python scripts/train_lm.py --corpus artifacts/lm/corpus.txt --out artifacts/lm/model --steps ${{ inputs.steps || '600' }} --dim 256 --layers 6 --ctx 256 --batch 8 --eval-every 150 --sample-every 300
       - name: Show samples
         run: cat artifacts/lm/model/samples.txt
+      - name: Download published model metrics baseline
+        run: |
+          mkdir -p artifacts/lm/baseline
+          if curl -fsSL --retry 3 --retry-all-errors "https://huggingface.co/JoTalbot/ua-legal-lm/resolve/main/metrics.jsonl" -o artifacts/lm/baseline/metrics.jsonl; then
+            echo 'Published model metrics baseline downloaded.'
+          else
+            rm -f artifacts/lm/baseline/metrics.jsonl
+            echo 'No published metrics baseline found; treating this as initial publication.'
+          fi
+      - name: Evaluate model quality gate
+        run: |
+          args=(--candidate artifacts/lm/model/metrics.jsonl --tolerance 1.02 --output artifacts/lm/model/quality-gate.json)
+          if [ -f artifacts/lm/baseline/metrics.jsonl ]; then args+=(--baseline artifacts/lm/baseline/metrics.jsonl); fi
+          python scripts/check_model_quality.py "${args[@]}"
       - name: Upload model artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
@@ -53,6 +67,7 @@ jobs:
             artifacts/lm/model/tokenizer.json
             artifacts/lm/model/metrics.jsonl
             artifacts/lm/model/samples.txt
+            artifacts/lm/model/quality-gate.json
           retention-days: 30
           if-no-files-found: error
       - name: Publish model to Hugging Face Hub
