@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 
@@ -47,11 +48,7 @@ def test_release_manifest_contract_rejects_missing_execution(tmp_path: Path) -> 
 
 def test_release_manifest_contract_rejects_duplicate_bad_entries(tmp_path: Path) -> None:
     manifest = manifest_payload()
-    manifest["files"] = [
-        {"path": "README.md", "sha256": "0" * 64, "bytes": 5},
-        {"path": "README.md", "sha256": "bad", "bytes": -1},
-        {"path": "release-manifest.json", "sha256": "0" * 64, "bytes": 1},
-    ]
+    manifest["files"] = [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}, {"path": "README.md", "sha256": "bad", "bytes": -1}, {"path": "release-manifest.json", "sha256": "0" * 64, "bytes": 1}]
     path = tmp_path / "release-manifest.json"
     path.write_text(json.dumps(manifest), encoding="utf-8")
     errors = validate_release_manifest(path)
@@ -59,6 +56,19 @@ def test_release_manifest_contract_rejects_duplicate_bad_entries(tmp_path: Path)
     assert any("invalid SHA-256" in error for error in errors)
     assert any("excluded path" in error for error in errors)
     assert any("invalid byte size" in error for error in errors)
+
+
+def test_status_index_validates_sbom_checksum(tmp_path: Path, monkeypatch) -> None:
+    manifest = tmp_path / "release-manifest.json"
+    status = tmp_path / "status-index.json"
+    sbom = tmp_path / "sbom.cdx.json"
+    sbom.write_text('{"bomFormat":"CycloneDX"}\n', encoding="utf-8")
+    manifest.write_text(json.dumps(manifest_payload()), encoding="utf-8")
+    status.write_text(json.dumps({"schema_version": 1, "release": {"git_commit": "abc123"}, "signals": {"ci": {}, "ingestion": {}, "quality": {}, "graph": {}, "training": {}, "publication": {}, "security": {}}, "supply_chain": {"sbom": str(sbom), "format": "CycloneDX", "sha256": hashlib.sha256(sbom.read_bytes()).hexdigest()}}), encoding="utf-8")
+    assert validate_status_index(status, manifest) == []
+    sbom.write_text("tampered\n", encoding="utf-8")
+    errors = validate_status_index(status, manifest)
+    assert any("SBOM SHA-256" in error for error in errors)
 
 
 def test_status_index_contract_requires_exact_release_identity(tmp_path: Path) -> None:
