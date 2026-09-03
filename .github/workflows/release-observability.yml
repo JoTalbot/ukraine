@@ -20,14 +20,14 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
-      - name: Install CI dependencies
-        run: python -m pip install --upgrade pip -r requirements-ci.txt
+      - name: Install CI dependencies from deterministic lock
+        run: python -m pip install --upgrade pip && python -m pip install --require-hashes -r requirements.lock
       - name: Validate repository contract
         run: python scripts/validate_release.py
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
       - name: Validate generated release manifest
-        run: python -c "from pathlib import Path; from scripts.validate_release import validate_release_manifest; errors = validate_release_manifest(Path('artifacts/status/release-manifest.json')); print('Release manifest contract OK') if not errors else (_ for _ in ()).throw(SystemExit('\\n'.join(errors)))"
+        run: python scripts/validate_release.py
       - name: Generate canonical status index
         run: python scripts/generate_status_index.py --root . --output artifacts/status/status-index.json
       - name: Validate status/release identity
@@ -35,10 +35,10 @@ jobs:
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Evaluate production readiness
-        run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json || true
+        run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Run release contract tests
         run: python -m pytest tests/test_release_contract.py tests/test_release_manifest.py tests/test_status_index.py tests/test_write_status_signal.py tests/test_aggregate_status_signals.py tests/test_recovery_checkpoint.py tests/test_production_readiness.py -q
-      - name: Upload release control-plane snapshot
+      - name: Upload release observability snapshot
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-manifest-observability
