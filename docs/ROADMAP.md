@@ -60,6 +60,7 @@ The repository is considered production-ready when every automated data/model re
 - **DEP-02 — Lock completeness contract:** the lock must include direct CI requirements plus all transitive packages required by those requirements, so `pip install -r requirements.lock` is self-contained and reproducible.
 - **PROV-02 — Release execution identity:** release evidence should include workflow name/run ID and explicit input/toolchain metadata rather than relying on commit identity alone.
 - **REPRO-02 — Generated-state exclusion:** reproducibility manifests must exclude their own mutable output and transient interpreter/build caches to avoid self-referential hashes.
+- **REG-02 — Unified model publication quality gate:** every automated model publisher must compare the candidate evaluation metric with the currently published model and block publication on unexplained regression; a missing baseline is allowed only for an initial publication.
 
 ## Operating rule
 
