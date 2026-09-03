@@ -7,13 +7,20 @@ def test_release_manifest_has_audit_fields(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "README.md").write_text("hello\n", encoding="utf-8")
     (tmp_path / "requirements.lock").write_text("pytest==1.0\n", encoding="utf-8")
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    monkeypatch.setenv("GITHUB_WORKFLOW", "test-workflow")
+    monkeypatch.setenv("GITHUB_RUN_ID", "123")
+    monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
+    monkeypatch.setenv("GITHUB_EVENT_NAME", "test")
     manifest = build_manifest(tmp_path)
     assert manifest["schema_version"] == 1
     assert manifest["release_class"] == "repository"
     assert manifest["python"]
     assert manifest["generated_at_utc"].endswith("Z")
     assert manifest["execution"]["source_sha"] == "a" * 40
-    assert manifest["execution"]["workflow_name"] == "unknown"
+    assert manifest["execution"]["workflow_name"] == "test-workflow"
+    assert manifest["execution"]["workflow_run_id"] == "123"
+    assert manifest["execution"]["workflow_run_attempt"] == "1"
+    assert manifest["execution"]["event_name"] == "test"
     assert manifest["execution"]["dependency_lock"] == {
         "path": "requirements.lock",
         "sha256": sha256(tmp_path / "requirements.lock"),
