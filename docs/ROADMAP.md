@@ -46,7 +46,7 @@ The repository is considered production-ready when every automated data/model re
 - **DEP-01 — Deterministic dependency lock:** pin CI/runtime Python dependencies and verify the lock is consumed by every relevant workflow. **CI lock baseline implemented; workflow adoption and lock verification remain.**
 - **SUP-01 — SBOM and supply-chain evidence:** publish a machine-readable SBOM plus dependency provenance with every release-control snapshot. **SBOM generation implemented; control-plane publication remains.**
 - **PROV-01 — Artifact provenance:** bind generated artifacts to source commit, workflow run, inputs, toolchain, and checksums.
-- **REPRO-01 — Reproducibility verification:** provide a deterministic verification path that compares repeated generated outputs/manifests and rejects unexplained drift.
+- **REPRO-01 — Reproducibility verification:** provide a deterministic verification path that compares repeated generated outputs/manifests and rejects unexplained drift. **Manifest comparison contract implemented; workflow-level repeated-build verification remains.**
 - **DRIFT-01 — Data drift detection:** monitor schema, row-count, field-distribution, and source-availability drift against versioned baselines.
 - **QUAR-01 — Automatic quarantine:** isolate failed or suspicious datasets/artifacts from publication while retaining diagnostics and recovery metadata.
 - **REG-01 — Model registry:** maintain immutable model versions with evaluation, dataset lineage, and publication state.
@@ -64,6 +64,7 @@ The repository is considered production-ready when every automated data/model re
 - **REC-02 — Deterministic replay manifest:** recovery must preserve a bounded, machine-readable replay plan containing source commit, workflow/run identity, completed checkpoints, artifact references, and explicit next action, so replay does not depend on interpreting logs or manually editing generated state.
 - **PROV-03 — Release manifest execution evidence:** generated release manifests should carry workflow/run identity, trigger type, source SHA, and runtime/toolchain metadata so evidence remains attributable to the exact execution context.
 - **SUP-02 — SBOM control-plane binding:** the canonical status index should reference the exact generated SBOM and its checksum, making supply-chain evidence discoverable and cryptographically bound to the release snapshot.
+- **DEP-03 — Workflow lock partitioning:** workflows with materially different dependency indexes, such as Hugging Face publishers or GPU training, must use dedicated deterministic lock files rather than silently installing mutable latest packages.
 
 ## Operating rule
 
