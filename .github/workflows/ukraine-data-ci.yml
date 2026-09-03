@@ -30,15 +30,11 @@ jobs:
         run: python -m compileall scripts tests
       - name: Run unit tests
         run: python -m pytest tests/ -q
-      - name: Validate release contract
-        run: python scripts/validate_release.py
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
-      - name: Validate generated release manifest
-        run: python scripts/validate_release.py
       - name: Generate platform status index
         run: python scripts/generate_status_index.py --output artifacts/status/status-index.json
-      - name: Validate repository contract
+      - name: Validate release and status contract
         run: python scripts/validate_release.py
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
