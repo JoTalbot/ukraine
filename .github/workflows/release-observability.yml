@@ -50,6 +50,8 @@ jobs:
             test -n "$previous" && test -f "$previous"
             python scripts/validate_release.py --compare-manifests "$previous" artifacts/status/release-manifest.json
           fi
+      - name: Execute runtime hardening evidence self-test
+        run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Run release and hardening contract tests
