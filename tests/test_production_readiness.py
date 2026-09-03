@@ -18,6 +18,7 @@ def test_readiness_reports_missing_production_controls(tmp_path: Path) -> None:
 
     assert result["overall_state"] == "red"
     assert result["gates"]["dependency_lock"]["state"] == "red"
+    assert result["gates"]["runtime_hardening_evidence"]["state"] == "red"
 
 
 def test_readiness_accepts_complete_contract(tmp_path: Path) -> None:
@@ -27,7 +28,7 @@ def test_readiness_accepts_complete_contract(tmp_path: Path) -> None:
         target.write_text("ok", encoding="utf-8")
     scripts = tmp_path / "scripts"
     scripts.mkdir()
-    for name in ("write_recovery_checkpoint.py", "generate_release_manifest.py", "generate_sbom.py"):
+    for name in ("write_recovery_checkpoint.py", "generate_release_manifest.py", "generate_sbom.py", "production_hardening.py"):
         (scripts / name).write_text("ok", encoding="utf-8")
     (tmp_path / "requirements-ci.lock").write_text("pytest==1.0\n", encoding="utf-8")
     status = tmp_path / "artifacts/status/status-index.json"
@@ -37,8 +38,18 @@ def test_readiness_accepts_complete_contract(tmp_path: Path) -> None:
         "policy": {"freshness_hours": {"ingestion": 48}},
         "overall_state": "green",
     }), encoding="utf-8")
+    evidence = tmp_path / "artifacts/status/production-hardening-evidence.json"
+    evidence.write_text(json.dumps({
+        "schema_version": 1,
+        "state": "green",
+        "source_commit": "abc123",
+        "workflow_name": "test",
+        "workflow_run_id": "42",
+        "contracts": {name: {"state": "green"} for name in ("DRIFT-01", "QUAR-01", "REG-01", "COMPAT-01", "PROM-01", "ROLL-01")},
+    }), encoding="utf-8")
 
     result = check(tmp_path)
 
     assert result["gates"]["dependency_lock"]["state"] == "green"
     assert result["gates"]["control_plane"]["state"] == "green"
+    assert result["gates"]["runtime_hardening_evidence"]["state"] == "green"
