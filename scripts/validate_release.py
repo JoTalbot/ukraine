@@ -14,6 +14,7 @@ REQUIRED_DOCS = (
     Path("docs/OBSERVABILITY.md"), Path("docs/SECURITY.md"),
 )
 REQUIRED_SIGNALS = {"ci", "ingestion", "quality", "graph", "training", "publication", "security"}
+REPRODUCIBLE_FIELDS = ("schema_version", "release_class", "git_commit", "git_branch", "python", "files")
 
 
 def validate_sha256(value: str) -> bool:
@@ -79,6 +80,21 @@ def validate_release_manifest(path: Path) -> list[str]:
         else: seen.add(rel)
         if not isinstance(digest, str) or not validate_sha256(digest): errors.append(f"manifest file entry {index} has an invalid SHA-256")
         if not isinstance(size, int) or isinstance(size, bool) or size < 0: errors.append(f"manifest file entry {index} has an invalid byte size")
+    return errors
+
+
+def compare_release_manifests(first: Path, second: Path) -> list[str]:
+    """Compare reproducibility-bearing fields while ignoring execution timestamps/identity."""
+    errors: list[str] = []
+    try:
+        left, right = json.loads(first.read_text(encoding="utf-8")), json.loads(second.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return [f"invalid manifest JSON for reproducibility comparison: {exc}"]
+    for field in REPRODUCIBLE_FIELDS:
+        if left.get(field) != right.get(field):
+            errors.append(f"reproducibility drift in {field}")
+    if left.get("generated_at_utc") == right.get("generated_at_utc"):
+        errors.append("reproducibility comparison requires distinct generated_at_utc values")
     return errors
 
 
