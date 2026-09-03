@@ -43,28 +43,28 @@ The repository is considered production-ready when every automated data/model re
 
 ## Production readiness backlog
 
-- **DEP-01 — Deterministic dependency lock:** pin CI/runtime Python dependencies and verify the lock is consumed by every relevant workflow. **CI lock baseline implemented; workflow adoption and lock verification remain.**
-- **SUP-01 — SBOM and supply-chain evidence:** publish a machine-readable SBOM plus dependency provenance with every release-control snapshot. **SBOM generation implemented; control-plane publication remains.**
-- **PROV-01 — Artifact provenance:** bind generated artifacts to source commit, workflow run, inputs, toolchain, and checksums.
-- **REPRO-01 — Reproducibility verification:** provide a deterministic verification path that compares repeated generated outputs/manifests and rejects unexplained drift. **Manifest comparison contract implemented; workflow-level repeated-build verification remains.**
-- **DRIFT-01 — Data drift detection:** monitor schema, row-count, field-distribution, and source-availability drift against versioned baselines.
-- **QUAR-01 — Automatic quarantine:** isolate failed or suspicious datasets/artifacts from publication while retaining diagnostics and recovery metadata.
-- **REG-01 — Model registry:** maintain immutable model versions with evaluation, dataset lineage, and publication state.
-- **COMPAT-01 — Dataset/model compatibility:** enforce compatibility between model artifacts and the exact dataset/schema lineage used for training.
-- **PROM-01 — Release promotion:** formalize dev → validated → candidate → production promotion states with explicit gates.
-- **ROLL-01 — Automatic rollback:** retain the last known-good release and provide a safe, idempotent rollback path.
-- **READY-01 — Production readiness gate:** aggregate all hardening checks into one deterministic machine-readable readiness decision.
+- **DEP-01 — Deterministic dependency lock:** pin CI/runtime Python dependencies and verify the lock is consumed by every relevant workflow. **Baseline lock implemented; dedicated Hugging Face publisher partition added and adopted by EDRSR publisher.**
+- **SUP-01 — SBOM and supply-chain evidence:** publish a machine-readable SBOM plus dependency provenance with every release-control snapshot. **Implemented and bound to the canonical status index.**
+- **PROV-01 — Artifact provenance:** bind generated artifacts to source commit, workflow run, inputs, toolchain, and checksums. **Implemented through release-manifest execution evidence and checksum validation.**
+- **REPRO-01 — Reproducibility verification:** provide a deterministic verification path that compares repeated generated outputs/manifests and rejects unexplained drift. **Implemented with repeated-manifest comparison in Release observability.**
+- **DRIFT-01 — Data drift detection:** monitor schema, row-count, field-distribution, and source-availability drift against versioned baselines. **Contract implemented in `scripts/production_hardening.py`; fails closed on schema/distribution/source drift and configurable row-count thresholds.**
+- **QUAR-01 — Automatic quarantine:** isolate failed or suspicious datasets/artifacts from publication while retaining diagnostics and recovery metadata. **Contract implemented with digest-qualified quarantine copies and provenance marker.**
+- **REG-01 — Model registry:** maintain immutable model versions with evaluation, dataset lineage, and publication state. **Contract implemented with immutable model IDs and artifact checksums.**
+- **COMPAT-01 — Dataset/model compatibility:** enforce compatibility between model artifacts and the exact dataset/schema lineage used for training. **Contract implemented with exact dataset revision and schema-hash matching.**
+- **PROM-01 — Release promotion:** formalize dev → validated → candidate → production promotion states with explicit gates. **Contract implemented with fail-closed state transitions and readiness/evaluation/compatibility gates.**
+- **ROLL-01 — Automatic rollback:** retain the last known-good release and provide a safe, idempotent rollback path. **Contract implemented with recorded production targets and an atomic rollback plan; fails closed when no target exists.**
+- **READY-01 — Production readiness gate:** aggregate all hardening checks into one deterministic machine-readable readiness decision. **Implemented in `check_production_readiness.py`, exercised by CI, and published with release/control-plane snapshots.**
 
 ## Implementation improvements discovered during hardening
 
-- **DEP-02 — Lock completeness contract:** the lock must include direct CI requirements plus all transitive packages required by those requirements, so `pip install -r requirements.lock` is self-contained and reproducible.
-- **PROV-02 — Release execution identity:** release evidence should include workflow name/run ID and explicit input/toolchain metadata rather than relying on commit identity alone.
-- **REPRO-02 — Generated-state exclusion:** reproducibility manifests must exclude their own mutable output and transient interpreter/build caches to avoid self-referential hashes.
-- **REG-02 — Unified model publication quality gate:** every automated model publisher must compare the candidate evaluation metric with the currently published model and block publication on unexplained regression; a missing baseline is allowed only for an initial publication.
-- **REC-02 — Deterministic replay manifest:** recovery must preserve a bounded, machine-readable replay plan containing source commit, workflow/run identity, completed checkpoints, artifact references, and explicit next action, so replay does not depend on interpreting logs or manually editing generated state.
-- **PROV-03 — Release manifest execution evidence:** generated release manifests should carry workflow/run identity, trigger type, source SHA, and runtime/toolchain metadata so evidence remains attributable to the exact execution context.
-- **SUP-02 — SBOM control-plane binding:** the canonical status index should reference the exact generated SBOM and its checksum, making supply-chain evidence discoverable and cryptographically bound to the release snapshot.
-- **DEP-03 — Workflow lock partitioning:** workflows with materially different dependency indexes, such as Hugging Face publishers or GPU training, must use dedicated deterministic lock files rather than silently installing mutable latest packages.
+- **DEP-02 — Lock completeness contract:** the lock must include direct CI requirements plus all transitive packages required by those requirements, so `pip install -r requirements.lock` is self-contained and reproducible. **Implemented.**
+- **PROV-02 — Release execution identity:** release evidence should include workflow name/run ID and explicit input/toolchain metadata rather than relying on commit identity alone. **Implemented.**
+- **REPRO-02 — Generated-state exclusion:** reproducibility manifests must exclude their own mutable output and transient interpreter/build caches to avoid self-referential hashes. **Implemented.**
+- **REG-02 — Unified model publication quality gate:** every automated model publisher must compare the candidate evaluation metric with the currently published model and block publication on unexplained regression; a missing baseline is allowed only for an initial publication. **Existing model publication gate retained; registry now records the immutable evaluation evidence.**
+- **REC-02 — Deterministic replay manifest:** recovery must preserve a bounded, machine-readable replay plan containing source commit, workflow/run identity, completed checkpoints, artifact references, and explicit next action, so replay does not depend on interpreting logs or manually editing generated state. **Existing recovery checkpoint contract retained and exposed to readiness.**
+- **PROV-03 — Release manifest execution evidence:** generated release manifests should carry workflow/run identity, trigger type, source SHA, and runtime/toolchain metadata so evidence remains attributable to the exact execution context. **Implemented.**
+- **SUP-02 — SBOM control-plane binding:** the canonical status index should reference the exact generated SBOM and its checksum, making supply-chain evidence discoverable and cryptographically bound to the release snapshot. **Implemented.**
+- **DEP-03 — Workflow lock partitioning:** workflows with materially different dependency indexes, such as Hugging Face publishers or GPU training, must use dedicated deterministic lock files rather than silently installing mutable latest packages. **Hugging Face publisher partition implemented; GPU/Kaggle remains intentionally isolated because its CUDA/package-index contract is hardware-specific and is not safely interchangeable with CPU CI.**
 
 ## Operating rule
 
