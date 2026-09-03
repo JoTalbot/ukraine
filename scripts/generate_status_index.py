@@ -19,13 +19,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=".")
     parser.add_argument("--output", default="artifacts/status/status-index.json")
+    parser.add_argument("--sbom", default=None)
     args = parser.parse_args()
     root = Path(args.root)
     status_dir = root / "artifacts" / "status"
-    payload = build_status_index(
-        status_dir / "release-manifest.json",
-        status_dir / "signals",
-    )
+    sbom = Path(args.sbom) if args.sbom else None
+    payload = build_status_index(status_dir / "release-manifest.json", status_dir / "signals", sbom)
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
