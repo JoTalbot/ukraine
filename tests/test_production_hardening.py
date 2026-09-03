@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.production_hardening import compat, drift, promote, registry
+from scripts.production_hardening import compat, drift, evidence, promote, registry
 
 
 def write(path: Path, value):
@@ -55,3 +55,20 @@ def test_promotion_requires_gates(tmp_path):
     assert promote("dev", "validated", gates, output) == 0
     assert promote("validated", "candidate", gates, output) == 0
     assert promote("candidate", "production", gates, output) == 0
+
+
+def test_runtime_evidence_executes_all_contracts(tmp_path):
+    output = tmp_path / "evidence.json"
+    assert evidence(output, "abc123", "test-workflow", "42") == 0
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["state"] == "green"
+    assert payload["source_commit"] == "abc123"
+    assert payload["workflow_run_id"] == "42"
+    assert set(payload["contracts"]) == {
+        "DRIFT-01",
+        "QUAR-01",
+        "REG-01",
+        "COMPAT-01",
+        "PROM-01",
+        "ROLL-01",
+    }
