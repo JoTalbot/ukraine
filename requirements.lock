@@ -1,0 +1,9 @@
+# Deterministic CI dependency baseline for the Ukraine platform.
+# Generated from requirements-ci.txt on 2026-09-03.
+# Exact versions are intentionally reviewed and updated as a single change.
+ruff==0.12.10
+pytest==8.4.2
+pyarrow==21.0.0
+striprtf==0.0.29
+pypdf==6.0.0
+python-docx==1.2.0
