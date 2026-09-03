@@ -6,7 +6,6 @@ from scripts.generate_release_manifest import build_manifest, sha256
 def test_release_manifest_has_audit_fields(tmp_path: Path, monkeypatch) -> None:
     (tmp_path / "README.md").write_text("hello\n", encoding="utf-8")
     (tmp_path / "requirements.lock").write_text("pytest==1.0\n", encoding="utf-8")
-    monkeypatch.setenv("GITHUB_SHA", "a" * 40)
     monkeypatch.setenv("GITHUB_WORKFLOW", "test-workflow")
     monkeypatch.setenv("GITHUB_RUN_ID", "123")
     monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "1")
@@ -16,7 +15,7 @@ def test_release_manifest_has_audit_fields(tmp_path: Path, monkeypatch) -> None:
     assert manifest["release_class"] == "repository"
     assert manifest["python"]
     assert manifest["generated_at_utc"].endswith("Z")
-    assert manifest["execution"]["source_sha"] == "a" * 40
+    assert manifest["execution"]["source_sha"] == manifest["git_commit"]
     assert manifest["execution"]["workflow_name"] == "test-workflow"
     assert manifest["execution"]["workflow_run_id"] == "123"
     assert manifest["execution"]["workflow_run_attempt"] == "1"
