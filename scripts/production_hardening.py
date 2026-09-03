@@ -1,6 +1,10 @@
 """Deterministic contracts for DRIFT, QUAR, REG, COMPAT, PROM and ROLL."""
 from __future__ import annotations
-import argparse, hashlib, json, shutil
+
+import argparse
+import hashlib
+import json
+import shutil
 from pathlib import Path
 
 V=1
