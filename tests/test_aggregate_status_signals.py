@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from scripts.aggregate_status_signals import build_status_index, normalize_signal, sha256
+from scripts.aggregate_status_signals import (
+    build_status_index,
+    normalize_signal,
+    sha256,
+)
 
 
 def write_manifest(path: Path, commit: str = "a" * 40) -> None:
