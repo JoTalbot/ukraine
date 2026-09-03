@@ -4,8 +4,11 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import uuid
 from importlib.metadata import distributions
 from pathlib import Path
+
+NAMESPACE = uuid.UUID("4b4f5c0b-0c4d-4b1e-9c16-0f1b3b5f2c6d")
 
 
 def build_sbom() -> dict:
@@ -20,15 +23,19 @@ def build_sbom() -> dict:
                 "type": "library",
                 "name": name,
                 "version": version,
-                "purl": f"pkg:pypi/{name.lower().replace('_', '-') }@{version}",
+                "purl": f"pkg:pypi/{name.lower().replace('_', '-')}@{version}",
             }
         )
+    serial = f"urn:uuid:{uuid.uuid5(NAMESPACE, platform.python_version())}"
     return {
         "bomFormat": "CycloneDX",
         "specVersion": "1.5",
-        "serialNumber": "urn:uuid:ukraine-python-environment",
+        "serialNumber": serial,
         "version": 1,
-        "metadata": {"tools": [{"vendor": "ukraine", "name": "generate_sbom.py"}], "properties": [{"name": "python.version", "value": platform.python_version()}]},
+        "metadata": {
+            "tools": [{"vendor": "ukraine", "name": "generate_sbom.py"}],
+            "properties": [{"name": "python.version", "value": platform.python_version()}],
+        },
         "components": components,
     }
 
