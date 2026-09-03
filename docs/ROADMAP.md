@@ -63,6 +63,7 @@ The repository is considered production-ready when every automated data/model re
 - **REG-02 — Unified model publication quality gate:** every automated model publisher must compare the candidate evaluation metric with the currently published model and block publication on unexplained regression; a missing baseline is allowed only for an initial publication.
 - **REC-02 — Deterministic replay manifest:** recovery must preserve a bounded, machine-readable replay plan containing source commit, workflow/run identity, completed checkpoints, artifact references, and explicit next action, so replay does not depend on interpreting logs or manually editing generated state.
 - **PROV-03 — Release manifest execution evidence:** generated release manifests should carry workflow/run identity, trigger type, source SHA, and runtime/toolchain metadata so evidence remains attributable to the exact execution context.
+- **SUP-02 — SBOM control-plane binding:** the canonical status index should reference the exact generated SBOM and its checksum, making supply-chain evidence discoverable and cryptographically bound to the release snapshot.
 
 ## Operating rule
 
