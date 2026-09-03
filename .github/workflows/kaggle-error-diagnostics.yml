@@ -24,8 +24,8 @@ jobs:
           - slug: ua-legal-lm-ft
           - slug: ua-legal-lm-gpu
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
       - name: Configure Kaggle authentication
@@ -93,8 +93,6 @@ jobs:
             exit 0
           fi
           git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
-          # Держим копию файлов в /tmp: reset --hard на откате пуша их сотрёт,
-          # а регенерировать их здесь нельзя (они собраны из output кернела).
           BACKUP=$(mktemp -d)
           mkdir -p "$BACKUP/slug"
           cp -r ".training-manifests/${{ matrix.slug }}/." "$BACKUP/slug/"
