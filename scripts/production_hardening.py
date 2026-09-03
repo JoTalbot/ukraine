@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import shutil
+import tempfile
 from pathlib import Path
 
 V = 1
@@ -174,6 +175,78 @@ def rollback(registry, current_model_id, output):
     return 0 if target else 1
 
 
+def evidence(output, source_commit, workflow_name, workflow_run_id):
+    """Execute every hardening contract against deterministic fixtures."""
+    output = Path(output)
+    with tempfile.TemporaryDirectory(prefix="ukraine-hardening-") as workdir:
+        root = Path(workdir)
+        base = {
+            "schema_version": V,
+            "schema_hash": "fixture-schema",
+            "row_count": 10,
+            "field_distributions": {"state": {"ok": 10}},
+            "source_available": True,
+        }
+        dump(root / "baseline.json", base)
+        dump(root / "current.json", base)
+        drift_result = root / "drift.json"
+        drift(root / "baseline.json", root / "current.json", drift_result)
+
+        artifact = root / "artifact.bin"
+        artifact.write_bytes(b"quarantine-fixture")
+        quarantine_result = root / "quarantine.json"
+        quarantine(artifact, root / "quarantine", "self-test", source_commit, workflow_run_id, quarantine_result)
+
+        model = root / "model.bin"
+        model.write_bytes(b"model-fixture")
+        registry_result = root / "registry.json"
+        registry(model, "fixture-model", "dataset-1", "fixture-schema", registry_result)
+
+        dump(root / "model-meta.json", {"dataset_revision": "dataset-1", "schema_hash": "fixture-schema"})
+        dump(root / "dataset-meta.json", {"revision": "dataset-1", "schema_hash": "fixture-schema"})
+        compat_result = root / "compat.json"
+        compat(root / "model-meta.json", root / "dataset-meta.json", compat_result)
+
+        gates = root / "gates.json"
+        dump(gates, {"compatibility": "green", "evaluation": "green", "readiness": "green"})
+        promote_result = root / "promote.json"
+        promote("candidate", "production", gates, promote_result)
+
+        database = load(registry_result)
+        database["models"][0]["publication_state"] = "production"
+        database["models"].append({
+            **database["models"][0],
+            "model_id": "fixture-current",
+            "artifact_sha256": sha(model),
+        })
+        dump(registry_result, database)
+        rollback_result = root / "rollback.json"
+        rollback(registry_result, "fixture-current", rollback_result)
+
+        results = {
+            "DRIFT-01": load(drift_result),
+            "QUAR-01": load(quarantine_result),
+            "REG-01": {"state": "green" if load(registry_result).get("models") else "red"},
+            "COMPAT-01": load(compat_result),
+            "PROM-01": load(promote_result),
+            "ROLL-01": load(rollback_result),
+        }
+        states = [item.get("state") for item in results.values()]
+        state = "green" if all(value == "green" or value == "quarantined" for value in states) else "red"
+        dump(
+            output,
+            {
+                "schema_version": V,
+                "state": state,
+                "source_commit": source_commit,
+                "workflow_name": workflow_name,
+                "workflow_run_id": workflow_run_id,
+                "contracts": results,
+            },
+        )
+    return 0 if state == "green" else 1
+
+
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="cmd", required=True)
@@ -209,6 +282,11 @@ def main():
     command.add_argument("registry")
     command.add_argument("current_model_id")
     command.add_argument("output")
+    command = subparsers.add_parser("evidence")
+    command.add_argument("output")
+    command.add_argument("source_commit")
+    command.add_argument("workflow_name")
+    command.add_argument("workflow_run_id")
     args = vars(parser.parse_args())
     command_name = args.pop("cmd")
     raise SystemExit(globals()[command_name](**args))
