@@ -1,0 +1,80 @@
+name: Recovery Checkpoints
+
+on:
+  workflow_run:
+    workflows:
+      - Entity Graph Build
+      - Ukraine Open Data Discovery
+      - Ukraine data CI
+      - Train Ukraine Models
+      - Kaggle GPU Training
+      - Ukraine Open Data -> Hugging Face
+      - Discovered Ukraine Open Data -> Hugging Face
+      - EDRSR Hugging Face Upload
+      - EDRSR Full Texts
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  checkpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Write workflow recovery checkpoint
+        env:
+          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_RUN_ID: ${{ github.event.workflow_run.id }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+          state=failed
+          case "$CONCLUSION" in
+            success) state=succeeded ;;
+            cancelled) state=paused ;;
+            failure|timed_out|action_required|startup_failure) state=failed ;;
+            *) state=paused ;;
+          esac
+          python scripts/write_recovery_checkpoint.py \
+            --workflow "$WORKFLOW_NAME" \
+            --source-commit "$SOURCE_COMMIT" \
+            --idempotency-key "workflow-run:$WORKFLOW_RUN_ID" \
+            --checkpoint "workflow-completed" \
+            --state "$state" \
+            --detail "workflow run $WORKFLOW_RUN_ID completed with conclusion: $CONCLUSION" \
+            --output artifacts/recovery/checkpoints
+      - name: Validate checkpoint JSON
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          files = list(Path('artifacts/recovery/checkpoints').glob('*.json'))
+          if len(files) != 1:
+              raise SystemExit(f'expected exactly one checkpoint, found {len(files)}')
+          data = json.loads(files[0].read_text(encoding='utf-8'))
+          required = {'schema_version', 'checkpoint_id', 'workflow', 'source_commit', 'idempotency_key', 'checkpoint', 'state', 'updated_at_utc'}
+          missing = required - data.keys()
+          if missing:
+              raise SystemExit(f'checkpoint missing fields: {sorted(missing)}')
+          if data['schema_version'] != 2:
+              raise SystemExit('checkpoint schema_version must be 2')
+          if len(data['source_commit']) != 40:
+              raise SystemExit('checkpoint source_commit must be a git SHA')
+          print('Recovery checkpoint contract OK:', files[0])
+          PY
+      - name: Upload recovery checkpoint
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: recovery-checkpoint-${{ github.event.workflow_run.id }}
+          path: artifacts/recovery/checkpoints/*.json
+          if-no-files-found: error
+          retention-days: 30
