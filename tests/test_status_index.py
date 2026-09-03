@@ -21,18 +21,25 @@ def write_manifest(status: Path, commit: str = "abc123") -> None:
     )
 
 
+def status_index(status: Path) -> dict:
+    return build_status_index(
+        status / "release-manifest.json",
+        status / "signals",
+    )
+
+
 def test_status_index_links_release_identity(tmp_path: Path) -> None:
     status = tmp_path / "artifacts" / "status"
     status.mkdir(parents=True)
     write_manifest(status)
 
-    payload = build_status_index(tmp_path)
+    payload = status_index(status)
 
     assert payload["schema_version"] == 1
     assert payload["release"]["git_commit"] == "abc123"
     assert payload["release"]["manifest"] == "artifacts/status/release-manifest.json"
     assert payload["release"]["file_count"] == 1
-    assert payload["signals"]["ci"]["state"] == "healthy"
+    assert payload["signals"]["ci"]["state"] == "green"
     assert payload["signals"]["ingestion"]["state"] == "unknown"
 
 
@@ -41,7 +48,7 @@ def test_status_index_has_all_operational_signals(tmp_path: Path) -> None:
     status.mkdir(parents=True)
     write_manifest(status)
 
-    payload = build_status_index(tmp_path)
+    payload = status_index(status)
     assert set(payload["signals"]) == {
         "ci",
         "ingestion",
@@ -73,12 +80,12 @@ def test_status_index_consumes_matching_producer_signal(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    payload = build_status_index(tmp_path)
-    assert payload["signals"]["graph"] == {
-        "state": "green",
-        "detail": "graph build completed",
-        "artifact": "graph_stats.json",
-    }
+    payload = status_index(status)
+    graph = payload["signals"]["graph"]
+    assert graph["state"] == "green"
+    assert graph["detail"] == "graph build completed"
+    assert graph["artifact"] == "graph_stats.json"
+    assert graph["freshness_hours"] == 168
 
 
 def test_status_index_rejects_signal_from_different_release(tmp_path: Path) -> None:
@@ -100,5 +107,5 @@ def test_status_index_rejects_signal_from_different_release(tmp_path: Path) -> N
         encoding="utf-8",
     )
 
-    payload = build_status_index(tmp_path)
+    payload = status_index(status)
     assert payload["signals"]["training"]["state"] == "unknown"
