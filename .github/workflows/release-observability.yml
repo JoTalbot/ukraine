@@ -29,7 +29,7 @@ jobs:
       - name: Validate generated release manifest
         run: python -c "from pathlib import Path; from scripts.validate_release import validate_release_manifest; errors = validate_release_manifest(Path('artifacts/status/release-manifest.json')); print('Release manifest contract OK') if not errors else (_ for _ in ()).throw(SystemExit('\\n'.join(errors)))"
       - name: Generate canonical status index
-        run: python scripts/generate_status_index.py --manifest artifacts/status/release-manifest.json --output artifacts/status/status-index.json
+        run: python scripts/generate_status_index.py --root artifacts/status --output artifacts/status/status-index.json
       - name: Validate status/release identity
         run: python -c "import json; from pathlib import Path; m=json.loads(Path('artifacts/status/release-manifest.json').read_text()); s=json.loads(Path('artifacts/status/status-index.json').read_text()); assert s['release']['git_commit']==m['git_commit'], 'status/release identity mismatch'; print('Status/release identity OK')"
       - name: Run release contract tests
