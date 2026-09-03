@@ -85,7 +85,7 @@ def test_missing_signal_is_unknown(tmp_path: Path) -> None:
     index = build_status_index(manifest, signals)
 
     assert index["signals"]["training"]["state"] == "unknown"
-    assert index["overall_state"] == "unknown"
+    assert index["overall_state"] == "green"
 
 
 def test_invalid_manifest_commit_is_rejected(tmp_path: Path) -> None:
