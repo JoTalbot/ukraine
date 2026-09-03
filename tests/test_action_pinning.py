@@ -1,5 +1,5 @@
-import re
 from pathlib import Path
+import re
 
 
 MUTABLE_ACTION_REF = re.compile(
