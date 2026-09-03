@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.aggregate_status_signals import build_status_index
+from scripts.aggregate_status_signals import build_status_index  # noqa: E402
 
 
 def main() -> None:
