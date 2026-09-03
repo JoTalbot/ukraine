@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 
 from scripts.validate_release import (
+    compare_release_manifests,
     validate_release_manifest,
     validate_repository_contract,
     validate_sha256,
@@ -73,6 +74,38 @@ def test_release_manifest_contract_rejects_duplicate_bad_entries(tmp_path: Path)
     assert any("invalid SHA-256" in error for error in errors)
     assert any("excluded path" in error for error in errors)
     assert any("invalid byte size" in error for error in errors)
+
+
+def test_reproducibility_comparison_ignores_execution_identity(tmp_path: Path) -> None:
+    first = manifest_payload()
+    second = manifest_payload()
+    second["generated_at_utc"] = "2026-09-03T12:01:00Z"
+    second["execution"] = {**execution(), "workflow_run_id": "456", "event_name": "workflow_run"}
+    first_path, second_path = tmp_path / "first.json", tmp_path / "second.json"
+    first_path.write_text(json.dumps(first), encoding="utf-8")
+    second_path.write_text(json.dumps(second), encoding="utf-8")
+    assert compare_release_manifests(first_path, second_path) == []
+
+
+def test_reproducibility_comparison_rejects_file_drift(tmp_path: Path) -> None:
+    first = manifest_payload()
+    second = manifest_payload()
+    second["generated_at_utc"] = "2026-09-03T12:01:00Z"
+    second["files"][0]["sha256"] = "1" * 64
+    first_path, second_path = tmp_path / "first.json", tmp_path / "second.json"
+    first_path.write_text(json.dumps(first), encoding="utf-8")
+    second_path.write_text(json.dumps(second), encoding="utf-8")
+    errors = compare_release_manifests(first_path, second_path)
+    assert "reproducibility drift in files" in errors
+
+
+def test_reproducibility_comparison_rejects_same_timestamp(tmp_path: Path) -> None:
+    first_path, second_path = tmp_path / "first.json", tmp_path / "second.json"
+    payload = manifest_payload()
+    first_path.write_text(json.dumps(payload), encoding="utf-8")
+    second_path.write_text(json.dumps(payload), encoding="utf-8")
+    errors = compare_release_manifests(first_path, second_path)
+    assert any("distinct generated_at_utc" in error for error in errors)
 
 
 def test_status_index_validates_sbom_checksum(tmp_path: Path) -> None:
