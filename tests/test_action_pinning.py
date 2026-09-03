@@ -1,7 +1,6 @@
 import re
 from pathlib import Path
 
-
 MUTABLE_ACTION_REF = re.compile(
     r"^\s*-?\s*uses:\s*actions/[^@\s]+@(?![0-9a-fA-F]{40}(?:\s|$))[^\s#]+",
     re.MULTILINE,
