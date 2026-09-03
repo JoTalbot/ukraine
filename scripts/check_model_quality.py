@@ -27,13 +27,13 @@ def last_val_loss(path: Path) -> float | None:
     return values[-1] if values else None
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate", required=True, type=Path)
     parser.add_argument("--baseline", type=Path)
     parser.add_argument("--tolerance", type=float, default=1.02)
     parser.add_argument("--output", type=Path)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     candidate = last_val_loss(args.candidate)
     baseline = last_val_loss(args.baseline) if args.baseline else None
