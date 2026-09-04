@@ -38,9 +38,11 @@ jobs:
         run: python scripts/generate_status_index.py --output artifacts/status/status-index.json --sbom artifacts/status/sbom.cdx.json
       - name: Validate release and status contract
         run: python scripts/validate_release.py
+      - name: Execute runtime hardening evidence self-test
+        run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
-      - name: Upload release manifest, status index, SBOM and readiness
+      - name: Upload release manifest, status index, SBOM, hardening evidence and readiness
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-status
