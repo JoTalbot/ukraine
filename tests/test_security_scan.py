@@ -7,9 +7,11 @@ from scripts import security_scan
 
 
 def test_secret_scanner_detects_high_confidence_credentials(tmp_path) -> None:
+    fake_token = "ghp_" + "a" * 36
+    fake_private_key = "-----BEGIN " + "PRIVATE KEY-----"
     files = [
-        (tmp_path / "secret.txt", "token = 'ghp_abcdefghijklmnopqrstuvwxyz1234567890'\n"),
-        (tmp_path / "key.txt", "-----BEGIN PRIVATE KEY-----\n"),
+        (tmp_path / "secret.txt", f"token = '{fake_token}'\n"),
+        (tmp_path / "key.txt", fake_private_key + "\n"),
     ]
     findings = security_scan.scan_secrets(files)
     assert {item["kind"] for item in findings} == {"github_token", "private_key"}
