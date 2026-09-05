@@ -40,6 +40,7 @@ The repository is considered production-ready when every automated data/model re
 - **OBS-03 — Release validation consolidation:** remove duplicated inline manifest/status validation from CI and use the tested `validate_release.py` contract as the single validator. **Implemented in Ukraine data CI and Release observability.**
 - **REC-01 — Recovery/replay contract:** define durable checkpoints, idempotency keys, replay manifests, and last-successful state for long-running ingestion, graph, and training workflows. **Workflow-level and stage-level recovery evidence implemented; stage checkpoints are derived deterministically from producer job-step outcomes and exposed in the replay manifest.**
 - **CTRL-01 — Unified control-plane policy:** define freshness windows, producer priority, and status precedence so the dashboard can distinguish missing, stale, degraded, and current signals across independent schedules. **Policy foundation implemented.**
+- **SEC-01 — Automated security/privacy boundary scan:** continuously scan tracked repository text for high-confidence credentials and enforce explicit public-open-data/no-deanonymization policy markers and training-manifest privacy declarations. **Implemented and covered by dedicated CI plus deterministic unit tests; runtime verification pending.**
 
 ## Production readiness backlog
 
