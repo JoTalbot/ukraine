@@ -81,6 +81,20 @@ def scan_secrets(files: Iterable[tuple[Path, str]]) -> list[dict[str, object]]:
     return findings
 
 
+def check_training_manifest(path: str, payload: object) -> list[dict[str, str]]:
+    records = payload if isinstance(payload, list) else [payload]
+    findings: list[dict[str, str]] = []
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            findings.append({"kind": "invalid_training_manifest_record", "path": path, "record": str(index)})
+            continue
+        if record.get("privacy_scope") != "public_open_data_only":
+            findings.append({"kind": "invalid_training_privacy_scope", "path": path, "record": str(index)})
+        if record.get("deanonymization") is not False:
+            findings.append({"kind": "deanonymization_enabled", "path": path, "record": str(index)})
+    return findings
+
+
 def check_privacy(files: dict[str, str]) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
     for name in PRIVACY_REQUIRED_FILES:
@@ -100,10 +114,7 @@ def check_privacy(files: dict[str, str]) -> list[dict[str, str]]:
         except json.JSONDecodeError:
             findings.append({"kind": "invalid_training_manifest", "path": path})
             continue
-        if payload.get("privacy_scope") != "public_open_data_only":
-            findings.append({"kind": "invalid_training_privacy_scope", "path": path})
-        if payload.get("deanonymization") is not False:
-            findings.append({"kind": "deanonymization_enabled", "path": path})
+        findings.extend(check_training_manifest(path, payload))
     return findings
 
 
