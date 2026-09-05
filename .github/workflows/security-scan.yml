@@ -37,10 +37,35 @@ jobs:
           --source-commit "$SOURCE_COMMIT"
           --workflow-name "$WORKFLOW_NAME"
           --workflow-run-id "$WORKFLOW_RUN_ID"
-      - name: Upload security evidence
+      - name: Publish security status signal
+        if: ${{ always() }}
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          state=unknown
+          detail="SEC-01 did not produce a scan result"
+          if test -s artifacts/status/security-scan.json; then
+            state="$(python -c 'import json; print(json.load(open("artifacts/status/security-scan.json", encoding="utf-8"))["state"])')"
+            detail="SEC-01 repository security/privacy scan"
+          fi
+          python scripts/write_status_signal.py \
+            --signal security \
+            --state "$state" \
+            --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" \
+            --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" \
+            --output artifacts/status/signals
+      - name: Upload security evidence and signal
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: security-scan
-          path: artifacts/status/security-scan.json
+          path: |
+            artifacts/status/security-scan.json
+            artifacts/status/signals/security.json
           if-no-files-found: error
           retention-days: 30
