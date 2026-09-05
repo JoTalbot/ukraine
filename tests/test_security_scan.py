@@ -47,9 +47,22 @@ def test_privacy_contract_rejects_deanonymization() -> None:
 
 
 def test_evidence_is_deterministic_for_same_tree(monkeypatch, tmp_path) -> None:
-    files = [(Path("README.md"), "no_deanonymization public_open_data_only")]
-    monkeypatch.setattr(security_scan, "tracked_files", lambda: [tmp_path / "README.md"])
-    (tmp_path / "README.md").write_text(files[0][1], encoding="utf-8")
+    for name in security_scan.PRIVACY_REQUIRED_FILES:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("no_deanonymization public_open_data_only", encoding="utf-8")
+    manifest = tmp_path / ".training-manifests" / "test" / "training_manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text(
+        json.dumps({"privacy_scope": "public_open_data_only", "deanonymization": False}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(security_scan, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        security_scan,
+        "tracked_files",
+        lambda: [tmp_path / name for name in security_scan.PRIVACY_REQUIRED_FILES] + [manifest],
+    )
     first = security_scan.build_evidence("abc", "workflow", "1")
     second = security_scan.build_evidence("abc", "workflow", "1")
     assert first == second
