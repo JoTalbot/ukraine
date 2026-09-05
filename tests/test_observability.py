@@ -8,12 +8,9 @@ PRODUCER_SIGNAL_CONTRACT = {
     ".github/workflows/kaggle-training.yml": ("training", "status-signal-training"),
     ".github/workflows/train-models.yml": ("training", "status-signal-training"),
     ".github/workflows/edrsr-huggingface.yml": ("publication", "status-signal-publication"),
-    ".github/workflows/edrsr-texts.yml": ("publication", "status-signal-publication-edrsr-texts"),
-    ".github/workflows/open-data-huggingface.yml": ("publication", "status-signal-publication-open-data"),
-    ".github/workflows/discovered-open-data-huggingface.yml": (
-        "publication",
-        "status-signal-publication-discovered-open-data",
-    ),
+    ".github/workflows/edrsr-texts.yml": ("publication", "status-signal-publication"),
+    ".github/workflows/open-data-huggingface.yml": ("publication", "status-signal-publication"),
+    ".github/workflows/discovered-open-data-huggingface.yml": ("publication", "status-signal-publication"),
 }
 
 
