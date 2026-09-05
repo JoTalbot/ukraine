@@ -15,14 +15,15 @@ concurrency:
   group: ukraine-discovered-open-data
   cancel-in-progress: false
 
+env:
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  HF_DATASET_REPO: JoTalbot/ua-open-data
+
 jobs:
   mirror:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
-    env:
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      HF_DATASET_REPO: JoTalbot/ua-open-data
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -44,3 +45,26 @@ jobs:
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
       - name: Mirror discovered datasets
         run: python scripts/data_gov_ua_discovered_sync.py --catalog artifacts/discovery/data_gov_ua_catalog.json --max-dataset-files 0 --max-file-mb 0
+      - name: Write publication status signal
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="discovered open-data mirror completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py \
+            --signal publication --state "$state" --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/discovery/data_gov_ua_catalog.json
+      - name: Upload publication status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: status-signal-publication-discovered-open-data
+          path: artifacts/status/signals/publication.json
+          if-no-files-found: error
+          retention-days: 30
