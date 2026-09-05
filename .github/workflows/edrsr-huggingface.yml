@@ -138,6 +138,8 @@ jobs:
       HF_TOKEN: ${{ secrets.HF_TOKEN }}
       HF_DATASET_REPO: JoTalbot/ua-edrsr
     steps:
+      - name: Checkout
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
@@ -168,7 +170,7 @@ jobs:
               rows.append((year,manifest.get('records'),(manifest.get('sha256') or '')[:12]))
           lines=['# ЄДРСР — судові рішення України (нормалізоване дзеркало)','','Автоматичне дзеркало офіційних публікацій Єдиного державного реєстру судових рішень на data.gov.ua.','Пайплайн: JoTalbot/ukraine.','','## Роки та обсяги','','| Рік | Записів | SHA-256 архіву |','|---|---|---|']
           for year,records,digest in rows: lines.append(f'| {year} | {records if records is not None else "—"} | `{digest}…` |')
-          lines += ['','## Структура','','- `<рік>/part-XXXXX.parquet` — партії по ~250 000 записів (zstd).','- `<рік>/manifest.json` — URL джерела, SHA-256 архіву, кількість записів, тег зміни (ETag).','- Старі однорайлові експорти видаляються після успішного завантаження партій.','','## Умови використання','','- Дані поширюються на умовах офіційної публікації джерела; перевірте умови на data.gov.ua.','- Обезличення джерела збережено; датасет не призначений для деанонімізації.','','_Оновлено: '+datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')+'_','']
+          lines += ['','## Структура','','- `<рік>/part-XXXXX.parquet` — партии по ~250 000 записей (zstd).','- `<рік>/manifest.json` — URL источника, SHA-256 архива, количество записей, тег изменения (ETag).','- Старые однорайловые экспорты удаляются после успешной загрузки партий.','','## Условия использования','','- Данные распространяются на условиях официальной публикации источника; проверьте условия на data.gov.ua.','- Обезличение источника сохранено; датасет не предназначен для деанонимизации.','','_Обновлено: '+datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')+'_','']
           Path('README.md').write_text('\n'.join(lines),encoding='utf-8'); api.upload_file(path_or_fileobj='README.md',path_in_repo='README.md',repo_id=repo,repo_type='dataset')
           PY
 
