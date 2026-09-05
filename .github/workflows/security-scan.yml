@@ -1,0 +1,46 @@
+name: Security scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 1
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip -r requirements.lock
+      - name: Run security/privacy unit tests
+        run: python -m pytest tests/test_security_scan.py -q
+      - name: Run SEC-01 repository scan
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: >-
+          python scripts/security_scan.py
+          --output artifacts/status/security-scan.json
+          --source-commit "$SOURCE_COMMIT"
+          --workflow-name "$WORKFLOW_NAME"
+          --workflow-run-id "$WORKFLOW_RUN_ID"
+      - name: Upload security evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: security-scan
+          path: artifacts/status/security-scan.json
+          if-no-files-found: error
+          retention-days: 30
