@@ -59,13 +59,19 @@ jobs:
             --workflow-name "$WORKFLOW_NAME" \
             --workflow-run-id "$WORKFLOW_RUN_ID" \
             --output artifacts/status/signals
-      - name: Upload security evidence and signal
+      - name: Upload security evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: security-scan
-          path: |
-            artifacts/status/security-scan.json
-            artifacts/status/signals/security.json
+          path: artifacts/status/security-scan.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload security status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: status-signal-security
+          path: artifacts/status/signals/security.json
           if-no-files-found: error
           retention-days: 30
