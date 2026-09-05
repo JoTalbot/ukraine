@@ -18,9 +18,11 @@ The standard writer is `scripts/write_status_signal.py`; producers should call i
 
 ## Workflow-run control plane
 
-`.github/workflows/release-control-plane.yml` reacts to completed producer workflows, checks out the producer run's exact `head_sha`, downloads its status-signal artifact, regenerates the release manifest, and produces a canonical status snapshot. This avoids committing transient health signals back into the repository, which would otherwise change the commit being described and create a self-referential identity problem.
+`.github/workflows/release-control-plane.yml` reacts to completed producer and security workflows, checks out the triggering run's exact `head_sha`, downloads its status-signal artifact, regenerates the release manifest, and produces a canonical status snapshot. This avoids committing transient health signals back into the repository, which would otherwise change the commit being described and create a self-referential identity problem.
 
-The aggregation implementation is `scripts/aggregate_status_signals.py`. It accepts only schema-valid signals whose source commit matches the release manifest. Missing producer signals remain `unknown`; malformed signals become `red`; stale signals become `unknown`.
+The aggregation implementation is `scripts/aggregate_status_signals.py`. It accepts only schema-valid signals whose source commit matches the release manifest. Missing producer or control-plane signals remain `unknown`; malformed signals become `red`; stale signals become `unknown`.
+
+SEC-01 publishes a `status-signal-security` artifact from the Security scan workflow. The control plane consumes that result instead of assuming security is green. Security signals use the same source-commit and freshness checks as operational signals, with a 48-hour freshness window.
 
 ## Signals
 
@@ -32,9 +34,9 @@ The aggregation implementation is `scripts/aggregate_status_signals.py`. It acce
 | `graph` | entity graph | latest build completed successfully |
 | `training` | model training | latest expected run has a recorded result |
 | `publication` | HF publication | artifact revision is recorded |
-| `security` | repository safety | no committed secret-like material is detected |
+| `security` | repository safety | latest SEC-01 scan is green and fresh |
 
-Signals without a producer-specific status artifact are explicitly `unknown`; they must not be represented as healthy merely because the repository CI passed.
+Signals without a trustworthy status artifact are explicitly `unknown`; they must not be represented as healthy merely because the repository CI passed.
 
 ## Failure semantics
 
