@@ -1,6 +1,5 @@
 from pathlib import Path
 
-
 PRODUCER_SIGNAL_CONTRACT = {
     ".github/workflows/data-gov-discovery.yml": ("ingestion", "status-signal-ingestion"),
     ".github/workflows/ukraine-data-ci.yml": ("quality", "status-signal-quality"),
@@ -12,7 +11,6 @@ PRODUCER_SIGNAL_CONTRACT = {
     ".github/workflows/open-data-huggingface.yml": ("publication", "status-signal-publication"),
     ".github/workflows/discovered-open-data-huggingface.yml": ("publication", "status-signal-publication"),
 }
-
 
 SUPPORT_WORKFLOWS = {
     ".github/workflows/failure-alerts.yml",
