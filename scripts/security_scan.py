@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Deterministic repository security/privacy boundary scan for SEC-01."""
 from __future__ import annotations
 
@@ -7,8 +6,8 @@ import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 
