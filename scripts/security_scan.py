@@ -147,7 +147,12 @@ def main() -> int:
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(evidence, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if evidence["state"] != "green":
-        print(json.dumps({"contract": "SEC-01", "state": "red", "finding_count": len(evidence["findings"])}, sort_keys=True))
+        print(
+            json.dumps(
+                {"contract": "SEC-01", "state": "red", "findings": evidence["findings"]},
+                sort_keys=True,
+            )
+        )
         return 1
     print(json.dumps({"contract": "SEC-01", "state": "green", "scanned": evidence["tracked_text_files_scanned"]}, sort_keys=True))
     return 0
