@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from scripts.generate_stage_checkpoints import extract_stages, stage_slug, stage_state
 from scripts.generate_replay_manifest import build_manifest, load_checkpoints
+from scripts.generate_stage_checkpoints import extract_stages, stage_slug, stage_state
 
 
 def test_stage_slug_and_state_are_deterministic() -> None:
