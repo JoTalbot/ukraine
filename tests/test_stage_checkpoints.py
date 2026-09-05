@@ -67,3 +67,13 @@ def test_replay_manifest_identifies_last_trusted_stage_and_resume_boundary(tmp_p
     assert manifest["trusted_successful_stages"] == ["stage-001-download", "stage-002-build"]
     assert manifest["last_trusted_stage"] == "stage-002-build"
     assert manifest["next_action"] == "resume-from:stage-003-train"
+
+
+def test_recovery_workflow_requires_stage_checkpoint_generation_before_manifest() -> None:
+    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "recovery-checkpoints.yml"
+    content = workflow.read_text(encoding="utf-8")
+    assert "actions: read" in content
+    assert "Fetch producer job steps" in content
+    assert "scripts/generate_stage_checkpoints.py" in content
+    assert content.index("scripts/generate_stage_checkpoints.py") < content.index("scripts/generate_replay_manifest.py")
+    assert "trusted_successful_stages" in content
