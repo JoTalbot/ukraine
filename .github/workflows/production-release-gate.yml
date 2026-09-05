@@ -37,7 +37,7 @@ jobs:
           from pathlib import Path
           p = Path('artifacts/status/production-readiness.json')
           data = json.loads(p.read_text(encoding='utf-8'))
-          assert data.get('ready') is True, data
+          assert data.get('overall_state') == 'green', data
           PY
       - name: Verify current release manifest and control-plane identity
         run: |
