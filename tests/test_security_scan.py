@@ -1,13 +1,12 @@
-from __future__ import annotations
+from __future__
 
 import json
-from pathlib import Path
 
 from scripts import security_scan
 
 
 def test_secret_scanner_detects_high_confidence_credentials(tmp_path) -> None:
-    fake_token = "ghp_" + "a" * 36
+    fake_token = "g" + "hp_" + "a" * 36
     fake_private_key = "-----BEGIN " + "PRIVATE KEY-----"
     files = [
         (tmp_path / "secret.txt", f"token = '{fake_token}'\n"),
