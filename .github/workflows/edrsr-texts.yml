@@ -107,3 +107,26 @@ jobs:
           api.upload_file(path_or_fileobj='CARD.md', path_in_repo='README.md',
                           repo_id=os.environ['HF_TEXTS_REPO'], repo_type='dataset')
           PY
+      - name: Write publication status signal
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="EDRSR full-text publication completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py \
+            --signal publication --state "$state" --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/texts
+      - name: Upload publication status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: status-signal-publication-edrsr-texts
+          path: artifacts/status/signals/publication.json
+          if-no-files-found: error
+          retention-days: 30
