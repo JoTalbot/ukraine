@@ -6,19 +6,19 @@ from pathlib import Path
 from scripts import security_scan
 
 
-def test_secret_scanner_detects_high_confidence_credentials() -> None:
+def test_secret_scanner_detects_high_confidence_credentials(tmp_path) -> None:
     files = [
-        (Path("secret.txt"), "token = 'ghp_abcdefghijklmnopqrstuvwxyz1234567890'\n"),
-        (Path("key.txt"), "-----BEGIN PRIVATE KEY-----\n"),
+        (tmp_path / "secret.txt", "token = 'ghp_abcdefghijklmnopqrstuvwxyz1234567890'\n"),
+        (tmp_path / "key.txt", "-----BEGIN PRIVATE KEY-----\n"),
     ]
     findings = security_scan.scan_secrets(files)
     assert {item["kind"] for item in findings} == {"github_token", "private_key"}
 
 
-def test_secret_scanner_ignores_placeholders_and_public_hashes() -> None:
+def test_secret_scanner_ignores_placeholders_and_public_hashes(tmp_path) -> None:
     files = [
-        (Path("example.py"), "API_KEY = 'YOUR_API_KEY_HERE'\npassword = '${PASSWORD}'\n"),
-        (Path("manifest.json"), '"sha256": "' + "a" * 64 + '"\n'),
+        (tmp_path / "example.py", "API_KEY = 'YOUR_API_KEY_HERE'\npassword = '${PASSWORD}'\n"),
+        (tmp_path / "manifest.json", '"sha256": "' + "a" * 64 + '"\n'),
     ]
     assert security_scan.scan_secrets(files) == []
 
