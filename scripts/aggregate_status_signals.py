@@ -11,8 +11,16 @@ from pathlib import Path
 SCHEMA_VERSION = 1
 SIGNALS = ("ci", "ingestion", "quality", "graph", "training", "publication", "security")
 PRODUCER_SIGNALS = set(SIGNALS) - {"ci", "security"}
+CONTROL_PLANE_SIGNALS = {"security"}
 VALID_STATES = {"green", "yellow", "red", "unknown"}
-FRESHNESS_HOURS = {"ingestion": 48, "quality": 48, "graph": 168, "training": 168, "publication": 48}
+FRESHNESS_HOURS = {
+    "ingestion": 48,
+    "quality": 48,
+    "graph": 168,
+    "training": 168,
+    "publication": 48,
+    "security": 48,
+}
 PRECEDENCE = {"unknown": 0, "green": 1, "yellow": 2, "red": 3}
 
 
@@ -80,8 +88,7 @@ def build_status_index(manifest_path: Path, signals_dir: Path, sbom_path: Path |
 
     signals = {name: {"state": "unknown", "detail": "no signal artifact recorded"} for name in SIGNALS}
     signals["ci"] = {"state": "green", "detail": "repository validation completed"}
-    signals["security"] = {"state": "green", "detail": "repository security contract completed"}
-    for name in PRODUCER_SIGNALS:
+    for name in PRODUCER_SIGNALS | CONTROL_PLANE_SIGNALS:
         signals[name] = normalize_signal(signals_dir / f"{name}.json", name, release_commit)
 
     overall_state = max((item["state"] for item in signals.values()), key=lambda state: PRECEDENCE[state])
@@ -95,6 +102,8 @@ def build_status_index(manifest_path: Path, signals_dir: Path, sbom_path: Path |
             "freshness_hours": FRESHNESS_HOURS,
             "missing_producer_state": "unknown",
             "stale_producer_state": "unknown",
+            "missing_control_plane_state": "unknown",
+            "stale_control_plane_state": "unknown",
         },
         "release": {
             "class": manifest.get("release_class"),
