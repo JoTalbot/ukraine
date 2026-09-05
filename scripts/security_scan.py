@@ -35,8 +35,8 @@ PRIVACY_REQUIRED_FILES = (
     "scripts/build_lm_corpus.py",
     "schemas/entity_links.sql",
 )
-
-REQUIRED_PRIVACY_MARKERS = ("no_deanonymization", "public_open_data_only")
+REQUIRED_PRIVACY_MARKER = "no_deanonymization"
+REQUIRED_OPEN_DATA_MARKER = "public_open_data_only"
 
 
 def tracked_files() -> list[Path]:
@@ -88,7 +88,7 @@ def check_training_manifest(path: str, payload: object) -> list[dict[str, str]]:
         if not isinstance(record, dict):
             findings.append({"kind": "invalid_training_manifest_record", "path": path, "record": str(index)})
             continue
-        if record.get("privacy_scope") != "public_open_data_only":
+        if record.get("privacy_scope") != REQUIRED_OPEN_DATA_MARKER:
             findings.append({"kind": "invalid_training_privacy_scope", "path": path, "record": str(index)})
         if record.get("deanonymization") is not False:
             findings.append({"kind": "deanonymization_enabled", "path": path, "record": str(index)})
@@ -102,9 +102,10 @@ def check_privacy(files: dict[str, str]) -> list[dict[str, str]]:
         if content is None:
             findings.append({"kind": "missing_privacy_policy_file", "path": name})
             continue
-        for marker in REQUIRED_PRIVACY_MARKERS:
-            if marker not in content:
-                findings.append({"kind": "missing_privacy_marker", "path": name, "marker": marker})
+        if REQUIRED_PRIVACY_MARKER not in content:
+            findings.append({"kind": "missing_privacy_marker", "path": name, "marker": REQUIRED_PRIVACY_MARKER})
+    if not any(REQUIRED_OPEN_DATA_MARKER in files.get(name, "") for name in PRIVACY_REQUIRED_FILES):
+        findings.append({"kind": "missing_open_data_policy_marker", "path": "README.md"})
 
     for path, content in sorted(files.items()):
         if not path.startswith(".training-manifests/") or not path.endswith(".json"):
@@ -121,9 +122,7 @@ def check_privacy(files: dict[str, str]) -> list[dict[str, str]]:
 def build_evidence(source_commit: str, workflow_name: str, workflow_run_id: str) -> dict[str, object]:
     files = list(iter_text_files(tracked_files()))
     by_name = {display_path(path): content for path, content in files}
-    secret_findings = scan_secrets(files)
-    privacy_findings = check_privacy(by_name)
-    findings = secret_findings + privacy_findings
+    findings = scan_secrets(files) + check_privacy(by_name)
     payload: dict[str, object] = {
         "schema_version": 1,
         "contract": "SEC-01",
