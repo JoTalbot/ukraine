@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 from pathlib import Path
 
 SKIP_NAMES = {"set up job", "complete job"}
@@ -82,10 +83,8 @@ def main() -> None:
             "--detail", f"job {stage['job_id']} step {stage['step_number']}: {stage['name']} ({stage['state']})",
             "--output", str(args.output),
         ]
-        # Keep this script a pure planner: the workflow invokes the existing writer
-        # so the canonical checkpoint hashing and bounded-field rules stay central.
-        import subprocess
-        subprocess.run(command, check=True)
+        # Inputs are constructed from the GitHub Actions API response and fixed argv.
+        subprocess.run(command, check=True)  # noqa: S603
 
     print(f"stage checkpoints written: {len(stages)}")
 
