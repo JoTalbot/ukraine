@@ -1,0 +1,51 @@
+name: Production Release Gate
+
+on:
+  workflow_run:
+    workflows:
+      - Release Control Plane
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  gate:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout verified source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 1
+      - name: Verify release control plane result
+        if: ${{ github.event_name == 'workflow_run' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        run: |
+          set -euo pipefail
+          test "$RUN_CONCLUSION" = success
+          gh run download "$RUN_ID" --name release-control-plane --dir artifacts/status
+          test -s artifacts/status/production-readiness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('artifacts/status/production-readiness.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data.get('ready') is True, data
+          PY
+      - name: Verify current release manifest and control-plane identity
+        run: |
+          set -euo pipefail
+          python scripts/generate_release_manifest.py --output /tmp/release-manifest.json
+          python scripts/validate_release.py --manifest /tmp/release-manifest.json
+          test "$(python - <<'PY'
+          import json
+          print(json.load(open('/tmp/release-manifest.json', encoding='utf-8'))['git_commit'])
+          PY
+          )" = "$(git rev-parse HEAD)"
