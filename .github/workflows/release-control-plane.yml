@@ -53,38 +53,22 @@ jobs:
             "Security scan") echo 'SIGNAL=security' >> "$GITHUB_ENV" ;;
             *) echo "Unsupported workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
           esac
-      - name: Download producer signal or synthesize run signal
+      - name: Download producer signal
         if: ${{ github.event_name == 'workflow_run' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
-          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha }}
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           SIGNAL: ${{ env.SIGNAL }}
         run: |
           set -euo pipefail
-          rm -rf artifacts/status/signals; mkdir -p artifacts/status/signals
-          if gh run download "$RUN_ID" --name "status-signal-$SIGNAL" --dir artifacts/status/signals >/dev/null 2>&1 && test -s "artifacts/status/signals/$SIGNAL.json"; then
-            echo "Using producer signal artifact for $SIGNAL"
-          elif [ "$SIGNAL" = "security" ]; then
-            echo "Security scan signal artifact is required; synthesizing only from the workflow conclusion"
-            case "$RUN_CONCLUSION" in
-              success) state=green ;;
-              failure|timed_out|action_required) state=red ;;
-              cancelled|skipped|stale|neutral) state=unknown ;;
-              *) state=unknown ;;
-            esac
-            python scripts/write_status_signal.py --signal "$SIGNAL" --state "$state" --detail "security workflow run conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
-          else
-            case "$RUN_CONCLUSION" in
-              success) state=green ;;
-              failure|timed_out|action_required) state=red ;;
-              cancelled|skipped|stale|neutral) state=unknown ;;
-              *) state=unknown ;;
-            esac
-            python scripts/write_status_signal.py --signal "$SIGNAL" --state "$state" --detail "workflow run conclusion: $RUN_CONCLUSION" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$RUN_ID" --output artifacts/status/signals
+          rm -rf artifacts/status/signals
+          mkdir -p artifacts/status/signals
+          if ! gh run download "$RUN_ID" --name "status-signal-$SIGNAL" --dir artifacts/status/signals >/dev/null 2>&1; then
+            echo "Required producer signal artifact status-signal-$SIGNAL is missing" >&2
+            exit 1
           fi
+          test -s "artifacts/status/signals/$SIGNAL.json"
+          echo "Using producer signal artifact for $SIGNAL"
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Aggregate canonical status index
