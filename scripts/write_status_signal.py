@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-SIGNALS = {"ingestion", "quality", "graph", "training", "publication"}
+SIGNALS = {"ingestion", "quality", "graph", "training", "publication", "security"}
 STATES = {"green", "yellow", "red", "unknown"}
 
 
