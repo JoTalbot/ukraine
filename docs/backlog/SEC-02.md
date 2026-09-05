@@ -20,3 +20,7 @@ Only control-plane observability is changed. SEC-01 scan semantics remain unchan
 ## Operating rule
 
 Do not weaken the privacy/security scan to make aggregation pass. The control plane must reflect the actual SEC-01 result.
+
+## Status
+
+**Implemented and runtime-verified.** Security scan #26 emitted the standard `security` signal, and Release Control Plane #250 consumed the producer artifact successfully. Unit coverage verifies preserved state, missing-signal `unknown`, wrong-commit rejection, stale-signal rejection, and invalid-schema `red` behavior.
