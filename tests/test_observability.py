@@ -6,8 +6,10 @@ PRODUCER_SIGNAL_CONTRACT = {
     ".github/workflows/ukraine-data-ci.yml": ("quality", "status-signal-quality"),
     ".github/workflows/entity-graph.yml": ("graph", "status-signal-graph"),
     ".github/workflows/kaggle-training.yml": ("training", "status-signal-training"),
+    ".github/workflows/train-models.yml": ("training", "status-signal-training"),
     ".github/workflows/edrsr-huggingface.yml": ("publication", "status-signal-publication"),
     ".github/workflows/edrsr-texts.yml": ("publication", "status-signal-publication-edrsr-texts"),
+    ".github/workflows/open-data-huggingface.yml": ("publication", "status-signal-publication-open-data"),
     ".github/workflows/discovered-open-data-huggingface.yml": (
         "publication",
         "status-signal-publication-discovered-open-data",
@@ -28,7 +30,6 @@ SUPPORT_WORKFLOWS = {
 
 
 def test_every_operational_producer_has_standard_signal_contract() -> None:
-    workflows = Path(__file__).parents[1] / ".github" / "workflows"
     for relative, (signal, artifact_name) in PRODUCER_SIGNAL_CONTRACT.items():
         path = Path(__file__).parents[1] / relative
         assert path.is_file(), f"Missing producer workflow: {relative}"
