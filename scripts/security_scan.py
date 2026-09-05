@@ -101,7 +101,7 @@ def check_privacy(files: dict[str, str]) -> list[dict[str, str]]:
         findings.append({"kind": "missing_open_data_policy_marker", "path": "README.md"})
 
     for path, content in sorted(files.items()):
-        if not path.startswith(".training-manifests/") or not path.endswith(".json"):
+        if not path.startswith(".training-manifests/") or not path.endswith("/training_manifest.json"):
             continue
         try:
             payload = json.loads(content)
