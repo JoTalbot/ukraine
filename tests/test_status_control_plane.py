@@ -8,28 +8,34 @@ from scripts.aggregate_status_signals import build_status_index, normalize_signa
 
 
 def _manifest(path: Path, commit: str = "abc123") -> None:
-    path.write_text(
-        json.dumps({"git_commit": commit, "release_class": "data", "git_branch": "main", "files": []}),
-        encoding="utf-8",
-    )
+    payload = {
+        "git_commit": commit,
+        "release_class": "data",
+        "git_branch": "main",
+        "files": [],
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _signal(path: Path, state: str = "green", commit: str = "abc123", generated: datetime | None = None) -> None:
-    path.write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "signal": "security",
-                "state": state,
-                "detail": "SEC-01 result",
-                "source_commit": commit,
-                "generated_at_utc": (generated or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "workflow_name": "Security scan",
-                "workflow_run_id": "14",
-            }
+def _signal(
+    path: Path,
+    state: str = "green",
+    commit: str = "abc123",
+    generated: datetime | None = None,
+) -> None:
+    payload = {
+        "schema_version": 1,
+        "signal": "security",
+        "state": state,
+        "detail": "SEC-01 result",
+        "source_commit": commit,
+        "generated_at_utc": (generated or datetime.now(timezone.utc)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ"
         ),
-        encoding="utf-8",
-    )
+        "workflow_name": "Security scan",
+        "workflow_run_id": "14",
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
 
 def test_security_signal_is_consumed_and_preserves_state(tmp_path: Path) -> None:
@@ -82,7 +88,8 @@ def test_security_signal_stale_is_unknown(tmp_path: Path) -> None:
 
 def test_security_signal_invalid_schema_is_red(tmp_path: Path) -> None:
     path = tmp_path / "security.json"
-    path.write_text(json.dumps({"schema_version": 99, "signal": "security", "state": "green"}), encoding="utf-8")
+    payload = {"schema_version": 99, "signal": "security", "state": "green"}
+    path.write_text(json.dumps(payload), encoding="utf-8")
 
     result = normalize_signal(path, "security", "abc123")
 
