@@ -23,15 +23,16 @@ concurrency:
   group: ukraine-open-data-huggingface
   cancel-in-progress: false
 
+env:
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  HF_DATASET_REPO: JoTalbot/ua-open-data
+  DATASET: ${{ inputs.dataset || 'all' }}
+  HF_HUB_ENABLE_HF_TRANSFER: '1'
+
 jobs:
   mirror:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
-    env:
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
-      HF_DATASET_REPO: JoTalbot/ua-open-data
-      DATASET: ${{ inputs.dataset || 'all' }}
-      HF_HUB_ENABLE_HF_TRANSFER: '1'
     steps:
       - name: Checkout
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
@@ -55,7 +56,6 @@ jobs:
           PY
       - name: Mirror all Ukraine open datasets
         run: python scripts/data_gov_ua_sync.py --dataset "$DATASET"
-
       - name: Publish dataset card
         run: |
           python - <<'PY'
@@ -76,8 +76,31 @@ jobs:
               lines.append(f'| {title} | {count} | {source} |')
           if not entries:
               lines.append('| _маніфест цього запуску порожній_ | — | — |')
-          lines += ['', '## Умови використання', '', '- Дані поширюються на умовах офіційних публікацій джерела (data.gov.ua).', '- Провенанс: `manifest.json` та `discovered-manifest.json` у корені репозиторію.', '- Обезличення джерела зберігається; датасет не призначений для деанонімізації.', '', f'_Оновлено: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}_', '']
+          lines += ['', '## Умови використання', '', '- Дані поширюються на умовах офіційних публікацій джерела (data.gov.ua).', '- Провенанс: `manifest.json` та `discovered-manifest.json` у корені репозиторію.', '- Обезличение источника сохраняется; датасет не предназначен для деанонимизации.', '', f'_Оновлено: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}_', '']
           Path('README.md').write_text('\n'.join(lines), encoding='utf-8')
           api.upload_file(path_or_fileobj='README.md', path_in_repo='README.md', repo_id=repo, repo_type='dataset')
           print('Dataset card updated.')
           PY
+      - name: Write publication status signal
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="Ukraine open-data publication completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py \
+            --signal publication --state "$state" --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/open-data/manifest.json
+      - name: Upload publication status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: status-signal-publication-open-data
+          path: artifacts/status/signals/publication.json
+          if-no-files-found: error
+          retention-days: 30
