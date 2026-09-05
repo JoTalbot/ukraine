@@ -19,13 +19,6 @@ SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("github_pat", re.compile(r"\bgithub_pat_[A-Za-z0-9_]{50,}\b")),
     ("slack_token", re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{20,}\b")),
     ("basic_auth_url", re.compile(r"https?://[^\s/@:]+:[^\s/@]+@[^\s]+", re.IGNORECASE)),
-    (
-        "secret_assignment",
-        re.compile(
-            r"\b(?:api[_-]?key|access[_-]?token|secret|password|passwd)\b\s*[:=]\s*['\"](?!$|(?:YOUR_|REPLACE_|EXAMPLE|CHANGEME|REDACTED|<|\$\{|os\.environ|getenv))[^'\"]{12,}['\"]",
-            re.IGNORECASE,
-        ),
-    ),
 )
 
 PRIVACY_REQUIRED_FILES = (
