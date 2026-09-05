@@ -18,6 +18,7 @@ SUPPORT_WORKFLOWS = {
     ".github/workflows/kaggle-results-trigger.yml",
     ".github/workflows/kaggle-results.yml",
     ".github/workflows/pages-dashboard.yml",
+    ".github/workflows/production-release-gate.yml",
     ".github/workflows/recovery-checkpoints.yml",
     ".github/workflows/release-control-plane.yml",
     ".github/workflows/release-observability.yml",
