@@ -64,13 +64,20 @@ def iter_text_files(paths: Iterable[Path]) -> Iterable[tuple[Path, str]]:
             continue
 
 
+def display_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return path.name
+
+
 def scan_secrets(files: Iterable[tuple[Path, str]]) -> list[dict[str, object]]:
     findings: list[dict[str, object]] = []
     for path, content in files:
         for line_no, line in enumerate(content.splitlines(), 1):
             for kind, pattern in SECRET_PATTERNS:
                 if pattern.search(line):
-                    findings.append({"path": str(path.relative_to(ROOT)), "line": line_no, "kind": kind})
+                    findings.append({"path": display_path(path), "line": line_no, "kind": kind})
     return findings
 
 
@@ -102,7 +109,7 @@ def check_privacy(files: dict[str, str]) -> list[dict[str, str]]:
 
 def build_evidence(source_commit: str, workflow_name: str, workflow_run_id: str) -> dict[str, object]:
     files = list(iter_text_files(tracked_files()))
-    by_name = {str(path.relative_to(ROOT)): content for path, content in files}
+    by_name = {display_path(path): content for path, content in files}
     secret_findings = scan_secrets(files)
     privacy_findings = check_privacy(by_name)
     findings = secret_findings + privacy_findings
