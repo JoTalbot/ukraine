@@ -43,9 +43,13 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/generate_release_manifest.py --output /tmp/release-manifest.json
-          python scripts/validate_release.py --manifest /tmp/release-manifest.json
-          test "$(python - <<'PY'
+          python - <<'PY'
           import json
-          print(json.load(open('/tmp/release-manifest.json', encoding='utf-8'))['git_commit'])
+          from pathlib import Path
+          p = Path('/tmp/release-manifest.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          assert data.get('schema_version') == 1, data
+          assert data.get('release_class') == 'repository', data
+          assert isinstance(data.get('files'), list) and data['files'], data
+          assert data.get('git_commit') == __import__('subprocess').check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), data
           PY
-          )" = "$(git rev-parse HEAD)"
