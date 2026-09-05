@@ -80,6 +80,10 @@ jobs:
         run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --sbom artifacts/status/sbom.cdx.json --output artifacts/status/status-index.json
       - name: Validate canonical control plane
         run: python scripts/validate_release.py
+      - name: Execute runtime hardening evidence self-test
+        env:
+          SOURCE_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$SOURCE_COMMIT" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Upload canonical control-plane snapshot
