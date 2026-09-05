@@ -53,3 +53,18 @@ def test_readiness_accepts_complete_contract(tmp_path: Path) -> None:
     assert result["gates"]["dependency_lock"]["state"] == "green"
     assert result["gates"]["control_plane"]["state"] == "green"
     assert result["gates"]["runtime_hardening_evidence"]["state"] == "green"
+
+
+def test_every_readiness_workflow_has_runtime_evidence_before_gate() -> None:
+    workflows = Path(__file__).parents[1] / ".github" / "workflows"
+    readiness_call = "python scripts/check_production_readiness.py"
+    evidence_call = "python scripts/production_hardening.py evidence"
+
+    for workflow in sorted(workflows.glob("*.yml")):
+        content = workflow.read_text(encoding="utf-8")
+        if readiness_call not in content:
+            continue
+        assert evidence_call in content, f"{workflow.name} calls READY-01 without EVID-02 evidence"
+        assert content.index(evidence_call) < content.index(readiness_call), (
+            f"{workflow.name} evaluates READY-01 before generating EVID-02 evidence"
+        )
