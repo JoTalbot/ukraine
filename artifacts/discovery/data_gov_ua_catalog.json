@@ -3611,26 +3611,6 @@
       ]
     },
     {
-      "id": "f9bd88ba-b105-4978-a86f-9b740f7e8f6e",
-      "name": "1.6. Інформація із системи обліку публічної інформації. Відділ оперативногог реагування \"Цілодобова варта\" Вінницької міської ради",
-      "organization": "Вінницька міська рада",
-      "description": "Набір містить інформацію про розпорядника, якому належить система обліку публічної інформації, структурний підрозділ, що відповідає за внесення інформації, види інформації, яка зберігається розпорядником, посилання на веб-ресурс, що дає доступ до інформації системи",
-      "url": "https://data.gov.ua/dataset/1-6-informatsiya-iz-systemy-obliku-publichnoyi-informatsiyi-vor-tsilodobova-varta-vmr",
-      "modified": "2025-09-11T07:24:15.748122",
-      "resources": [
-        {
-          "name": "PublicInfoSystem_2025-08-29.csv",
-          "format": "CSV",
-          "url": "https://opendata.gov.ua/dataset/f9bd88ba-b105-4978-a86f-9b740f7e8f6e/resource/eadb2b8a-a92a-42f3-a0fb-99696ed88b01/download/publicinfosystem_2025-08-29.csv"
-        },
-        {
-          "name": "PublicInfoSystem-Structure.csv",
-          "format": "CSV",
-          "url": "https://opendata.gov.ua/dataset/f9bd88ba-b105-4978-a86f-9b740f7e8f6e/resource/d525cadb-eac5-484e-948e-1fa006ffbf69/download/publicinfosystem-structure.csv"
-        }
-      ]
-    },
-    {
       "id": "97730b8e-ec9f-477f-82b7-fd5748b2dcb0",
       "name": "1.6. Інформація із системи обліку публічної інформації. Департамент житлового господарства Вінницької міської ради",
       "organization": "Вінницька міська рада",
@@ -4097,26 +4077,6 @@
           "name": "Register.",
           "format": "XLSX",
           "url": "https://opendata.gov.ua/dataset/e139cd0c-bfb2-47c9-babb-160c3fdcd52d/resource/e8a34409-d073-4a87-b1dd-9b38549cee72/download/register.xlsx"
-        }
-      ]
-    },
-    {
-      "id": "8bcb41dc-0589-4e9c-8a2f-abaa95f3cbad",
-      "name": "1.7. Реєстр наборів даних, що перебувають у володінні розпорядника інформації. Відділ оперативного реагування \"Цілодобова варта\" Вінницької міської ради",
-      "organization": "Вінницька міська рада",
-      "description": "Реєстр наборів даних відділу оперативного реагування \"Цілодобова варта\" Вінницької міської ради.",
-      "url": "https://data.gov.ua/dataset/reiestr-opreliudnenykh-naboriv-danykh",
-      "modified": "2025-09-11T02:49:31.624491",
-      "resources": [
-        {
-          "name": "Register_2025-08-29.csv",
-          "format": "CSV",
-          "url": "https://opendata.gov.ua/dataset/8bcb41dc-0589-4e9c-8a2f-abaa95f3cbad/resource/16fc9745-1b9e-4acb-ab66-db2ec2ee6a01/download/register_2025-08-29.csv"
-        },
-        {
-          "name": "register-structure.csv",
-          "format": "CSV",
-          "url": "https://opendata.gov.ua/dataset/8bcb41dc-0589-4e9c-8a2f-abaa95f3cbad/resource/c6d55db9-13ca-4cb8-a774-b63981d28df2/download/register-structure.csv"
         }
       ]
     },
@@ -10788,6 +10748,36 @@
           "name": "Комунальні ресурси.xls",
           "format": "CSV",
           "url": "https://opendata.gov.ua/dataset/8468014c-faba-42a8-af4d-ec9c3eaec3e8/resource/159b2492-6ecb-46e9-b799-91234ebaed5e/download/-.xls"
+        }
+      ]
+    },
+    {
+      "id": "cea4b1e3-5dc4-4410-9bf0-653a28e2d1a7",
+      "name": "2.58 Дані про споживання комунальних ресурсів",
+      "organization": "Вінницька міська рада",
+      "description": "Електроенергія, вода.",
+      "url": "https://data.gov.ua/dataset/2-58-dahi-npo-cno",
+      "modified": "2021-09-09T22:14:17.347418",
+      "resources": [
+        {
+          "name": "Комунальні ресурси ДНЗ №30 CSV.xls",
+          "format": "СSV",
+          "url": "https://opendata.gov.ua/dataset/cea4b1e3-5dc4-4410-9bf0-653a28e2d1a7/resource/7ce161ba-08af-4d7e-b22f-d352e23a17a2/download/-30-csv.xls"
+        }
+      ]
+    },
+    {
+      "id": "e0a2af4b-66ad-4fd8-ae5d-62885a55bc82",
+      "name": "2.58 Дані про споживання комунальних ресурсів",
+      "organization": "Вінницька міська рада",
+      "description": "2.58 Дані про споживання комунальних ресурсів",
+      "url": "https://data.gov.ua/dataset/meters_2_58-csv",
+      "modified": "2024-10-18T16:47:02.757560",
+      "resources": [
+        {
+          "name": "meters_2_58.csv",
+          "format": "CSV",
+          "url": "https://opendata.gov.ua/dataset/e0a2af4b-66ad-4fd8-ae5d-62885a55bc82/resource/c88c3044-bed1-4a2f-ab32-0645ed2c7fb7/download/meters_2_58.csv"
         }
       ]
     }
