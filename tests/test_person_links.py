@@ -110,3 +110,31 @@ def test_mixed_register_keeps_org_subjects():
     base = store.db.execute(
         "SELECT dataset FROM mentions WHERE entity_id=?", (company,)).fetchone()
     assert base == ("sanctions",)
+
+
+def test_add_people_best_effort(tmp_path):
+    """add-people ingests mapped person files and isolates a broken one."""
+    from argparse import Namespace
+    import json as _json
+    from scripts.entity_links import cmd_add_people
+
+    db = tmp_path / "links.db"
+    good = tmp_path / "wanted.json"
+    bad = tmp_path / "missing.json"
+    bad.write_text("not json at all {", encoding="utf-8")
+    _json.dump([{"ПІБ": "Іваненко Петро", "РНОККП": "", "РНОКПП": "1111111111"}], good.open("w"), ensure_ascii=False)
+
+    args = Namespace(db=str(db), people_map=str(DEFAULT_PEOPLE_MAP), encoding="utf-8",
+                     xml_register=None,
+                     json_register=[f"wanted_fugitives={good}", f"missing_persons={bad}"],
+                     csv_register=None)
+    cmd_add_people(args)
+
+    store = Store(str(db))
+    n_ipn = store.db.execute("SELECT COUNT(*) FROM entities WHERE type='ipn'").fetchone()[0]
+    n_mentions = store.db.execute("SELECT COUNT(*) FROM mentions").fetchone()[0]
+    # Good person file produced an identity; the broken file did not abort the run.
+    assert n_ipn >= 1
+    assert n_mentions >= 1
+    # The broken source failed but add-people continued and committed.
+    assert store.db.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0] >= 3

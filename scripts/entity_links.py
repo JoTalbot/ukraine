@@ -672,6 +672,68 @@ def cmd_build(args: argparse.Namespace) -> None:
     print(f"Готово: entities={stats[0]:,}, mentions={stats[1]:,}, edges={stats[2]:,} -> {args.db}")
 
 
+# ---------------------------------------------------------------- add-people
+
+def _load_edrpou_from_db(store: Store) -> dict[str, int]:
+    return {v: eid for eid, v in store.db.execute("SELECT entity_id, value FROM entities WHERE type='edrpou'")}
+
+
+def cmd_add_people(args: argparse.Namespace) -> None:
+    """Extend an existing graph DB with person registers (best-effort per file).
+
+    Opens ``links.db`` produced by ``build`` and ingests the person-subject
+    registers declared in ``config/person_register_map.json``. Each register is
+    processed independently: an unparseable or changed file logs a warning and
+    is skipped without failing the run, so a single broken mirror never blocks
+    publishing the core (ЄДР/ПДВ/ЄДРСР) graph.
+    """
+    store = Store(args.db)
+    _EDRPOU_CACHE.update(_load_edrpou_from_db(store))
+    people_map = load_people_map(getattr(args, "people_map", None))
+
+    def run(register_id: str, path: str, rows) -> dict:
+        desc = people_map.get(register_id)
+        if not desc or desc.get("subject") not in ("person", "mixed"):
+            return {"skipped": True}
+        counts = ingest_person_rows(store, register_id, desc, rows, _EDRPOU_CACHE)
+        store.commit()
+        return counts
+
+    total = {"rows": 0, "people": 0, "identities": 0, "org_edges": 0, "failed": 0, "skipped": 0}
+    specs = [("xml", s) for s in args.xml_register or []] + \
+            [("csv", s) for s in args.csv_register or []] + \
+            [("json", s) for s in args.json_register or []]
+    if not specs:
+        print("Нет реестров: укажите --xml-register/--csv-register/--json-register (name=path).")
+        return
+    for fmt, spec in specs:
+        register_id, _, path = spec.partition("=")
+        if register_id not in people_map:
+            total["skipped"] += 1
+            print(f"{register_id}: нет записи в person_register_map.json — пропуск")
+            continue
+        try:
+            if fmt == "xml":
+                rows = iter_xml_register(path, getattr(args, "encoding", "utf-8"))
+            elif fmt == "csv":
+                rows = iter_delimited(path)
+            else:
+                rows = iter_json_register(path)
+            counts = run(register_id, path, rows)
+            if counts.get("skipped"):
+                continue
+            print(f"{register_id}: {counts['rows']:,} строк, людей: {counts['people']:,}, "
+                  f"РНОКПП: {counts['identities']:,}, связей с орг: {counts['org_edges']:,}")
+            for k in ("rows", "people", "identities", "org_edges"):
+                total[k] += counts[k]
+        except Exception as exc:  # best-effort per-source isolation
+            total["failed"] += 1
+            print(f"{register_id} ({path}): пропущен — {type(exc).__name__}: {exc}")
+    store.commit()
+    print(f"add-people готово: людей {total['people']:,}, РНОКПП {total['identities']:,}, "
+          f"связей с орг {total['org_edges']:,} | пропущено {total['skipped']}, ошибок {total['failed']} -> {args.db}")
+
+
 # ---------------------------------------------------------------- inspect
 
 def _sample_rows(filetype: str, path: str | Path, encoding: str | None, limit: int):
@@ -816,6 +878,15 @@ def main() -> None:
     build.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
     build.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
     build.set_defaults(func=cmd_build)
+
+    addp = sub.add_parser("add-people", help="добавить person-реестры в существующий граф (best-effort)")
+    addp.add_argument("--db", required=True)
+    addp.add_argument("--xml-register", action="append", help="name=path.zip (RECORD-XML)")
+    addp.add_argument("--csv-register", action="append", help="name=path.csv")
+    addp.add_argument("--json-register", action="append", help="name=path.json")
+    addp.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
+    addp.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
+    addp.set_defaults(func=cmd_add_people)
 
     inspect_ = sub.add_parser("inspect", help="распознать колонки персон/идентификаторов в файле реестра")
     inspect_.add_argument("path", help="CSV/JSON/ZIP-XML файл")

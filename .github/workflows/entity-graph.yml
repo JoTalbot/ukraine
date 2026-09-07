@@ -64,6 +64,48 @@ jobs:
             --edr data/UO.zip --vat data/pdv.csv \
             --edrsr-parquet 'data/edrsr/*.parquet'
 
+      - name: Download person registers from Hugging Face
+        run: |
+          # Machine-readable person-register mirrors that scripts/entity_links.py
+          # can stream (JSON array, CSV, or RECORD-XML in a zip). Each download is
+          # best-effort: a missing/changed file is logged and skipped so it never
+          # blocks publishing the core graph. Registers whose mirror is only
+          # xlsx/nested-zip (sanctions, debtors, declarations) are intentionally
+          # left out here — add them after confirming columns with
+          # `entity_links.py inspect`.
+          mkdir -p data/person
+          download() { # $1=dataset subdir  $2=file  $3=dest name
+            local url="https://huggingface.co/datasets/${HF_OPEN}/resolve/main/$1/$2"
+            echo "download $1/$2"
+            curl -fsSL --retry 3 --retry-all-errors -o "data/person/$3" "$url" \
+              || { echo "skip $1/$2 (недоступен/изменился)"; rm -f "data/person/$3"; }
+          }
+          download wanted_fugitives MVSWantedPerson_1.json        wanted_fugitives.json
+          download missing_persons  BezvistiWanted.json           missing_persons.json
+          download advocates        registerOfLawyers.json         advocates.json
+          download advocates        structureRegisterOfLawyers.csv advocates.csv
+          download notaries         17-ex_xml_wern.zip            notaries.zip
+          download court_experts    19-ex_xml_EXPERT.zip          court_experts.zip
+          ls -la data/person || true
+
+      - name: Ingest person registers (best-effort, adds to core graph)
+        run: |
+          # Extends links.db built above with people from person-subject bases,
+          # resolved to a shared РНОКПП/ІПН identity (config/person_register_map.json).
+          # Per-file isolation: a broken register is skipped, core graph survives.
+          set +e
+          python scripts/entity_links.py add-people --db links.db \
+            --json-register wanted_fugitives=data/person/wanted_fugitives.json \
+            --json-register missing_persons=data/person/missing_persons.json \
+            --json-register advocates=data/person/advocates.json \
+            --csv-register advocates=data/person/advocates.csv \
+            --xml-register notaries=data/person/notaries.zip \
+            --xml-register court_experts=data/person/court_experts.zip
+          rc=$?
+          set -e
+          echo "person-register ingestion exit code: $rc (non-zero is tolerated; see log)"
+          exit 0
+
       - name: Validate graph contents
         run: |
           set -euo pipefail
