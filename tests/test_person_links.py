@@ -17,11 +17,29 @@ from scripts.entity_links import (
 def test_people_map_file_present_and_well_formed():
     assert DEFAULT_PEOPLE_MAP.exists()
     registers = load_people_map(str(DEFAULT_PEOPLE_MAP))
-    # A couple of person-subject bases must be declared.
-    for reg_id in ("wanted_fugitives", "sanctions", "bank_ownership"):
+    # A couple of person-subject bases must be declared (single-column or split-name).
+    for reg_id in ("wanted_fugitives", "arbitration_managers", "debtors"):
         desc = registers.get(reg_id)
         assert desc and desc["subject"] in ("person", "mixed")
-        assert desc.get("fields", {}).get("person")
+        fields = desc.get("fields", {})
+        assert fields.get("person") or fields.get("person_parts") or (fields.get("name") and fields.get("id"))
+    # Registers whose mirror is not row-ready must be disabled.
+    for reg_id in ("sanctions", "bank_ownership", "declarations"):
+        assert registers.get(reg_id, {}).get("enabled") is False
+
+
+def test_person_parts_compose_full_name():
+    store = Store(":memory:")
+    desc = {"subject": "person", "fields": {
+        "person_parts": [["LAST_NAME_U", "ПРІЗВИЩЕ"], ["FIRST_NAME_U", "ІМ'Я"], ["MIDDLE_NAME_U"]],
+    }}
+    counts = ingest_person_rows(store, "wanted_fugitives", desc,
+                                [{"LAST_NAME_U": "ЗАХАРОВ", "FIRST_NAME_U": "В'ЯЧЕСЛАВ", "MIDDLE_NAME_U": "РОМАНОВИЧ"}], {})
+    assert counts["people"] == 1
+    row = store.db.execute("SELECT type, value, title FROM entities WHERE type='name'").fetchone()
+    assert row[1] == "ЗАХАРОВ В'ЯЧЕСЛАВ РОМАНОВИЧ"
+    # Russian/other variants of a missing part must not create a stray entity.
+    assert store.db.execute("SELECT COUNT(*) FROM entities WHERE type='name'").fetchone()[0] == 1
 
 
 def test_canonical_fields_person_and_ipn():
@@ -192,3 +210,26 @@ def test_iter_zip_csv(tmp_path):
     rows = list(iter_zip_csv(z))
     assert len(rows) == 2
     assert rows[0]["DEBTOR_CODE"] == "1111111111"
+
+
+def test_no_spurious_ipn_from_unrelated_10_digit_field():
+    """Without an explicit ipn alias, a random 10-digit number must not become РНОКПП."""
+    store = Store(":memory:")
+    desc = {"subject": "person", "fields": {"person": ["FIO"]}}
+    ingest_person_rows(store, "notaries", desc,
+                       [{"FIO": "Воробей Тетяна Петрівна", "LICENSE": "761",
+                         "REG_NUM": "0987654321"}], {})
+    # LICENSE/REG_NUM are not identity codes -> no ipn entity, only a name person.
+    assert store.db.execute("SELECT COUNT(*) FROM entities WHERE type='ipn'").fetchone()[0] == 0
+    assert store.db.execute("SELECT COUNT(*) FROM entities WHERE type='name'").fetchone()[0] == 1
+
+
+def test_person_org_edge_from_org_alias():
+    store = Store(":memory:")
+    desc = {"subject": "person", "org_edge": "works_at",
+            "fields": {"person": ["FIO"], "org": ["NAME_OBJ"]}}
+    ingest_person_rows(store, "notaries", desc,
+                       [{"FIO": "Воробей Тетяна Петрівна",
+                         "NAME_OBJ": "Іванківська державна нотаріальна контора"}], {})
+    row = store.db.execute("SELECT kind, dataset, COUNT(*) FROM edges GROUP BY kind").fetchone()
+    assert row and row[0] == "works_at" and row[1] == "notaries"

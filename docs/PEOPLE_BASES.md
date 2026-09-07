@@ -39,22 +39,24 @@
 
 | База (dataset) | Субъект | РНОКПП | Что делает граф | Роль/ребро |
 |---|---|---|---|---|
-| `wanted_fugitives` | человек | да* | ipn-тождество + mention | `listed_in` |
-| `missing_persons` | человек | да* | ipn-тождество + mention | `listed_in` |
+| `wanted_fugitives` | человек | —* | имя из частей + mention | `listed_in` |
+| `missing_persons` | человек | —* | имя из частей + mention | `listed_in` |
 | `sanctions` | физ/юр | да* | ipn-тождество, юр.→ЄДРПОУ | `listed_in` |
-| `debtors` | физ/юр | да* | ipn-тождество / ЄДРПОУ | `listed_in` |
+| `debtors` | физ/юр | да | ipn/ЄДРПОУ по длине кода | `listed_in` |
 | `declarations` | человек | да | ipn-тождество + mention | `works_at` |
-| `bank_ownership` | человек | да | ipn-тождество ↔ банк (ЄДРПОУ) | `beneficial_owner` |
-| `notaries` | человек | — | name-entity + mention | `works_at` |
+| `bank_ownership` | человек | да | бенефициары в PDF НБУ | `beneficial_owner` |
+| `notaries` | человек | — | name + works_at↔контора | `works_at` |
 | `advocates` | человек | — | name-entity + mention | `works_at` |
-| `court_experts` | человек | — | name-entity + mention | `works_at` |
+| `court_experts` | человек | — | имя из частей + works_at↔учреждение | `works_at` |
 | `arbitration_managers` | человек | — | name-entity + mention | `works_at` |
-| `audit_register` | физ/юр | — | аудитор ↔ фирма по ЄДРПОУ | `works_at` |
+| `audit_register` | человек (аудитор) | — | имя из частей + mention | `works_at` |
 | ЄДР (`edr`) | юр + физ.учредители | — | человек→компания | `founder`/`signer` |
 | ПДВ (`vat_payers`) | ФОП/юр | да | ipn (ФОП) / edrpou (юр) | mention |
 | ЄДРСР (`edrsr`) | судья/стороны | — | судья↔суд, компания↔компания | `judges_in`/`co_litigant` |
 
-\* — реестр публикует РНОКПП не для каждой записи; если поле есть и 10-значное — создаётся ipn, иначе остаётся name.
+\* — реестр *может* публиковать РНОКПП; в текущих зеркалах ua-open-data он есть
+только в `debtors`. РНОКПП берётся исключительно из явно объявленной колонки
+(`fields.ipn`) и никогда не выводится из случайных 8/10-значных номеров.
 
 ## Рёбра человек→организация
 
@@ -86,6 +88,15 @@
 `code_length` — `ingest_person_rows` сам разводит их на person/org по длине кода
 (см. `debtors` в `config/person_register_map.json`).
 
+### Разбитые имена (person_parts)
+
+Многие зеркала хранят ФИО **разбитым на части**, а не одной колонкой:
+`wanted_fugitives`/`missing_persons` (`LAST_NAME_U/FIRST_NAME_U/MIDDLE_NAME_U`),
+`audit_register` (`secondName/firstName/patronymic`), `court_experts`
+(`SURNAME/NAME`). В маппинге такие реестры объявляют `fields.person_parts` —
+список групп-алиасов по частям в порядке «фамилия имя отчество»; имя
+складывается из частей, пустые части пропускаются.
+
 ## Как включить базу в сборку
 
 1. Скачать официальный файл реестра (для больших файлов достаточно первых строк).
@@ -110,13 +121,26 @@
 
 ## Статус реальных зеркал на Hugging Face (проверено 07.09.2026)
 
-- ✅ **в графе**: wanted_fugitives, missing_persons, advocates, notaries,
-  court_experts, debtors.
-- ⛔ **sanctions**: каталог `sanctions/` на зеркале содержит файлы **Державного
-  суднового реєстру** (ДСРУ — суда/судновласники), а не Державний реєстр санкцій;
-  данные перепутаны на стороне зеркала. `enabled=false` до исправления источника.
-- ⛔ **declarations**: зеркало — набор HTML-страниц на каждого судью (`decs/*.html`),
-  а не плоский датасет; нужен HTML-парсер (имя в имени файла). `enabled=false`.
+| Реестр | Файл-зеркало | Колонки (проверено) | В графе | Примечание |
+|---|---|---|---|---|
+| wanted_fugitives | `MVSWantedPerson_1.json` | `LAST_NAME_U/FIRST_NAME_U/MIDDLE_NAME_U` | ✅ | РНОКПП в зеркале нет; имя из частей |
+| missing_persons | `BezvistiWanted.json` | `last_name_u/...` | ✅ | РНОКПП в зеркале нет; имя из частей |
+| notaries | `17-ex_xml_wern.zip` | `FIO`,`NAME_OBJ`,`LICENSE` | ✅ | ребро works_at нотариус↔контора |
+| court_experts | `19-ex_xml_EXPERT.zip` | `SURNAME`,`NAME`,`ORG_NAME` | ✅ | данные местами деградированы |
+| arbitration_managers | `24-ex_xml_arbker.zip` | `AK_NAME` | ✅ | 3 420 упр. (проверка) |
+| advocates | `registerOfLawyers.json` | FIO/структура менялась | ✅ | — |
+| audit_register | `auditors_*.json` | `secondName/firstName/patronymic` | ✅ | 2 813 аудиторов (проверка) |
+| debtors | `29-ex_csv_erb.zip` | `DEBTOR_NAME/DEBTOR_CODE` | ✅ | код-режим 10=физ, 8=юр |
+| sanctions | `sanctions/*.xlsx` | ❌ не санкции | ⛔ | зеркало = судновой реестр (ДСРУ) |
+| declarations | `Декларації_*.zip` | ❌ HTML на судью | ⛔ | нужен HTML-парсер |
+| bank_ownership | `export_banks_shareholders_schema..xlsx` | ❌ только ссылки на PDF | ⛔ | бенефициары в PDF НБУ |
+
+Прогон на реальных файлах (07.09.2026, фрагмент): wanted 73 106, court_experts
+11 836, notaries 5 758, arbitration_managers 3 420, audit_register 2 813 людей;
+16 930 рёбер `works_at` (человек↔организация). РНОКПП опубликован только в
+`debtors` (код-режим) — поэтому точечная РНОКПП-идентификация сейчас работает
+прежде всего через должников; остальные реестры дают name-сущности, связываемые
+по нормализованному ФИО.
 
 ## Запрос «человек ↔ базы»
 

@@ -22,7 +22,7 @@ Usage:
         --xml-register notaries=17.zip [--encoding cp1251] \
         [--edrsr-parquet '2026/part-*.parquet'] --db links.db
     python scripts/entity_links.py inspect wanted_fugitives.csv   # confirm person columns
-    python scripts/entity_links.py add-people --db links.db \      # extend graph with people
+    python scripts/entity_links.py add-people --db links.db \
         --json-register wanted_fugitives=w.json --zipcsv-register debtors=d.zip
     python scripts/entity_links.py search --db links.db --id 14359609
     python scripts/entity_links.py search --db links.db --name "Іваненко"
@@ -452,7 +452,13 @@ def ingest_person_rows(store: Store, register_id: str, desc: dict, rows, edrpou_
     Returns dict of counters (``rows``, ``people``, ``identities``, ``org_edges``).
     """
     fields = desc.get("fields") or {}
-    aliases = {slot: (fields.get(slot) or []) for slot in ("person", "ipn", "edrpou", "org", "regnum")}
+    aliases = {slot: (fields.get(slot) or []) for slot in ("ipn", "edrpou", "org", "regnum")}
+    person_aliases = fields.get("person") or []
+    # Multi-column name registers split a full name into parts
+    # (e.g. wanted_fugitives: LAST_NAME_U/FIRST_NAME_U/MIDDLE_NAME_U). Declared as
+    # fields.person_parts = [[alt...], [alt...], ...]; the row's name is the parts
+    # joined in order (each part = first non-empty cell among its aliases).
+    person_parts = fields.get("person_parts") or []
     org_edge = desc.get("org_edge") or "linked"
     extra_fields = desc.get("extra_fields") or []
     mixed = desc.get("subject") == "mixed"
@@ -471,7 +477,11 @@ def ingest_person_rows(store: Store, register_id: str, desc: dict, rows, edrpou_
             continue
         counters["rows"] += 1
 
-        person_text = _row_value_by_aliases(row, aliases["person"])
+        if person_parts:
+            parts = [_row_value_by_aliases(row, grp) for grp in person_parts]
+            person_text = " ".join(p for p in parts if p)
+        else:
+            person_text = _row_value_by_aliases(row, person_aliases)
         ipn = digits_of(_row_value_by_aliases(row, aliases["ipn"]))
         edrpou = digits_of(_row_value_by_aliases(row, aliases["edrpou"]))
         org_text = _row_value_by_aliases(row, aliases["org"])
@@ -487,18 +497,10 @@ def ingest_person_rows(store: Store, register_id: str, desc: dict, rows, edrpou_
             else:
                 person_text, ipn, edrpou, org_text = cell, "", "", ""
 
-        # Prefer exact identifiers published by the row even when aliases miss,
-        # so heuristic headers don't break a real 10/8-digit identity column.
-        if (not ipn or not edrpou) and not code_mode:
-            heuristic = canonical_fields(row)
-            if not ipn and heuristic["ipn"]:
-                ipn = heuristic["ipn"]
-            if not edrpou and heuristic["edrpou"]:
-                edrpou = heuristic["edrpou"]
-            if not person_text and heuristic["person"]:
-                person_text = heuristic["person"]
-            if not org_text and heuristic["org"]:
-                org_text = heuristic["org"]
+        # Identifiers are taken ONLY from explicit aliases. A generic numeric
+        # scan is deliberately avoided here so that unrelated 10/8-digit columns
+        # (registration numbers, phones, case ids) are never mistaken for РНОКПП
+        # or ЄДРПОУ. Registers that do publish them declare the column explicitly.
 
         if len(ipn) != 10:
             ipn = ""
