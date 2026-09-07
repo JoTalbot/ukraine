@@ -309,6 +309,18 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
+          # Дедуплікація: якщо ця версія кернела вже позначена processed (тобто її
+          # результат уже був зібраний і відрепортований), не коментуємо повторно.
+          # Інакше кожен запуск колектора на стабільно-complete кернелі в регресії
+          # накопичував би дублі в alert-issue.
+          VERSION=""
+          [ -f ".training-manifests/${SLUG}/kernel-version.txt" ] && VERSION=$(tr -d '\r\n ' < ".training-manifests/${SLUG}/kernel-version.txt" || true)
+          PROCESSED=""
+          [ -f ".training-manifests/${SLUG}/processed-version.txt" ] && PROCESSED=$(tr -d '\r\n ' < ".training-manifests/${SLUG}/processed-version.txt" || true)
+          if [ -n "$VERSION" ] && [ "$VERSION" = "$PROCESSED" ]; then
+            echo "Version $VERSION already reported as processed; skipping duplicate regression comment."
+            exit 0
+          fi
           export MARKER="[alert] model regression"
           export TITLE="$MARKER: $SLUG"
           DETAILS=$(cat "artifacts/${SLUG}/regression.txt")
