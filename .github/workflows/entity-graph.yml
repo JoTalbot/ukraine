@@ -88,6 +88,8 @@ jobs:
           download advocates        structureRegisterOfLawyers.csv advocates.csv
           download notaries         17-ex_xml_wern.zip            notaries.zip
           download court_experts    19-ex_xml_EXPERT.zip          court_experts.zip
+          download arbitration_managers 24-ex_xml_arbker.zip      arbitration_managers.zip
+          download audit_register  auditors_2026-09-03.json       auditors.json
           download debtors          29-ex_csv_erb.zip             debtors.zip   # ~0.7 GB
           ls -la data/person || true
 
@@ -104,7 +106,9 @@ jobs:
             --json-register advocates=data/person/advocates.json \
             --csv-register advocates=data/person/advocates.csv \
             --xml-register notaries=data/person/notaries.zip \
-            --xml-register court_experts=data/person/court_experts.zip
+            --xml-register court_experts=data/person/court_experts.zip \
+            --xml-register arbitration_managers=data/person/arbitration_managers.zip \
+            --json-register audit_register=data/person/auditors.json
           rc1=$?
           # 2) debtors (Єдиний реєстр боржників) — ~0.7 GB zip / ~4 GB CSV; give
           #    it its own wall-clock budget so a slow parse can't stall the rest.
