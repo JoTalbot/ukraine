@@ -21,8 +21,13 @@ Usage:
     python scripts/entity_links.py build  --edr UO.zip --vat pdv.csv \
         --xml-register notaries=17.zip [--encoding cp1251] \
         [--edrsr-parquet '2026/part-*.parquet'] --db links.db
+    python scripts/entity_links.py inspect wanted_fugitives.csv   # confirm person columns
     python scripts/entity_links.py search --db links.db --id 14359609
     python scripts/entity_links.py search --db links.db --name "Іваненко"
+
+Person↔register mapping lives in config/person_register_map.json (see
+docs/PEOPLE_BASES.md): person-subject bases resolve people to a shared РНОКПП
+identity so one person is traceable across bases.
 """
 from __future__ import annotations
 
@@ -237,6 +242,256 @@ def detect_register_fields(sample: dict) -> tuple[str | None, str | None]:
     return person, org
 
 
+# ------------------------------------------------------------------------
+# Person identity spine.
+#
+# People appear in many registers, but each register names them differently
+# and only some registers publish the stable 10-digit РНОКПП / ІПН (individual
+# tax number). To link the *same person* across bases we therefore:
+#
+#   * keep the display `name` entity as it is written in a register, and
+#   * when the register publishes a РНОКПП, create one `ipn` identity entity
+#     and connect every written name to it with an `identity` edge.
+#
+# The `ipn` identity is then the shared hub: a person who is a ФОП (in ЄДР/ПДВ),
+# a debtor, a wanted person and a sanction subject in different bases resolves
+# to the same card through their tax number — that card answers "in which bases
+# is this person, and how is each connected to the organisation graph?".
+#
+# Only identifiers and names lawfully published in the linked open registers
+# are used; source anonymization is never reversed (no_deanonymization).
+
+DEFAULT_PEOPLE_MAP = Path(__file__).resolve().parent.parent / "config" / "person_register_map.json"
+
+# Edge kinds that connect a *person* to an *organisation* (role on the edge).
+PERSON_ORG_KINDS = {"founder", "signer", "works_at", "linked", "beneficial_owner", "listed_in"}
+# Edge kind that declares a written name to be an alias of a РНОКПП identity.
+IDENTITY_EDGE = "identity"
+
+
+def digits_of(value: str) -> str:
+    return re.sub(r"\D", "", str(value or ""))
+
+
+def _norm_header(key: str) -> str:
+    return re.sub(r"[\s_\-'/ʼ’().,\"]", "", (key or "").upper())
+
+
+# Keyword fragments used only to *guess* a column when a register mapping does
+# not declare it explicitly (also powers `entity_links.py inspect`).
+_NAME_MARKERS = {"FIO", "PIB", "ФІО", "ПІБ", "ФИО", "NAME_PERSON", "FULLNAME", "SECONDNAME", "AK_NAME", "PERSON"}
+_NAME_PREFIX_MARKERS = ("ПРІЗВИЩЕ", "ФАМІЛІЯ", "ФАМИЛИЯ", "SURNAME", "LASTNAME", "ІМ", "ИМЯ")
+_IPN_MARKERS = {"IPN", "ІПН", "ІНН", "ИНН", "INN", "TIN", "DRFO", "ДРФО", "РНОКПП", "RNOKPP"}
+_EDRPOU_MARKERS = {"EDRPOU", "ЄДРПОУ", "ЕДРПОУ"}
+_ORG_MARKERS = {"NAME_OBJ", "ORGANIZATION", "ORG", "SUBJECT_NAME", "AUDITOR_FIRM", "НАЗВА", "НАЗВА_ОРГ", "NAME", "ORG_NAME"}
+_ORG_CONTAINS = ("НАЗВА ОРГАНІЗАЦІЇ", "НАЗВА СУБ", "НАЗВА_ЮР", "ФІРМА")
+_REG_MARKERS = {"REG_NUM", "REG_NUMBER", "LICENSE", "СВІДОЦТВО", "СВІДОЦТВА"}
+_REG_CONTAINS = ("РЕЄСТРАЦІЙНИЙ НОМЕР", "НОМЕР СВІДОЦТВА", "НОМЕР РЕЄСТРУ", "№ РЕЄСТРУ")
+
+
+def guess_field(row: dict, exact_markers: set[str], prefix_markers=(), contains=()) -> str | None:
+    """Return the key of the first row field whose header matches a marker set."""
+    for key, value in row.items():
+        if value is None or str(value).strip() == "":
+            continue
+        nk = _norm_header(key)
+        if nk in exact_markers:
+            return key
+        if prefix_markers and any(nk.startswith(m) for m in prefix_markers):
+            return key
+        if contains and any(c in key.upper() for c in contains):
+            return key
+    return None
+
+
+def canonical_fields(row: dict) -> dict:
+    """Best-effort mapping of a register row into canonical person/identity slots.
+
+    Returns a dict with keys ``person``, ``ipn``, ``edrpou``, ``org``, ``regnum``.
+    ``person``/``org`` are the raw written values; ``ipn``/``edrpou`` are clean
+    digit strings ('' when absent). This is a *heuristic* for diagnostics and
+    fallback; production registers should declare explicit columns via
+    `config/person_register_map.json` so aliases are unambiguous.
+    """
+    row = {k: (str(v).strip() if v is not None else "") for k, v in row.items() if v is not None}
+    out: dict[str, str] = {"person": "", "ipn": "", "edrpou": "", "org": "", "regnum": ""}
+
+    person_key = guess_field(row, _NAME_MARKERS, _NAME_PREFIX_MARKERS)
+    ipn_key = guess_field(row, _IPN_MARKERS)
+    edrpou_key = guess_field(row, _EDRPOU_MARKERS)
+    org_key = guess_field(row, _ORG_MARKERS, contains=_ORG_CONTAINS)
+    reg_key = guess_field(row, _REG_MARKERS, contains=_REG_CONTAINS)
+
+    if person_key:
+        out["person"] = row[person_key]
+    if ipn_key:
+        code = digits_of(row[ipn_key])
+        out["ipn"] = code if len(code) == 10 else ""
+    if edrpou_key:
+        code = digits_of(row[edrpou_key])
+        out["edrpou"] = code if len(code) == 8 else ""
+    if org_key:
+        out["org"] = row[org_key]
+    if reg_key:
+        out["regnum"] = row[reg_key]
+
+    # Fall back on numeric-value length classification (robust across headers):
+    # 10 digits -> person tax number, 8 digits -> ЄДРПОУ (unless a date-like
+    # code), 12+ digits -> a ПДВ number whose prefix is a person/company code.
+    if not out["ipn"] or not out["edrpou"]:
+        for key, value in row.items():
+            if key in (person_key, ipn_key, edrpou_key, org_key, reg_key):
+                continue
+            code = digits_of(value)
+            if not out["ipn"] and len(code) == 10:
+                out["ipn"] = code
+            elif not out["edrpou"] and len(code) == 8 and not looks_like_date(code):
+                out["edrpou"] = code
+            elif not out["ipn"] and not out["edrpou"] and len(code) >= 12:
+                if looks_like_date(code[:8]):
+                    continue
+                out["edrpou"] = code[:8] if code[:8] in _EDRPOU_CACHE else out["edrpou"]
+    return out
+
+
+# Populated during build (set of known ЄДРПОУ). Used to disambiguate 8-digit
+# codes that appear in free-form numeric columns.
+_EDRPOU_CACHE: set[str] = set()
+
+
+def load_people_map(path: str | Path | None) -> dict:
+    """Load the person↔register mapping (see ``config/person_register_map.json``)."""
+    chosen = Path(path) if path else DEFAULT_PEOPLE_MAP
+    if not chosen.exists():
+        return {}
+    data = json.loads(chosen.read_text(encoding="utf-8"))
+    if isinstance(data, dict) and "registers" in data:
+        return data["registers"]
+    return data if isinstance(data, dict) else {}
+
+
+def _row_value_by_aliases(row: dict, aliases) -> str:
+    """Return the first non-empty cell for a list of column aliases."""
+    for alias in aliases or []:
+        key = str(alias)
+        if key in row and row[key] not in (None, ""):
+            return str(row[key]).strip()
+        for actual, value in row.items():
+            if value in (None, ""):
+                continue
+            if _norm_header(actual) == _norm_header(key):
+                return str(value).strip()
+    return ""
+
+
+def ingest_person_rows(store: Store, register_id: str, desc: dict, rows, edrpou_index: dict[str, int]) -> dict:
+    """Link person-subject rows of one register into the identity graph.
+
+    A person is the row subject when the register lists individuals themselves
+    (advocates, court experts, arbitration managers, wanted/missing persons,
+    sanction subjects, debtors, beneficial owners). Each such person becomes:
+
+      * a ``name`` entity as written (display),
+      * an ``ipn`` identity entity when the register publishes a РНОКПП,
+        connected to the name by an ``identity`` edge,
+      * a ``mention`` in the register on both entities, and
+      * an edge person→organisation when the row also references a company
+        (by ЄДРПОУ or a company name).
+
+    Returns dict of counters (``rows``, ``people``, ``identities``, ``org_edges``).
+    """
+    fields = desc.get("fields") or {}
+    aliases = {slot: (fields.get(slot) or []) for slot in ("person", "ipn", "edrpou", "org", "regnum")}
+    org_edge = desc.get("org_edge") or "linked"
+    extra_fields = desc.get("extra_fields") or []
+    mixed = desc.get("subject") == "mixed"
+    counters = {"rows": 0, "people": 0, "identities": 0, "org_edges": 0, "org_subjects": 0}
+
+    for raw in rows:
+        row = {str(k): ("" if v is None else str(v).strip()) for k, v in raw.items()}
+        if not row:
+            continue
+        counters["rows"] += 1
+
+        person_text = _row_value_by_aliases(row, aliases["person"])
+        ipn = digits_of(_row_value_by_aliases(row, aliases["ipn"]))
+        edrpou = digits_of(_row_value_by_aliases(row, aliases["edrpou"]))
+        org_text = _row_value_by_aliases(row, aliases["org"])
+        regnum = _row_value_by_aliases(row, aliases["regnum"])
+
+        # Prefer exact identifiers published by the row even when aliases miss,
+        # so heuristic headers don't break a real 10/8-digit identity column.
+        if not ipn or not edrpou:
+            heuristic = canonical_fields(row)
+            if not ipn and heuristic["ipn"]:
+                ipn = heuristic["ipn"]
+            if not edrpou and heuristic["edrpou"]:
+                edrpou = heuristic["edrpou"]
+            if not person_text and heuristic["person"]:
+                person_text = heuristic["person"]
+            if not org_text and heuristic["org"]:
+                org_text = heuristic["org"]
+
+        if len(ipn) != 10:
+            ipn = ""
+        if len(edrpou) != 8 or looks_like_date(edrpou):
+            edrpou = ""
+        if person_text and normalize_name(person_text) in SENTINEL_NAMES:
+            person_text = ""
+        if not person_text and not ipn:
+            # No person in this row. In a *mixed* register the row subject may be
+            # a legal entity — record it as an org mention so it stays reachable
+            # through the company spine (sanctions/debtors list both kinds).
+            if mixed and (edrpou or org_text):
+                org_ent = None
+                if edrpou and edrpou in edrpou_index:
+                    org_ent = edrpou_index[edrpou]
+                elif edrpou:
+                    org_ent = store.entity("edrpou", edrpou, org_text or None)
+                elif org_text and normalize_name(org_text) not in SENTINEL_NAMES:
+                    org_ent = store.entity("name", normalize_name(org_text), org_text)
+                if org_ent is not None:
+                    extra = None
+                    if extra_fields:
+                        extra = {a: row[a] for a in extra_fields if row.get(a) not in (None, "")} or None
+                    store.mention(org_ent, register_id, regnum or None, org_text or None, extra)
+                    counters["org_subjects"] += 1
+            continue
+
+        extra = None
+        if extra_fields:
+            extra = {a: row[a] for a in extra_fields if row.get(a) not in (None, "")} or None
+
+        name_ent = store.entity("name", normalize_name(person_text), person_text) if person_text else None
+        ipn_ent = None
+        if ipn:
+            ipn_ent = store.entity("ipn", ipn, person_text or None)
+            store.mention(ipn_ent, register_id, regnum or None, person_text or None, extra)
+            counters["identities"] += 1
+            if name_ent is not None and name_ent != ipn_ent:
+                store.edge(name_ent, ipn_ent, IDENTITY_EDGE, register_id)
+        if name_ent is not None:
+            store.mention(name_ent, register_id, regnum or None, person_text, extra)
+            counters["people"] += 1
+
+        # Link to an organisation when the row co-references one.
+        subject = ipn_ent if ipn_ent is not None else name_ent
+        if subject is not None:
+            target = None
+            if edrpou and edrpou in edrpou_index:
+                target = edrpou_index[edrpou]
+            elif edrpou:
+                target = store.entity("edrpou", edrpou, org_text or None)
+            elif org_text:
+                normalized = normalize_name(org_text)
+                if normalized not in SENTINEL_NAMES and normalized != normalize_name(person_text or ""):
+                    target = store.entity("name", normalized, org_text)
+            if target is not None:
+                store.edge(subject, target, org_edge if org_edge in PERSON_ORG_KINDS else "linked", register_id)
+                counters["org_edges"] += 1
+    return counters
+
+
 # ---------------------------------------------------------------- build
 
 def cmd_build(args: argparse.Namespace) -> None:
@@ -296,9 +551,24 @@ def cmd_build(args: argparse.Namespace) -> None:
         store.commit()
         print(f"ПДВ: {total:,} строк (ЄДРПОУ-совпадений: {hits8:,}; ІПН: {hits10:,})")
 
-    # 3) Generic XML/CSV/JSON registers -> person entities + mentions.
+    # 3) XML/CSV/JSON registers. Person-subject bases (declared in
+    #    config/person_register_map.json) build identity-linked people; the
+    #    remaining registers keep the generic person/org mention behaviour.
+    people_map = load_people_map(getattr(args, "people_map", None))
+    _EDRPOU_CACHE.update(edrpou_index)
+
+    def person_path(name: str) -> dict | None:
+        desc = people_map.get(name)
+        return desc if desc and desc.get("subject") in ("person", "mixed") else None
+
     for spec in args.xml_register or []:
         name, _, path = spec.partition("=")
+        desc = person_path(name)
+        if desc:
+            counts = ingest_person_rows(store, name, desc, iter_xml_register(path, args.encoding), edrpou_index)
+            store.commit()
+            print(f"{name}: {counts['rows']:,} строк, людей: {counts['people']:,}, РНОКПП: {counts['identities']:,}, связей с орг: {counts['org_edges']:,}")
+            continue
         for rec in iter_xml_register(path, args.encoding):
             person_field, org_field = detect_register_fields(rec)
             person = org = None
@@ -313,6 +583,12 @@ def cmd_build(args: argparse.Namespace) -> None:
                 store.edge(person, org, "works_at", name)
     for spec in args.csv_register or []:
         name, _, path = spec.partition("=")
+        desc = person_path(name)
+        if desc:
+            counts = ingest_person_rows(store, name, desc, iter_delimited(path), edrpou_index)
+            store.commit()
+            print(f"{name}: {counts['rows']:,} строк, людей: {counts['people']:,}, РНОКПП: {counts['identities']:,}, связей с орг: {counts['org_edges']:,}")
+            continue
         sample = next(iter_delimited(path), {})
         person_field, org_field = detect_register_fields(sample)
         for rec in iter_delimited(path):
@@ -325,6 +601,12 @@ def cmd_build(args: argparse.Namespace) -> None:
                 store.mention(person, name, None, None, {k: v for k, v in rec.items() if k not in (person_field, org_field)})
     for spec in args.json_register or []:
         name, _, path = spec.partition("=")
+        desc = person_path(name)
+        if desc:
+            counts = ingest_person_rows(store, name, desc, iter_json_register(path), edrpou_index)
+            store.commit()
+            print(f"{name}: {counts['rows']:,} строк, людей: {counts['people']:,}, РНОКПП: {counts['identities']:,}, связей с орг: {counts['org_edges']:,}")
+            continue
         for rec in iter_json_register(path):
             person_field, org_field = detect_register_fields(rec)
             if person_field and rec.get(person_field):
@@ -390,6 +672,107 @@ def cmd_build(args: argparse.Namespace) -> None:
     print(f"Готово: entities={stats[0]:,}, mentions={stats[1]:,}, edges={stats[2]:,} -> {args.db}")
 
 
+# ---------------------------------------------------------------- add-people
+
+def _load_edrpou_from_db(store: Store) -> dict[str, int]:
+    return {v: eid for eid, v in store.db.execute("SELECT entity_id, value FROM entities WHERE type='edrpou'")}
+
+
+def cmd_add_people(args: argparse.Namespace) -> None:
+    """Extend an existing graph DB with person registers (best-effort per file).
+
+    Opens ``links.db`` produced by ``build`` and ingests the person-subject
+    registers declared in ``config/person_register_map.json``. Each register is
+    processed independently: an unparseable or changed file logs a warning and
+    is skipped without failing the run, so a single broken mirror never blocks
+    publishing the core (ЄДР/ПДВ/ЄДРСР) graph.
+    """
+    store = Store(args.db)
+    _EDRPOU_CACHE.update(_load_edrpou_from_db(store))
+    people_map = load_people_map(getattr(args, "people_map", None))
+
+    def run(register_id: str, path: str, rows) -> dict:
+        desc = people_map.get(register_id)
+        if not desc or desc.get("subject") not in ("person", "mixed"):
+            return {"skipped": True}
+        counts = ingest_person_rows(store, register_id, desc, rows, _EDRPOU_CACHE)
+        store.commit()
+        return counts
+
+    total = {"rows": 0, "people": 0, "identities": 0, "org_edges": 0, "failed": 0, "skipped": 0}
+    specs = [("xml", s) for s in args.xml_register or []] + \
+            [("csv", s) for s in args.csv_register or []] + \
+            [("json", s) for s in args.json_register or []]
+    if not specs:
+        print("Нет реестров: укажите --xml-register/--csv-register/--json-register (name=path).")
+        return
+    for fmt, spec in specs:
+        register_id, _, path = spec.partition("=")
+        if register_id not in people_map:
+            total["skipped"] += 1
+            print(f"{register_id}: нет записи в person_register_map.json — пропуск")
+            continue
+        try:
+            if fmt == "xml":
+                rows = iter_xml_register(path, getattr(args, "encoding", "utf-8"))
+            elif fmt == "csv":
+                rows = iter_delimited(path)
+            else:
+                rows = iter_json_register(path)
+            counts = run(register_id, path, rows)
+            if counts.get("skipped"):
+                continue
+            print(f"{register_id}: {counts['rows']:,} строк, людей: {counts['people']:,}, "
+                  f"РНОКПП: {counts['identities']:,}, связей с орг: {counts['org_edges']:,}")
+            for k in ("rows", "people", "identities", "org_edges"):
+                total[k] += counts[k]
+        except Exception as exc:  # best-effort per-source isolation
+            total["failed"] += 1
+            print(f"{register_id} ({path}): пропущен — {type(exc).__name__}: {exc}")
+    store.commit()
+    print(f"add-people готово: людей {total['people']:,}, РНОКПП {total['identities']:,}, "
+          f"связей с орг {total['org_edges']:,} | пропущено {total['skipped']}, ошибок {total['failed']} -> {args.db}")
+
+
+# ---------------------------------------------------------------- inspect
+
+def _sample_rows(filetype: str, path: str | Path, encoding: str | None, limit: int):
+    filetype = filetype or Path(path).suffix.lower().lstrip(".")
+    if filetype == "json":
+        yield from list(iter_json_register(path))[:limit]
+    elif filetype == "xml":
+        for i, row in enumerate(iter_xml_register(path, encoding or "utf-8")):
+            if i >= limit:
+                break
+            yield row
+    elif filetype in ("csv", "txt"):
+        for i, row in enumerate(iter_delimited(path, encoding or "cp1251")):
+            if i >= limit:
+                break
+            yield row
+    else:
+        sys.exit(f"неизвестный формат: {filetype}")
+
+
+def cmd_inspect(args: argparse.Namespace) -> None:
+    """Print detected person/identity/org columns of a register sample.
+
+    Used to *confirm* the field aliases in ``config/person_register_map.json``
+    against a freshly downloaded register file before enabling it in a build.
+    """
+    rows = list(_sample_rows(args.type, args.path, args.encoding, args.rows))
+    if not rows:
+        print("Файл пуст или не распознан как набор записей.")
+        return
+    print(f"Образцов строк: {len(rows)} из {args.path}\n")
+    for idx, row in enumerate(rows, 1):
+        detected = canonical_fields(row)
+        print(f"--- запись #{idx} ---")
+        for key, value in row.items():
+            print(f"   {key}: {value}")
+        print("   распознано: " + ", ".join(f"{k}={v or '—'}" for k, v in detected.items()))
+
+
 # ---------------------------------------------------------------- search
 
 def resolve_entity(db: sqlite3.Connection, identifier: str | None, name: str | None):
@@ -427,6 +810,24 @@ def cmd_search(args: argparse.Namespace) -> None:
         return
     eid = entity["entity_id"]
     print(f"=== {entity['title'] or entity['value']}  [{entity['type']}: {entity['value']}]")
+
+    print("\n-- Тождество (одно лицо под разными написаниями / РНОКПП) --")
+    aliases = db.execute(
+        "SELECT e.entity_id, e.type, e.value, e.title, x.kind, x.dataset "
+        "FROM edges x JOIN entities e ON e.entity_id = "
+        "  CASE WHEN x.a=? THEN x.b WHEN x.b=? THEN x.a END "
+        "WHERE x.a=? OR x.b=? ORDER BY x.dataset",
+        (eid, eid, eid, eid),
+    ).fetchall()
+    shown_identity = 0
+    for row in aliases:
+        if row["kind"] != IDENTITY_EDGE:
+            continue
+        shown_identity += 1
+        title = row["title"] or row["value"]
+        print(f"   {title[:60]}  ({row['type']}: {row['value']}) — как в базе {row['dataset']}")
+    if shown_identity == 0:
+        print("   (нет опубликованного РНОКПП-тождества в этом графе)")
 
     print("\n-- Упоминания в базах --")
     for row in db.execute(
@@ -475,7 +876,24 @@ def main() -> None:
     build.add_argument("--json-register", action="append", help="name=path.json")
     build.add_argument("--edrsr-parquet", action="append", help="glob паркет-частей ЄДРСР")
     build.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
+    build.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
     build.set_defaults(func=cmd_build)
+
+    addp = sub.add_parser("add-people", help="добавить person-реестры в существующий граф (best-effort)")
+    addp.add_argument("--db", required=True)
+    addp.add_argument("--xml-register", action="append", help="name=path.zip (RECORD-XML)")
+    addp.add_argument("--csv-register", action="append", help="name=path.csv")
+    addp.add_argument("--json-register", action="append", help="name=path.json")
+    addp.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
+    addp.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
+    addp.set_defaults(func=cmd_add_people)
+
+    inspect_ = sub.add_parser("inspect", help="распознать колонки персон/идентификаторов в файле реестра")
+    inspect_.add_argument("path", help="CSV/JSON/ZIP-XML файл")
+    inspect_.add_argument("--type", choices=["csv", "json", "xml"], default=None, help="формат (иначе угадать по расширению)")
+    inspect_.add_argument("--encoding", default=None, help="кодировка для CSV/XML (иначе utf-8/cp1251)")
+    inspect_.add_argument("--rows", type=int, default=3, help="сколько строк показать")
+    inspect_.set_defaults(func=cmd_inspect)
 
     search = sub.add_parser("search")
     search.add_argument("--db", required=True)
