@@ -9,6 +9,10 @@ on:
         description: 'Push even if a version is already running'
         type: boolean
         default: false
+      slug:
+        description: 'Launch only one kernel (empty = all). e.g. ua-legal-lm-ft'
+        type: string
+        default: ''
   push:
     branches: [main]
     paths:
@@ -50,6 +54,7 @@ jobs:
 
   dispatch:
     needs: prepare
+    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.slug == '' || matrix.slug == github.event.inputs.slug }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
