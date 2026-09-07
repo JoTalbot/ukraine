@@ -22,6 +22,8 @@ Usage:
         --xml-register notaries=17.zip [--encoding cp1251] \
         [--edrsr-parquet '2026/part-*.parquet'] --db links.db
     python scripts/entity_links.py inspect wanted_fugitives.csv   # confirm person columns
+    python scripts/entity_links.py add-people --db links.db \      # extend graph with people
+        --json-register wanted_fugitives=w.json --zipcsv-register debtors=d.zip
     python scripts/entity_links.py search --db links.db --id 14359609
     python scripts/entity_links.py search --db links.db --name "Іваненко"
 
@@ -230,6 +232,55 @@ def iter_json_register(path: str | Path):
             yield row
 
 
+def _xlsx_sheets():
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:  # pragma: no cover - env-specific
+        raise ImportError("xlsx-реестры требуют openpyxl (pip install openpyxl)") from exc
+    return load_workbook
+
+
+def iter_xlsx_register(path: str | Path, sheet: str | None = None):
+    """Stream rows of an xlsx register as dicts (first row = header).
+
+    Sheet selection mirrors how real registers keep the dataset in a specific
+    tab (e.g. many xlsx publications carry a codebook on the first sheet). A
+    ``sheet`` name may be declared per-register in ``config/person_register_map.json``.
+    """
+    wb = _xlsx_sheets()(path, read_only=True, data_only=True)
+    target = sheet if sheet in (wb.sheetnames or []) else (wb.sheetnames or [None])[0]
+    if target is None:
+        return
+    ws = wb[target]
+    header = None
+    for raw in ws.iter_rows(values_only=True):
+        values = [("" if c is None else str(c).strip()) for c in raw]
+        if header is None:
+            header = values
+            continue
+        row = {h: v for h, v in zip(header, values) if h}
+        if row:
+            yield row
+    wb.close()
+
+
+def iter_zip_csv(path: str | Path, encoding: str = "cp1251", delimiter: str = ";"):
+    """Stream rows of a ``name.csv`` inside a zip (e.g. Єдиний реєстр боржників).
+
+    Real mirrors ship large CSVs zipped; only the in-memory member bytes are
+    decompressed as they are read, so multi-GB members stream without full load.
+    """
+    import csv
+    import io
+    with zipfile.ZipFile(path) as zf:
+        member = max((n for n in zf.namelist() if n.lower().endswith(".csv")),
+                     key=lambda n: zf.getinfo(n).file_size)
+        with zf.open(member) as raw:
+            text = io.TextIOWrapper(raw, encoding=encoding, errors="replace", newline="")
+            for row in csv.DictReader(text, delimiter=delimiter):
+                yield {k: (v or "").strip() for k, v in row.items() if k}
+
+
 def detect_register_fields(sample: dict) -> tuple[str | None, str | None]:
     """Pick (person-name, org-name) field names from a register row sample."""
     person = org = None
@@ -405,6 +456,13 @@ def ingest_person_rows(store: Store, register_id: str, desc: dict, rows, edrpou_
     org_edge = desc.get("org_edge") or "linked"
     extra_fields = desc.get("extra_fields") or []
     mixed = desc.get("subject") == "mixed"
+    # Code-length mode: some registers (e.g. Єдиний реєстр боржників) put the
+    # person's ORG name in ONE column and identify org-vs-person only by the
+    # length of a shared ID column: 10 digits -> individual (РНОКПП), 8 digits
+    # -> legal entity (ЄДРПОУ). Declared as fields {"name":[...], "id":[...]}.
+    id_aliases = fields.get("id") or []
+    name_aliases = fields.get("name") or []
+    code_mode = bool(id_aliases and name_aliases)
     counters = {"rows": 0, "people": 0, "identities": 0, "org_edges": 0, "org_subjects": 0}
 
     for raw in rows:
@@ -419,9 +477,19 @@ def ingest_person_rows(store: Store, register_id: str, desc: dict, rows, edrpou_
         org_text = _row_value_by_aliases(row, aliases["org"])
         regnum = _row_value_by_aliases(row, aliases["regnum"])
 
+        if code_mode:
+            code = digits_of(_row_value_by_aliases(row, id_aliases))
+            cell = _row_value_by_aliases(row, name_aliases)
+            if len(code) == 10:
+                person_text, ipn, edrpou, org_text = cell, code, "", ""
+            elif len(code) == 8 and not looks_like_date(code):
+                person_text, ipn, edrpou, org_text = "", "", code, cell
+            else:
+                person_text, ipn, edrpou, org_text = cell, "", "", ""
+
         # Prefer exact identifiers published by the row even when aliases miss,
         # so heuristic headers don't break a real 10/8-digit identity column.
-        if not ipn or not edrpou:
+        if (not ipn or not edrpou) and not code_mode:
             heuristic = canonical_fields(row)
             if not ipn and heuristic["ipn"]:
                 ipn = heuristic["ipn"]
@@ -619,6 +687,28 @@ def cmd_build(args: argparse.Namespace) -> None:
                     elif len(val) == 10 and rec.get(key):
                         store.edge(person, store.entity("ipn", val), "linked", name)
                 store.mention(person, name, str(rec.get("regNum", "") or ""), str(rec[person_field]), extra or None)
+
+    # 3b) xlsx / zip-of-csv registers. These formats are used for person-subject
+    #     bases (sanctions .xlsx, debtors .zip>csv). Only registers declared in
+    #     config/person_register_map.json are consumed; anything else is skipped.
+    for fmt, spec, iterator in [
+        ("xlsx", s, lambda p, s_, d: iter_xlsx_register(p, d.get("sheet")) if d else iter_xlsx_register(p))
+        for s in args.xlsx_register or []
+    ] + [
+        ("zipcsv", s, lambda p, s_, d: iter_zip_csv(p))
+        for s in args.zipcsv_register or []
+    ]:
+        name, _, path = spec.partition("=")
+        desc = person_path(name)
+        if not desc:
+            print(f"{name}: не объявлен в person_register_map.json — пропуск (формат {fmt})")
+            continue
+        if desc.get("enabled") is False:
+            print(f"{name}: помечен enabled=false ({desc.get('enabled_reason') or 'см. маппинг'}) — пропуск")
+            continue
+        counts = ingest_person_rows(store, name, desc, iterator(path, None, desc), edrpou_index)
+        store.commit()
+        print(f"{name}: {counts['rows']:,} строк, людей: {counts['people']:,}, РНОКПП: {counts['identities']:,}, связей с орг: {counts['org_edges']:,}")
     store.commit()
 
     # 4) ЄДРСР decisions: judge~court edges from decision metadata; when a
@@ -702,23 +792,34 @@ def cmd_add_people(args: argparse.Namespace) -> None:
     total = {"rows": 0, "people": 0, "identities": 0, "org_edges": 0, "failed": 0, "skipped": 0}
     specs = [("xml", s) for s in args.xml_register or []] + \
             [("csv", s) for s in args.csv_register or []] + \
-            [("json", s) for s in args.json_register or []]
+            [("json", s) for s in args.json_register or []] + \
+            [("xlsx", s) for s in args.xlsx_register or []] + \
+            [("zipcsv", s) for s in args.zipcsv_register or []]
     if not specs:
-        print("Нет реестров: укажите --xml-register/--csv-register/--json-register (name=path).")
+        print("Нет реестров: укажите --xml-register/--csv-register/--json-register/--xlsx-register/--zipcsv-register (name=path).")
         return
     for fmt, spec in specs:
         register_id, _, path = spec.partition("=")
-        if register_id not in people_map:
+        desc = people_map.get(register_id) or {}
+        if not desc or desc.get("subject") not in ("person", "mixed"):
             total["skipped"] += 1
-            print(f"{register_id}: нет записи в person_register_map.json — пропуск")
+            print(f"{register_id}: нет записи person-subject в person_register_map.json — пропуск")
+            continue
+        if desc.get("enabled") is False:
+            total["skipped"] += 1
+            print(f"{register_id}: помечен enabled=false в маппинге — пропуск")
             continue
         try:
             if fmt == "xml":
                 rows = iter_xml_register(path, getattr(args, "encoding", "utf-8"))
             elif fmt == "csv":
                 rows = iter_delimited(path)
-            else:
+            elif fmt == "json":
                 rows = iter_json_register(path)
+            elif fmt == "xlsx":
+                rows = iter_xlsx_register(path, desc.get("sheet"))
+            else:
+                rows = iter_zip_csv(path)
             counts = run(register_id, path, rows)
             if counts.get("skipped"):
                 continue
@@ -747,6 +848,16 @@ def _sample_rows(filetype: str, path: str | Path, encoding: str | None, limit: i
             yield row
     elif filetype in ("csv", "txt"):
         for i, row in enumerate(iter_delimited(path, encoding or "cp1251")):
+            if i >= limit:
+                break
+            yield row
+    elif filetype in ("xlsx", "xls"):
+        for i, row in enumerate(iter_xlsx_register(path)):
+            if i >= limit:
+                break
+            yield row
+    elif filetype == "zipcsv":
+        for i, row in enumerate(iter_zip_csv(path)):
             if i >= limit:
                 break
             yield row
@@ -874,6 +985,8 @@ def main() -> None:
     build.add_argument("--xml-register", action="append", help="name=path.zip (RECORD-XML)")
     build.add_argument("--csv-register", action="append", help="name=path.csv")
     build.add_argument("--json-register", action="append", help="name=path.json")
+    build.add_argument("--xlsx-register", action="append", help="name=path.xlsx (openpyxl)")
+    build.add_argument("--zipcsv-register", action="append", help="name=path.zip (CSV внутри zip)")
     build.add_argument("--edrsr-parquet", action="append", help="glob паркет-частей ЄДРСР")
     build.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
     build.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
@@ -884,13 +997,15 @@ def main() -> None:
     addp.add_argument("--xml-register", action="append", help="name=path.zip (RECORD-XML)")
     addp.add_argument("--csv-register", action="append", help="name=path.csv")
     addp.add_argument("--json-register", action="append", help="name=path.json")
+    addp.add_argument("--xlsx-register", action="append", help="name=path.xlsx (openpyxl)")
+    addp.add_argument("--zipcsv-register", action="append", help="name=path.zip (CSV внутри zip)")
     addp.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
     addp.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
     addp.set_defaults(func=cmd_add_people)
 
     inspect_ = sub.add_parser("inspect", help="распознать колонки персон/идентификаторов в файле реестра")
     inspect_.add_argument("path", help="CSV/JSON/ZIP-XML файл")
-    inspect_.add_argument("--type", choices=["csv", "json", "xml"], default=None, help="формат (иначе угадать по расширению)")
+    inspect_.add_argument("--type", choices=["csv", "json", "xml", "xlsx", "zipcsv"], default=None, help="формат (иначе угадать по расширению)")
     inspect_.add_argument("--encoding", default=None, help="кодировка для CSV/XML (иначе utf-8/cp1251)")
     inspect_.add_argument("--rows", type=int, default=3, help="сколько строк показать")
     inspect_.set_defaults(func=cmd_inspect)

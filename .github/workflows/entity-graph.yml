@@ -27,7 +27,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        run: python -m pip install --upgrade pip pyarrow huggingface_hub
+        run: python -m pip install --upgrade pip pyarrow huggingface_hub openpyxl
 
       - name: Download graph inputs from Hugging Face
         run: |
@@ -67,12 +67,14 @@ jobs:
       - name: Download person registers from Hugging Face
         run: |
           # Machine-readable person-register mirrors that scripts/entity_links.py
-          # can stream (JSON array, CSV, or RECORD-XML in a zip). Each download is
-          # best-effort: a missing/changed file is logged and skipped so it never
-          # blocks publishing the core graph. Registers whose mirror is only
-          # xlsx/nested-zip (sanctions, debtors, declarations) are intentionally
-          # left out here — add them after confirming columns with
-          # `entity_links.py inspect`.
+          # can stream (JSON array, CSV/CSV-in-zip, RECORD-XML, or xlsx). Each
+          # download is best-effort: a missing/changed file is logged and skipped
+          # so it never blocks publishing the core graph.
+          #
+          # NOT wired here (see config/person_register_map.json, enabled=false):
+          #   - sanctions     : HF mirror folder holds ship-registry files (ДСРУ),
+          #                     not the Державний реєстр санкцій (mislabeled).
+          #   - declarations  : mirror is per-person HTML, not a flat dataset.
           mkdir -p data/person
           download() { # $1=dataset subdir  $2=file  $3=dest name
             local url="https://huggingface.co/datasets/${HF_OPEN}/resolve/main/$1/$2"
@@ -86,6 +88,7 @@ jobs:
           download advocates        structureRegisterOfLawyers.csv advocates.csv
           download notaries         17-ex_xml_wern.zip            notaries.zip
           download court_experts    19-ex_xml_EXPERT.zip          court_experts.zip
+          download debtors          29-ex_csv_erb.zip             debtors.zip   # ~0.7 GB
           ls -la data/person || true
 
       - name: Ingest person registers (best-effort, adds to core graph)
@@ -94,6 +97,7 @@ jobs:
           # resolved to a shared РНОКПП/ІПН identity (config/person_register_map.json).
           # Per-file isolation: a broken register is skipped, core graph survives.
           set +e
+          # 1) fast, compact registers (JSON/XML/CSV)
           python scripts/entity_links.py add-people --db links.db \
             --json-register wanted_fugitives=data/person/wanted_fugitives.json \
             --json-register missing_persons=data/person/missing_persons.json \
@@ -101,9 +105,18 @@ jobs:
             --csv-register advocates=data/person/advocates.csv \
             --xml-register notaries=data/person/notaries.zip \
             --xml-register court_experts=data/person/court_experts.zip
-          rc=$?
+          rc1=$?
+          # 2) debtors (Єдиний реєстр боржників) — ~0.7 GB zip / ~4 GB CSV; give
+          #    it its own wall-clock budget so a slow parse can't stall the rest.
+          if [ -f data/person/debtors.zip ]; then
+            timeout --signal=TERM --kill-after=30s 40m python scripts/entity_links.py add-people --db links.db \
+              --zipcsv-register debtors=data/person/debtors.zip
+            rc2=$?
+          else
+            echo "debtors.zip не скачан — пропуск"; rc2=0
+          fi
           set -e
-          echo "person-register ingestion exit code: $rc (non-zero is tolerated; see log)"
+          echo "person-register ingestion: fast rc=$rc1, debtors rc=$rc2 (non-zero tolerated; see log)"
           exit 0
 
       - name: Validate graph contents

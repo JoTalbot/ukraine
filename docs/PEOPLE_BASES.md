@@ -66,21 +66,57 @@
 
 Повторяющиеся подтверждающие записи увеличивают `weight` ребра (идентично существующему поведению).
 
+## Форматы файлов
+
+Инструмент читает person-реестры из распространённых публикаций на data.gov.ua:
+
+| Формат | Флаг | Итератор | Примеры |
+|---|---|---|---|
+| JSON (массив/`data`) | `--json-register` | `iter_json_register` | wanted_fugitives, missing_persons, advocates |
+| CSV | `--csv-register` | `iter_delimited` (по умолчанию cp1251 `;`) | advocates |
+| RECORD-XML в zip | `--xml-register` | `iter_xml_register` | notaries, court_experts |
+| xlsx (первый/объявленный лист) | `--xlsx-register` | `iter_xlsx_register` (openpyxl) | — |
+| CSV внутри zip | `--zipcsv-register` | `iter_zip_csv` | debtors (`29-ex_csv_erb.zip`) |
+
+### Код-режим (одна колонка имени, тип по длине кода)
+
+В Єдиному реєстрі боржників `DEBTOR_NAME` — это и ФИО физлица, и название
+юрлица; физлицо от юрлица отличает только длина `DEBTOR_CODE` (10 = РНОКПП,
+8 = ЄДРПОУ). В маппинге такие реестры объявляются через `fields: {name, id}` +
+`code_length` — `ingest_person_rows` сам разводит их на person/org по длине кода
+(см. `debtors` в `config/person_register_map.json`).
+
 ## Как включить базу в сборку
 
-1. Скачать официальный файл реестра.
+1. Скачать официальный файл реестра (для больших файлов достаточно первых строк).
 2. Подтвердить заголовки колонок:
    ```bash
    python scripts/entity_links.py inspect wanted_fugitives.csv --type csv --rows 5
+   python scripts/entity_links.py inspect debtors.zip --type zipcsv --rows 5
+   python scripts/entity_links.py inspect some.xlsx --type xlsx --rows 5
    ```
    Выведет распознанные `person / ipn / edrpou / org / regnum` по образцу строк.
-3. При необходимости уточнить алиасы в `config/person_register_map.json`.
+3. При необходимости уточнить алиасы в `config/person_register_map.json`. Если
+   зеркало ещё не пригодно к строковой инджестии — поставить `enabled: false` с
+   `enabled_reason` (такие реестры инструмент пропускает).
 4. Добавить файл в шаг сборки графа (`entity-graph.yml`) и в `--<format>-register`:
    ```bash
-   python scripts/entity_links.py build --db links.db --edr UO.zip --vat pdv.csv \
+   python scripts/entity_links.py add-people --db links.db \
      --csv-register wanted_fugitives=wanted_fugitives.csv \
-     --json-register sanctions=sanctions.json --edrsr-parquet '2026/part-*.parquet'
+     --zipcsv-register debtors=debtors.zip
    ```
+   Команда `add-people` расширяет уже собранный `links.db`, обрабатывая каждый
+   реестр изолированно (сломанный источник не ломает публикацию ядра).
+
+## Статус реальных зеркал на Hugging Face (проверено 07.09.2026)
+
+- ✅ **в графе**: wanted_fugitives, missing_persons, advocates, notaries,
+  court_experts, debtors.
+- ⛔ **sanctions**: каталог `sanctions/` на зеркале содержит файлы **Державного
+  суднового реєстру** (ДСРУ — суда/судновласники), а не Державний реєстр санкцій;
+  данные перепутаны на стороне зеркала. `enabled=false` до исправления источника.
+- ⛔ **declarations**: зеркало — набор HTML-страниц на каждого судью (`decs/*.html`),
+  а не плоский датасет; нужен HTML-парсер (имя в имени файла). `enabled=false`.
 
 ## Запрос «человек ↔ базы»
 

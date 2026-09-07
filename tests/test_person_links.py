@@ -114,8 +114,9 @@ def test_mixed_register_keeps_org_subjects():
 
 def test_add_people_best_effort(tmp_path):
     """add-people ingests mapped person files and isolates a broken one."""
-    from argparse import Namespace
     import json as _json
+    from argparse import Namespace
+
     from scripts.entity_links import cmd_add_people
 
     db = tmp_path / "links.db"
@@ -127,7 +128,7 @@ def test_add_people_best_effort(tmp_path):
     args = Namespace(db=str(db), people_map=str(DEFAULT_PEOPLE_MAP), encoding="utf-8",
                      xml_register=None,
                      json_register=[f"wanted_fugitives={good}", f"missing_persons={bad}"],
-                     csv_register=None)
+                     csv_register=None, xlsx_register=None, zipcsv_register=None)
     cmd_add_people(args)
 
     store = Store(str(db))
@@ -138,3 +139,56 @@ def test_add_people_best_effort(tmp_path):
     assert n_mentions >= 1
     # The broken source failed but add-people continued and committed.
     assert store.db.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").fetchone()[0] >= 3
+
+
+def test_debtors_code_mode_splits_org_and_person():
+    """A register with one name+id column splits person(10) from org(8) by code."""
+    store = Store(":memory:")
+    desc = {
+        "subject": "mixed", "org_edge": "listed_in",
+        "fields": {"name": ["DEBTOR_NAME"], "id": ["DEBTOR_CODE"]},
+    }
+    rows = [
+        {"DEBTOR_NAME": "КОЛЕКТИВНЕ ПІДПРИЄМСТВО ОПТИКА №9", "DEBTOR_CODE": "20793942"},
+        {"DEBTOR_NAME": "Іваненко Петро Олексійович", "DEBTOR_CODE": "1111111111"},
+        {"DEBTOR_NAME": "Ковальчук Ольга", "DEBTOR_CODE": "2222222222"},
+    ]
+    ingest_person_rows(store, "debtors", desc, rows, {})
+    types = {t: n for t, n in store.db.execute("SELECT type, COUNT(*) FROM entities GROUP BY type")}
+    # two individuals -> two ipn, plus name entities; one legal -> one edrpou
+    assert types["ipn"] == 2, types
+    assert types["edrpou"] == 1, types
+    # legal org must NOT become a person/name entity
+    assert "name" not in types or types["name"] == 2, types
+    # org subject recorded in mixed mode
+    org_bases = store.db.execute(
+        "SELECT COUNT(*) FROM mentions WHERE dataset='debtors'").fetchone()[0]
+    assert org_bases >= 3
+
+
+def test_iter_xlsx_register(tmp_path):
+    from openpyxl import Workbook
+
+    from scripts.entity_links import iter_xlsx_register
+    p = tmp_path / "reg.xlsx"
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "ДСРУ"
+    ws.append(["ПІБ", "РНОКПП", "РЕЄСТРАЦІЙНИЙ НОМЕР"])
+    ws.append(["Іваненко Петро", "1111111111", "R-1"])
+    wb.save(p)
+    rows = list(iter_xlsx_register(p))
+    assert rows == [{"ПІБ": "Іваненко Петро", "РНОКПП": "1111111111", "РЕЄСТРАЦІЙНИЙ НОМЕР": "R-1"}]
+
+
+def test_iter_zip_csv(tmp_path):
+    import zipfile
+
+    from scripts.entity_links import iter_zip_csv
+    z = tmp_path / "debt.zip"
+    with zipfile.ZipFile(z, "w") as zf:
+        zf.writestr("29-ex_csv_erb.csv",
+                    "DEBTOR_NAME;DEBTOR_CODE\nІваненко Петро;1111111111\nКОВАЛЬЧУК;2222222222\n")
+    rows = list(iter_zip_csv(z))
+    assert len(rows) == 2
+    assert rows[0]["DEBTOR_CODE"] == "1111111111"
