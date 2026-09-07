@@ -54,7 +54,6 @@ jobs:
 
   dispatch:
     needs: prepare
-    if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.slug == '' || matrix.slug == github.event.inputs.slug }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -68,6 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Configure and verify Kaggle authentication
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.slug == '' || matrix.slug == github.event.inputs.slug }}
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
         run: |
@@ -80,6 +80,7 @@ jobs:
           kaggle datasets list --max-size 1 >/dev/null
           echo 'Kaggle authentication succeeded.'
       - name: Push and verify the GPU training kernel
+        if: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.slug == '' || matrix.slug == github.event.inputs.slug }}
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API }}
           KAGGLE_USERNAME_OVERRIDE: ${{ vars.KAGGLE_USERNAME }}
