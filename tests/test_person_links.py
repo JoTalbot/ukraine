@@ -233,3 +233,83 @@ def test_person_org_edge_from_org_alias():
                          "NAME_OBJ": "Іванківська державна нотаріальна контора"}], {})
     row = store.db.execute("SELECT kind, dataset, COUNT(*) FROM edges GROUP BY kind").fetchone()
     assert row and row[0] == "works_at" and row[1] == "notaries"
+
+
+def test_name_tokens_and_person_like():
+    from scripts.entity_links import _name_tokens, is_person_like_name
+    assert _name_tokens("ЗАХАРОВ В'ЯЧЕСЛАВ РОМАНОВИЧ") == ["ЗАХАРОВ", "ВЯЧЕСЛАВ", "РОМАНОВИЧ"]
+    assert is_person_like_name("Іваненко Петро Олексійович") is True
+    assert is_person_like_name("ТОВ АЛЬФА") is False          # legal form
+    assert is_person_like_name("Іванківська державна нотаріальна контора") is False
+    assert is_person_like_name("Петренко О.") is True          # surname + initial
+    # a 3-token non-patronymic tail should not be treated as a full person name
+    assert is_person_like_name("СУД КИЇВСЬКИЙ АПЕЛЯЦІЙНИЙ") is False
+
+
+def test_score_person_name_initials_and_full():
+    from scripts.entity_links import score_person_name
+    # exact full name -> high
+    s = score_person_name(["ІВАНЕНКО", "ПЕТРО", "ОЛЕКСІЙОВИЧ"],
+                          ["ІВАНЕНКО", "ПЕТРО", "ОЛЕКСІЙОВИЧ"])
+    assert s is not None and s >= 0.9
+    # surname exact, given as initial, same patronymic -> accepted
+    s = score_person_name(["ІВАНЕНКО", "ПЕТРО", "ОЛЕКСІЙОВИЧ"],
+                          ["ІВАНЕНКО", "П", "ОЛЕКСІЙОВИЧ"])
+    assert s is not None and s >= 0.9
+    # different surname -> not a candidate
+    assert score_person_name(["ПЕТРЕНКО", "ПЕТРО", "ОЛЕКСІЙОВИЧ"],
+                             ["ІВАНЕНКО", "ПЕТРО", "ОЛЕКСІЙОВИЧ"]) is None
+    # same names but different patronymic -> rejected (different person)
+    assert score_person_name(["ІВАНЕНКО", "ПЕТРО", "МИКОЛАЙОВИЧ"],
+                             ["ІВАНЕНКО", "ПЕТРО", "ОЛЕКСІЙОВИЧ"]) is None
+
+
+def _make_link_db(path):
+    store = Store(path)
+    # two ipn identities (debtors/ФОП published РНОКПП)
+    store.entity("ipn", "1111111111", "Іваненко Петро Олексійович")
+    store.entity("ipn", "2222222222", "Ковальчук Ольга Іванівна")
+    # name-only person records
+    store.entity("name", "ІВАНЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", "Іваненко Петро Олексійович")
+    store.entity("name", "ІВАНЕНКО ПЕТРО", "Іваненко Петро")       # partial (no patronymic)
+    store.entity("name", "ТОВ АЛЬФА", "ТОВ АЛЬФА")                # org, must be ignored
+    store.commit()
+    return store
+
+
+def test_cmd_link_names_resolves_unique(tmp_path):
+    from argparse import Namespace
+
+    from scripts.entity_links import cmd_link_names
+    db = tmp_path / "links.db"
+    _make_link_db(str(db))
+    args = Namespace(db=str(db), min_score=0.9, limit=0)
+    cmd_link_names(args)
+    store = Store(str(db))
+    rows = store.db.execute(
+        "SELECT a, b, dataset FROM edges WHERE kind=? AND dataset='name_resolve'",
+        (IDENTITY_EDGE,)).fetchall()
+    # The full and the partial "Іваненко Петро" both resolve to the same ipn.
+    assert len(rows) == 2, rows
+    ipn_id = store.db.execute(
+        "SELECT entity_id FROM entities WHERE type='ipn' AND value='1111111111'").fetchone()[0]
+    name_ids = [r for r in store.db.execute(
+        "SELECT DISTINCT CASE WHEN a=? THEN b ELSE a END FROM edges "
+        "WHERE dataset='name_resolve' AND (a=? OR b=?)", (ipn_id, ipn_id, ipn_id))]
+    # endpoints excluding ipn = 2 name entities
+    assert len(name_ids) == 2
+
+
+def test_cmd_link_names_ignores_orgs_and_is_idempotent(tmp_path):
+    from argparse import Namespace
+
+    from scripts.entity_links import cmd_link_names
+    db = tmp_path / "links.db"
+    _make_link_db(str(db))
+    args = Namespace(db=str(db), min_score=0.9, limit=0)
+    cmd_link_names(args)
+    cmd_link_names(args)  # second run must not duplicate
+    store = Store(str(db))
+    n = store.db.execute(
+        "SELECT COUNT(*) FROM edges WHERE dataset='name_resolve'").fetchone()[0]
+    assert n == 2, n

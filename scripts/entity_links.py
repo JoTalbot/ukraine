@@ -764,6 +764,218 @@ def cmd_build(args: argparse.Namespace) -> None:
     print(f"Готово: entities={stats[0]:,}, mentions={stats[1]:,}, edges={stats[2]:,} -> {args.db}")
 
 
+# ---------------------------------------------------------------- name resolution
+#
+# Name-only people (wanted/missing/professional registers that publish no РНОКПП)
+# are stored as `name` entities. To still connect the *same person* that appears
+# in a name-only base AND in a base that publishes РНОКПП (debtors, ФОП/ПДВ), we
+# try to resolve a person-like name entity to an `ipn` identity entity.
+#
+# This is inherently heuristic, so it is deliberately CONSERVATIVE:
+#   * only `name` entities that look like a natural person are considered;
+#   * resolution requires an EXACT surname and a strong given-name/patronymic
+#     agreement (full or unambiguous initial);
+#   * a candidate is accepted only when the best match is clearly better than
+#     the runner-up (unique argmax above min-score);
+#   * matched edges are kind=`identity`, dataset=`name_resolve` so they can be
+#     audited and removed independently (`DELETE FROM edges WHERE dataset=
+#     'name_resolve'`) without touching register-sourced identity edges.
+# This never creates new identifiers and never reverses source anonymization.
+
+# Token separators include apostrophes found in Ukrainian registers (В'ЯЧЕСЛАВ).
+_TOKEN_RE = re.compile(r"[A-ZА-ЯЄІЇҐ]+", re.UNICODE)
+_APOS = re.compile(r"['ʼ’`]")
+
+# Organisation indicators: a `name` entity containing these is not a person.
+_ORG_KEYWORDS = {
+    "ТОВ", "ТОВАРИСТВО", "ПАТ", "ПУБЛІЧНЕ", "ПРИВАТНЕ", "ПП", "АКЦІОНЕРНЕ",
+    "КОМАНДИТНЕ", "ДОДАТКОВА", "КОМПАНІЯ", "КОНЦЕРН", "ХОЛДИНГ", "КОРПОРАЦІЯ",
+    "ФІРМА", "БАНК", "УНІВЕРСИТЕТ", "ІНСТИТУТ", "АКАДЕМІЯ", "КОЛЕДЖ", "ШКОЛА",
+    "УПРАВЛІННЯ", "ДЕПАРТАМЕНТ", "МІНІСТЕРСТВО", "СЛУЖБА", "РАДА", "СУД",
+    "ПРОКУРАТУРА", "ПОЛІЦІЯ", "КЛІНІЧНЕ", "БЮРО", "ЦЕНТР", "ФОНД", "ЗАВОД",
+    "ФАБРИКА", "КОМБІНАТ", "АСОЦІАЦІЯ", "СПІЛКА", "ГРОМАДСЬКЕ", "ОБ'ЄДНАННЯ",
+    "ФІЛІЯ", "ПРЕДСТАВНИЦТВО", "АГЕНТСТВО", "КООПЕРАТИВ", "НАЦІОНАЛЬНИЙ",
+    "ДЕРЖАВНИЙ", "ДЕРЖАВНА", "МІСЬКИЙ", "РАЙОННИЙ", "ОБЛАСНИЙ", "УКРАЇНИ",
+    "КИЇВСЬКИЙ", "КИЇВСЬКА", "НОТАРІАЛЬНА", "КОНТОРА", "АПЕЛЯЦІЙНИЙ",
+    "АДМІНІСТРАТИВНИЙ", "ГОСПОДАРСЬКИЙ", "ВИЩИЙ", "ОКРУЖНИЙ", "КАСАЦІЙНИЙ",
+    "ВЕРХОВНИЙ", "КРИМІНАЛЬНИЙ", "ЦИВІЛЬНИЙ", "ЕКСПЕРТНЕ", "УСТАНОВА",
+    "ЗАКЛАД", "ОРГАНІЗАЦІЯ", "ОБ'ЄДНАННЯ", "ГРОМАДСЬКА",
+}
+
+
+def _name_tokens(value: str) -> list[str]:
+    return _TOKEN_RE.findall(_APOS.sub("", value or "").upper())
+
+
+def is_person_like_name(value: str) -> bool:
+    """Conservative check that a normalized `name` looks like a natural person.
+
+    Person full names are typically 2-4 upper-case words with no legal-form,
+    place or institution keywords and no digits.
+    """
+    value = _APOS.sub("", (value or "")).upper()
+    toks = _TOKEN_RE.findall(value)
+    joined = " ".join(toks)
+    if len(toks) < 2 or len(toks) > 4:
+        return False
+    if any(t in _ORG_KEYWORDS for t in toks):
+        return False
+    if re.search(r"\d", value):
+        return False
+    # Heuristic: the last token usually carries a patronymic marker (…ович,
+    # …івна, …ич, …на) for a full Ukrainian name; require it for 3-token names.
+    if len(toks) == 3 and not re.search(r"(ОВИЧ|ЄВИЧ|ІВНА|ЇВНА|ІВИЧ|ОВНА|ИЧ|ВИЧ|ВНА)$", toks[-1]):
+        return False
+    return bool(joined)
+
+
+def _name_agreement(a: str, b: str) -> float | None:
+    """Similarity of two single name tokens (surname/given/patronymic).
+
+    Returns a weight in [0,1] or None when they can't agree at all.
+      - exact                -> 1.0
+      - full vs initial      -> 0.9  (ПЕТРО ~ П. / П. ~ ПЕТРО)
+      - initials equal       -> 0.85 (П. ~ П. as separate tokens)
+    Tokens are compared after removing apostrophes and dots.
+    """
+    a = _APOS.sub("", a or "").upper().replace(".", "")
+    b = _APOS.sub("", b or "").upper().replace(".", "")
+    if not a or not b:
+        return None
+    if a == b:
+        return 1.0
+    a_single = len(a) == 1 and a.isalpha()
+    b_single = len(b) == 1 and b.isalpha()
+    if a_single and b_single:
+        return 0.85 if a == b else None
+    if a_single and not b_single:
+        return 0.9 if a == b[0] else None
+    if b_single and not a_single:
+        return 0.9 if b == a[0] else None
+    return None
+
+
+def score_person_name(name_tokens: list[str], ipn_tokens: list[str]) -> float | None:
+    """Score name_tokens against ipn_tokens (both surname-first). None if not a candidate.
+
+    Rules:
+      - surname (token 0) must agree exactly;
+      - given name (token 1) must agree (exact or unambiguous initial);
+      - patronymic (token 2): when present on BOTH sides it must agree; when
+        present on one side only it is a soft positive (partial information).
+    """
+    if len(name_tokens) < 2 or len(ipn_tokens) < 2:
+        return None
+    if _name_agreement(name_tokens[0], ipn_tokens[0]) != 1.0:
+        return None
+    given = _name_agreement(name_tokens[1], ipn_tokens[1])
+    if given is None:
+        return None
+
+    score = 0.5 + 0.35 * given  # surname fixed (0.5) + given (up to 0.85)
+    nt3 = name_tokens[2] if len(name_tokens) > 2 else None
+    it3 = ipn_tokens[2] if len(ipn_tokens) > 2 else None
+    if nt3 and it3:
+        pat = _name_agreement(nt3, it3)
+        if pat is None:
+            return None  # both claim a different patronymic -> different person
+        score += 0.15 * pat
+    elif nt3 or it3:
+        score += 0.05  # partial patronymic known on one side only
+    return min(score, 1.0)
+
+
+def cmd_link_names(args: argparse.Namespace) -> None:
+    """Resolve person-like `name` entities to `ipn` identities by name.
+
+    For every person-like name in the DB, find the strongest matching `ipn`
+    identity (a person who published РНОКПП). A conservative, unique match above
+    ``--min-score`` becomes an ``identity`` edge with ``dataset='name_resolve'``.
+
+    This is heuristic: use it to *suggest* cross-base identities (e.g. a wanted
+    person who is also a debtor). It never invents identifiers and never reverses
+    anonymization. Edges can be removed via
+    ``DELETE FROM edges WHERE dataset='name_resolve'``.
+    """
+    store = Store(args.db)
+    db = store.db
+    # Gather person-like name entities (title or normalized value).
+    name_rows = db.execute(
+        "SELECT entity_id, COALESCE(NULLIF(title,''), value) display, value "
+        "FROM entities WHERE type='name'").fetchall()
+    ipn_rows = db.execute(
+        "SELECT entity_id, COALESCE(NULLIF(title,''), '') display "
+        "FROM entities WHERE type='ipn'").fetchall()
+
+    # Index ipn display names -> entity id, skipping empties.
+    ipn_candidates: list[tuple[int, list[str]]] = []
+    for eid, disp in ipn_rows:
+        toks = _name_tokens(disp)
+        if len(toks) >= 2:
+            ipn_candidates.append((eid, toks))
+
+    if not ipn_candidates:
+        print("Нет ipn-идентичностей (людей с РНОКПП) для разрешения имён.")
+        return
+
+    accepted = rejected_low = rejected_tie = not_person = 0
+    rows_out = []
+    # Idempotency: collect every endpoint already used in a name_resolve edge so a
+    # repeated run skips already-resolved names instead of re-scoring them.
+    already_endpoints = set()
+    for (x, y) in db.execute(
+            "SELECT a, b FROM edges WHERE kind=? AND dataset='name_resolve'",
+            (IDENTITY_EDGE,)):
+        already_endpoints.add(x)
+        already_endpoints.add(y)
+    for name_id, disp, nval in name_rows:
+        if name_id in already_endpoints:
+            continue
+        name_tokens = _name_tokens(disp or nval)
+        if not is_person_like_name(disp or nval):
+            not_person += 1
+            continue
+        # score against each ipn
+        best = None
+        second = 0.0
+        for ipn_id, ipn_tokens in ipn_candidates:
+            s = score_person_name(name_tokens, ipn_tokens)
+            if s is None:
+                continue
+            if best is None or s > best[0]:
+                if best is not None:
+                    second = best[0]
+                best = (s, ipn_id)
+            elif s > second:
+                second = s
+        if best is None:
+            rejected_low += 1
+            continue
+        score, ipn_id = best
+        if score < args.min_score:
+            rejected_low += 1
+            continue
+        # Require a clear best (runner-up not within 0.2 of best) to avoid ties.
+        if score - second < 0.2:
+            rejected_tie += 1
+            continue
+        # add identity edge name->ipn
+        a, b = sorted((name_id, ipn_id))
+        db.execute(
+            "INSERT INTO edges(a,b,kind,dataset,weight) VALUES(?,?,?,?,1) "
+            "ON CONFLICT(a,b,kind,dataset) DO UPDATE SET weight=weight+1",
+            (a, b, IDENTITY_EDGE, "name_resolve"))
+        accepted += 1
+        rows_out.append((disp, score))
+    db.commit()
+    print(f"name-resolution: принято {accepted:,}, пропущено(низк.) {rejected_low:,}, "
+          f"пропущено(неоднозначно) {rejected_tie:,}, не-лица {not_person:,}")
+    if args.limit and rows_out:
+        print("примеры разрешений:")
+        for disp, s in rows_out[: args.limit]:
+            print(f"   {s:.3f}  {disp[:60]}")
+
+
 # ---------------------------------------------------------------- add-people
 
 def _load_edrpou_from_db(store: Store) -> dict[str, int]:
@@ -1004,6 +1216,12 @@ def main() -> None:
     addp.add_argument("--encoding", default="utf-8", help="кодировка XML-реестров")
     addp.add_argument("--people-map", help="файл person↔register маппинга (по умолчанию config/person_register_map.json)")
     addp.set_defaults(func=cmd_add_people)
+
+    lnk = sub.add_parser("link-names", help="разрешить name-сущности к ipn-идентичностям по ФИО (консервативно)")
+    lnk.add_argument("--db", required=True)
+    lnk.add_argument("--min-score", type=float, default=0.95, help="порог уверенности (0..1), по умолчанию 0.95")
+    lnk.add_argument("--limit", type=int, default=10, help="сколько примеров вывести (0 = не выводить)")
+    lnk.set_defaults(func=cmd_link_names)
 
     inspect_ = sub.add_parser("inspect", help="распознать колонки персон/идентификаторов в файле реестра")
     inspect_.add_argument("path", help="CSV/JSON/ZIP-XML файл")

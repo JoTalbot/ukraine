@@ -123,6 +123,18 @@ jobs:
           echo "person-register ingestion: fast rc=$rc1, debtors rc=$rc2 (non-zero tolerated; see log)"
           exit 0
 
+      - name: Resolve name-only people to РНОКПП identities (heuristic)
+        run: |
+          # Best-effort, high-confidence link of name-only people (wanted/missing/
+          # prof) to ipn identities (debtors/ФОП) by full name. Conservative and
+          # idempotent; edges carry dataset='name_resolve' and can be removed.
+          set +e
+          python scripts/entity_links.py link-names --db links.db --min-score 0.98 --limit 0
+          rc=$?
+          set -e
+          echo "name-resolution exit code: $rc (non-zero tolerated; see log)"
+          exit 0
+
       - name: Validate graph contents
         run: |
           set -euo pipefail
@@ -162,7 +174,8 @@ jobs:
               f"- Сборка: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", '',
               'Файл `links.db` — SQLite: таблицы `entities`, `mentions`, `edges`.',
               'Запросы: `python scripts/entity_links.py search --db links.db --id <ЄДРПОУ>`.', '',
-              'Источники: ЄДР, ПДВ, ЄДРСР (метаданные). Только законно опубликованные открытые данные;', 'обезличивание источника сохраняется (no_deanonymization).', ''])
+              'Источники: ЄДР, ПДВ, ЄДРСР, а також person-реестры (wanted, missing,', 'notaries, court_experts, arbitration_managers, advocates, auditors, debtors).',
+              'Рёбра identity/name_resolve — консервативное разрешение по ФИО.', 'Только законно опубликованные открытые данные;', 'обезличивание источника сохраняется (no_deanonymization).', ''])
           with open('GRAPH_CARD.md', 'w', encoding='utf-8') as fh:
               fh.write(card)
           api = HfApi(token=os.environ['HF_TOKEN'])
