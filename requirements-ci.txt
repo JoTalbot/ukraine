@@ -4,3 +4,4 @@ pyarrow
 striprtf
 pypdf
 python-docx
+openpyxl
