@@ -122,3 +122,118 @@ def test_coorg_skips_oversized_group():
     n = store.db.execute("SELECT COUNT(*) FROM edges WHERE kind='co_org'").fetchone()[0]
     assert n == 0
     os.remove(_tmp)
+
+
+# ---- link-context: cross-register name↔name with a shared company as context ----
+
+def _build_context_db(tmp_path):
+    """One company; a full founder name in EDR + the same person as initials in
+    another register, both attached to the company -> a context_resolve edge."""
+    store = Store(_db := str(tmp_path / "ctx.db"))
+    comp = store.entity("edrpou", "35197641", "ТОВ «Альфа»")
+    # full name, seen in the company register
+    full = store.entity("name", "ІВАНЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", "Іваненко Петро Олексійович")
+    store.edge(full, comp, "founder", "edr")
+    store.mention(full, "edr", "rec1", "Іваненко Петро Олексійович")
+    # same person, abbreviated, seen in a different register (works_at the company)
+    init = store.entity("name", "ІВАНЕНКО П. О.", "Іваненко П. О.")
+    store.edge(init, comp, "works_at", "other_register")
+    store.mention(init, "other_register", "rec2", "Іваненко П. О.")
+    store.commit()
+    return store, _db, comp, full, init
+
+
+def test_link_context_links_full_to_initials_cross_register(tmp_path):
+    store, db, comp, full, init = _build_context_db(tmp_path)
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    el.cmd_link_context(NS(db=db, dataset="context_resolve", max_group=40, min_score=0.95))
+    rows = store.db.execute(
+        "SELECT a,b,kind,dataset,weight FROM edges WHERE dataset='context_resolve'").fetchall()
+    # exactly one identity edge between the two people, on the shared company
+    assert len(rows) == 1, rows
+    a, b, kind, ds, w = rows[0]
+    assert kind == "identity"
+    assert {a, b} == {full, init}
+    assert w == 1
+    # the two original role edges are untouched
+    assert store.db.execute(
+        "SELECT COUNT(*) FROM edges WHERE kind NOT IN ('identity')").fetchone()[0] == 2
+
+
+def test_link_context_skips_same_single_register(tmp_path):
+    # both names only ever mentioned in the SAME one register -> not cross-register
+    store = Store(_db := str(tmp_path / "ctx.db"))
+    comp = store.entity("edrpou", "35197641", "Альфа")
+    full = store.entity("name", "ІВАНЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", None)
+    init = store.entity("name", "ІВАНЕНКО П. О.", None)
+    store.edge(full, comp, "founder", "edr")
+    store.edge(init, comp, "signer", "edr")
+    for e in (full, init):
+        store.mention(e, "edr", "r", None)  # only edr
+    store.commit()
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=40, min_score=0.95))
+    assert store.db.execute(
+        "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0
+
+
+def test_link_context_requires_full_anchor(tmp_path):
+    # two *abbreviated* names only -> no full anchor -> nothing linked
+    store = Store(_db := str(tmp_path / "ctx.db"))
+    comp = store.entity("edrpou", "35197641", "Альфа")
+    a1 = store.entity("name", "ІВАНЕНКО П. О.", None)
+    a2 = store.entity("name", "ІВАНЕНКО П. П.", None)
+    store.edge(a1, comp, "founder", "edr")
+    store.edge(a2, comp, "signer", "reg2")
+    store.mention(a1, "edr", "r", None)
+    store.mention(a2, "reg2", "r", None)
+    store.commit()
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=40, min_score=0.95))
+    assert store.db.execute(
+        "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0
+
+
+def test_link_context_skips_name_incompatible(tmp_path):
+    # same shared company + different registers, but different surname -> no edge
+    store = Store(_db := str(tmp_path / "ctx.db"))
+    comp = store.entity("edrpou", "35197641", "Альфа")
+    full = store.entity("name", "ІВАНЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", None)
+    other = store.entity("name", "ПЕТРЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", None)  # founder too
+    store.edge(full, comp, "founder", "edr")
+    store.edge(other, comp, "founder", "reg2")
+    store.mention(full, "edr", "r", None)
+    store.mention(other, "reg2", "r", None)
+    store.commit()
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=40, min_score=0.95))
+    assert store.db.execute(
+        "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0
+
+
+def test_link_context_skips_oversized_group(tmp_path):
+    store = Store(_db := str(tmp_path / "ctx.db"))
+    comp = store.entity("edrpou", "35197641", "Альфа")
+    # a genuine full↔initials pair that WOULD link on its own...
+    full = store.entity("name", "ІВАНЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", None)
+    init = store.entity("name", "ІВАНЕНКО П. О.", None)
+    store.edge(full, comp, "founder", "edr")
+    store.edge(init, comp, "signer", "reg2")
+    store.mention(full, "edr", "r", None)
+    store.mention(init, "reg2", "r", None)
+    # ...plus enough unrelated co-holders to push the group over max_group
+    for i in range(7):
+        cand = store.entity("name", f"ІВАНОВ І. {chr(65 + i)}", None)
+        store.edge(cand, comp, "founder", f"reg{i + 10}")
+        store.mention(cand, f"reg{i + 10}", "r", None)
+    store.commit()
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    # 9 people in the company > max_group 5 -> whole company skipped (no links)
+    el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=5, min_score=0.95))
+    assert store.db.execute(
+        "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0

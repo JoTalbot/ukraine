@@ -829,6 +829,31 @@ def is_person_like_name(value: str) -> bool:
     return bool(joined)
 
 
+def is_name_candidate(value: str) -> bool:
+    """Broader person-name *shape* test used only as a link endpoint.
+
+    Unlike ``is_person_like_name`` this accepts initials / abbreviated forms
+    (e.g. ``ІВАНЕНКО П. О.`` or ``ІВАНЕНКО П.``) that legitimately occur when a
+    second register names a person less fully. It is never used alone: such a
+    candidate may only be linked when paired with a *full* person name (the
+    anchor) inside the same company — see ``cmd_link_context``. It still rejects
+    non-person tokens: legal-form/place/institution keywords, digits, sentinel
+    "unknown person" names and single bare surnames (no given name -> cannot be
+    scored).
+    """
+    value = _APOS.sub("", (value or "")).upper()
+    toks = _TOKEN_RE.findall(value)
+    if len(toks) < 2 or len(toks) > 4:
+        return False
+    if any(t in _ORG_KEYWORDS for t in toks):
+        return False
+    if re.search(r"\d", value):
+        return False
+    if _APOS.sub("", (value or "")) in SENTINEL_NAMES or value in SENTINEL_NAMES:
+        return False
+    return True
+
+
 def _name_agreement(a: str, b: str) -> float | None:
     """Similarity of two single name tokens (surname/given/patronymic).
 
@@ -1035,6 +1060,159 @@ def cmd_link_coorg(args: argparse.Namespace) -> None:
         f"co-org: связей людей через общую компанию: {edges_added:,} "
         f"(групп>max_group пропущено: {skipped_groups:,}, людей в малых группах: {total_people:,})"
     )
+
+
+# ---------------------------------------------------------------- context resolve
+
+def cmd_link_context(args: argparse.Namespace) -> None:
+    """Suggest name↔name identities for the same person across registers.
+
+    Many person registers (wanted/missing, professionals) publish no РНОКПП, so
+    the same person shows up as separate ``name`` entities in different bases —
+    often under slightly different spellings (full name vs initials). We cannot
+    prove identity by name alone without risking deanonymization, so we only
+    suggest a link when *independent context* corroborates it:
+
+      * at least one side is a *full* person name (the anchor) and the other is a
+        compatible name form (full, or initials/abbreviated — a bare abbreviated
+        name alone is never enough to assert identity);
+      * the pair is name-compatible (exact surname + unambiguous given/patronymic,
+        see ``score_person_name``) above ``--min-score`` (default 0.95 covers
+        full↔full and full↔initials-with-patronymic);
+      * both names are attached to the SAME company (a shared ЄДРПОУ via any
+        founder/signer/works_at/linked role) — a real shared context, not just
+        a shared spelling;
+      * the two name entities were mentioned in DIFFERENT register datasets
+        (so this is a person crossing bases, not a duplicate within one file);
+      * the match is *unambiguous inside that company*: neither side has a
+        stronger alternative partner there (``_has_stronger_partner``).
+
+    The edge kind is ``identity`` with ``dataset='context_resolve'`` — it is a
+    *suggestion*, auditable and independently revocable:
+    ``DELETE FROM edges WHERE dataset='context_resolve'``. It never invents
+    identifiers and never reverses source anonymization (no_deanonymization).
+    """
+    store = Store(args.db)
+    db = store.db
+    args.dataset = getattr(args, "dataset", None) or "context_resolve"
+    args.max_group = getattr(args, "max_group", None) or 40
+    args.min_score = getattr(args, "min_score", None) if getattr(args, "min_score", None) is not None else 0.95
+
+    # 1) Split name-entities into *full* persons (anchors) and *candidates*
+    #    (initials/abbreviated forms). Only a full person name may anchor a
+    #    link; a shorter candidate alone is never enough to assert identity.
+    full: set[int] = set()
+    cand: set[int] = set()
+    for eid, disp, val in db.execute(
+            "SELECT entity_id, COALESCE(NULLIF(title,''), value), value FROM entities WHERE type='name'"):
+        shown = disp or val
+        if is_person_like_name(shown):
+            full.add(eid)
+            cand.add(eid)
+        elif is_name_candidate(shown):
+            cand.add(eid)
+
+    # 2) Company attachment: name-entity -> set of ЄДРПОУ companies (by type).
+    edrpou_type = dict(db.execute("SELECT entity_id, value FROM entities WHERE type='edrpou'"))
+    attach: dict[int, set[int]] = {}
+    for a, b in db.execute(
+            "SELECT a, b FROM edges WHERE kind IN "
+            "('founder','signer','beneficial_owner','linked','works_at')"):
+        comp = None
+        if a in edrpou_type:
+            comp = a
+        elif b in edrpou_type:
+            comp = b
+        if comp is None:
+            continue
+        person = b if a == comp else a
+        if person in cand:
+            attach.setdefault(person, set()).add(comp)
+
+    # 3) Register provenance per name-entity.
+    prov: dict[int, set[str]] = {}
+    for ent, ds in db.execute("SELECT entity_id, dataset FROM mentions"):
+        prov.setdefault(ent, set()).add(ds)
+
+    # 4) Index by company -> people (blocking), then pair only within a company.
+    by_company: dict[int, list[int]] = {}
+    for person, companies in attach.items():
+        for comp in companies:
+            by_company.setdefault(comp, []).append(person)
+
+    added = skipped_group = not_cross = ambiguous = vague = 0
+    for comp, people in by_company.items():
+        uniq = list(dict.fromkeys(people))
+        if len(uniq) < 2:
+            continue
+        if len(uniq) > args.max_group:
+            skipped_group += 1  # huge co-holder lists: too noisy to pair safely
+            continue
+        toks = {p: _name_tokens(_display(db, p)) for p in uniq}
+        for i in range(len(uniq)):
+            for j in range(i + 1, len(uniq)):
+                pi, pj = uniq[i], uniq[j]
+                # At least one side must be a *full* person name (the anchor):
+                # an abbreviated name alone is too weak to assert identity.
+                if pi not in full and pj not in full:
+                    vague += 1
+                    continue
+                # cross-register requirement: they must not come from the same
+                # single register (that would just be a duplicate spelling).
+                if not prov.get(pi) or not prov.get(pj):
+                    continue
+                if prov[pi] == prov[pj] and len(prov[pi]) == 1:
+                    not_cross += 1
+                    continue
+                s_ij = score_person_name(toks[pi], toks[pj])
+                s_ji = score_person_name(toks[pj], toks[pi])
+                best = max([x for x in (s_ij, s_ji) if x is not None] or [-1.0])
+                if best < args.min_score:
+                    continue
+                # unambiguous within this company: neither person has a stronger
+                # alternative partner here that would make this merge ambiguous.
+                if _has_stronger_partner(toks, pi, pj, best, args.min_score, uniq):
+                    ambiguous += 1
+                    continue
+                a, b = sorted((pi, pj))
+                db.execute(
+                    "INSERT INTO edges(a,b,kind,dataset,weight) VALUES(?,?,?,?,1) "
+                    "ON CONFLICT(a,b,kind,dataset) DO UPDATE SET weight=weight+1",
+                    (a, b, IDENTITY_EDGE, args.dataset))
+                added += 1
+    db.commit()
+    print(
+        f"context-resolve: связанных name↔name (общий ЄДРПОУ + разные реестры): {added:,} "
+        f"(нет полного-ФИО якоря: {vague:,}, не-крос-реестр: {not_cross:,}, "
+        f"неоднозначно: {ambiguous:,}, групп>max: {skipped_group:,})"
+    )
+
+
+def _has_stronger_partner(toks: dict, pi: int, pj: int, current: float,
+                          min_score: float, group: list[int]) -> bool:
+    """True if pi or pj has another partner in ``group`` scoring >= current.
+
+    Prevents a person who plausibly matches several others from being force-
+    merged into an identity. ``current`` is the score of the pi↔pj pair being
+    considered.
+    """
+    for pk in group:
+        if pk == pi or pk == pj:
+            continue
+        s = score_person_name(toks[pi], toks[pk])
+        if s is not None and s >= current:
+            return True
+        s = score_person_name(toks[pj], toks[pk])
+        if s is not None and s >= current:
+            return True
+    return False
+
+
+def _display(db: sqlite3.Connection, entity_id: int) -> str:
+    row = db.execute(
+        "SELECT COALESCE(NULLIF(title,''), value) FROM entities WHERE entity_id=?",
+        (entity_id,)).fetchone()
+    return row[0] if row else ""
 
 
 # ---------------------------------------------------------------- add-people
@@ -1289,6 +1467,18 @@ def main() -> None:
     coorg.add_argument("--dataset", default="co_org", help="имя датасета для рёбер (по умолчанию co_org)")
     coorg.add_argument("--max-group", type=int, default=40, help="максимум людей в группе компании для связывания (защита от шумных гигантских групп)")
     coorg.set_defaults(func=cmd_link_coorg)
+
+    lctx = sub.add_parser(
+        "link-context",
+        help="связать name↔name из разных реестров, если общий ЄДРПОУ подтверждает личность (консервативно)")
+    lctx.add_argument("--db", required=True)
+    lctx.add_argument("--dataset", default="context_resolve",
+                      help="имя датасета для рёбер (по умолчанию context_resolve; удаление: DELETE FROM edges WHERE dataset=?)")
+    lctx.add_argument("--max-group", type=int, default=40,
+                      help="максимум person-like людей в компании для связывания (защита от шумных гигантских групп)")
+    lctx.add_argument("--min-score", type=float, default=0.95,
+                      help="минимальный score_person_name для пары (0.95 = полное ФИО либо ФИО↔инициалы с отчеством; 1.0 = только полное совпадение)")
+    lctx.set_defaults(func=cmd_link_context)
 
     inspect_ = sub.add_parser("inspect", help="распознать колонки персон/идентификаторов в файле реестра")
     inspect_.add_argument("path", help="CSV/JSON/ZIP-XML файл")
