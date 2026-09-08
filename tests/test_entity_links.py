@@ -73,16 +73,12 @@ def _build_coorg_db():
     return store
 
 
-def test_coorg_links_people_sharing_company():
-    store = _build_coorg_db()
-    from types import SimpleNamespace
-    args = SimpleNamespace(db=":memory:", dataset="co_org", max_group=40)
-    # replace in-memory store db reference: re-run cmd against a Store over same file is not
-    # possible for ':memory:'; instead call logic by connecting cmd to a fresh Store is wrong.
-    # So directly assert we can build and that the edge function works via a real temp file.
-    import tempfile, os
-    # Use a file-backed store so cmd_link_coorg can re-open it.
-    store2 = Store(_tmp := tempfile.mktemp(suffix=".db"))
+def test_coorg_links_people_sharing_company(tmp_path):
+    from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
+    db = str(tmp_path / "links.db")
+    store2 = Store(db)
     ca = store2.entity("edrpou", "11111111", "Альфа")
     cb = store2.entity("edrpou", "22222222", "Бета")
     x = store2.entity("name", "ІВАНЕНКО ПЕТРО", "Іваненко Петро")
@@ -93,9 +89,7 @@ def test_coorg_links_people_sharing_company():
     store2.edge(z, ca, "signer", "edr")
     store2.edge(x, cb, "founder", "edr")
     store2.commit()
-    import scripts.entity_links as el
-    from types import SimpleNamespace as NS
-    el.cmd_link_coorg(NS(db=_tmp, dataset="co_org", max_group=40))
+    el.cmd_link_coorg(NS(db=db, dataset="co_org", max_group=40))
     rows = store2.db.execute("SELECT a,b,kind,weight FROM edges WHERE kind='co_org'").fetchall()
     # 3 people in group A -> 3 pairs; x also in B alone (no partner) -> stays 3.
     assert len(rows) == 3, rows
@@ -103,25 +97,23 @@ def test_coorg_links_people_sharing_company():
     for a, b, k, w in rows:
         assert w == 1
         assert k == "co_org"
-    os.remove(_tmp)
 
 
-def test_coorg_skips_oversized_group():
-    import tempfile, os
-    store = Store(_tmp := tempfile.mktemp(suffix=".db"))
+def test_coorg_skips_oversized_group(tmp_path):
+    from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
+    db = str(tmp_path / "links.db")
+    store = Store(db)
     comp = store.entity("edrpou", "99999999", "МегаТОВ")
-    people = []
     for i in range(10):
         nm = f"ОСОБА {i:02d} ІВАНІВНА"
-        people.append(store.entity("name", nm, nm))
-        store.edge(people[-1], comp, "founder", "edr")
+        person = store.entity("name", nm, nm)
+        store.edge(person, comp, "founder", "edr")
     store.commit()
-    import scripts.entity_links as el
-    from types import SimpleNamespace as NS
-    el.cmd_link_coorg(NS(db=_tmp, dataset="co_org", max_group=5))  # group(10) > 5 -> skip
+    el.cmd_link_coorg(NS(db=db, dataset="co_org", max_group=5))  # group(10) > 5 -> skip
     n = store.db.execute("SELECT COUNT(*) FROM edges WHERE kind='co_org'").fetchone()[0]
     assert n == 0
-    os.remove(_tmp)
 
 
 # ---- link-context: cross-register name↔name with a shared company as context ----
@@ -144,15 +136,16 @@ def _build_context_db(tmp_path):
 
 
 def test_link_context_links_full_to_initials_cross_register(tmp_path):
-    store, db, comp, full, init = _build_context_db(tmp_path)
-    import scripts.entity_links as el
+    store, db, _comp, full, init = _build_context_db(tmp_path)
     from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
     el.cmd_link_context(NS(db=db, dataset="context_resolve", max_group=40, min_score=0.95))
     rows = store.db.execute(
         "SELECT a,b,kind,dataset,weight FROM edges WHERE dataset='context_resolve'").fetchall()
     # exactly one identity edge between the two people, on the shared company
     assert len(rows) == 1, rows
-    a, b, kind, ds, w = rows[0]
+    a, b, kind, _ds, w = rows[0]
     assert kind == "identity"
     assert {a, b} == {full, init}
     assert w == 1
@@ -172,8 +165,9 @@ def test_link_context_skips_same_single_register(tmp_path):
     for e in (full, init):
         store.mention(e, "edr", "r", None)  # only edr
     store.commit()
-    import scripts.entity_links as el
     from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
     el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=40, min_score=0.95))
     assert store.db.execute(
         "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0
@@ -190,8 +184,9 @@ def test_link_context_requires_full_anchor(tmp_path):
     store.mention(a1, "edr", "r", None)
     store.mention(a2, "reg2", "r", None)
     store.commit()
-    import scripts.entity_links as el
     from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
     el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=40, min_score=0.95))
     assert store.db.execute(
         "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0
@@ -208,8 +203,9 @@ def test_link_context_skips_name_incompatible(tmp_path):
     store.mention(full, "edr", "r", None)
     store.mention(other, "reg2", "r", None)
     store.commit()
-    import scripts.entity_links as el
     from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
     el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=40, min_score=0.95))
     assert store.db.execute(
         "SELECT COUNT(*) FROM edges WHERE dataset='context_resolve'").fetchone()[0] == 0
@@ -231,8 +227,9 @@ def test_link_context_skips_oversized_group(tmp_path):
         store.edge(cand, comp, "founder", f"reg{i + 10}")
         store.mention(cand, f"reg{i + 10}", "r", None)
     store.commit()
-    import scripts.entity_links as el
     from types import SimpleNamespace as NS
+
+    import scripts.entity_links as el
     # 9 people in the company > max_group 5 -> whole company skipped (no links)
     el.cmd_link_context(NS(db=_db, dataset="context_resolve", max_group=5, min_score=0.95))
     assert store.db.execute(

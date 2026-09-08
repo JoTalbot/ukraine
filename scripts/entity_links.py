@@ -849,9 +849,8 @@ def is_name_candidate(value: str) -> bool:
         return False
     if re.search(r"\d", value):
         return False
-    if _APOS.sub("", (value or "")) in SENTINEL_NAMES or value in SENTINEL_NAMES:
-        return False
-    return True
+    # ``value`` is already normalized (apostrophes removed, uppercased) above.
+    return value not in SENTINEL_NAMES
 
 
 def _name_agreement(a: str, b: str) -> float | None:
@@ -1197,7 +1196,7 @@ def _has_stronger_partner(toks: dict, pi: int, pj: int, current: float,
     considered.
     """
     for pk in group:
-        if pk == pi or pk == pj:
+        if pk in (pi, pj):
             continue
         s = score_person_name(toks[pi], toks[pk])
         if s is not None and s >= current:
