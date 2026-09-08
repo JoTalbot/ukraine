@@ -976,6 +976,67 @@ def cmd_link_names(args: argparse.Namespace) -> None:
             print(f"   {s:.3f}  {disp[:60]}")
 
 
+# ---------------------------------------------------------------- co-org
+
+def cmd_link_coorg(args: argparse.Namespace) -> None:
+    """Add person-person edges for people who share the same company.
+
+    Existing edges already relate each founder/signer/beneficial_owner to their
+    company. This pass *closes the triangle*: two people who both relate to the
+    same company (as founders, signers, or a mix) become connected by a
+    ``co_org`` edge weighted by the number of shared companies. This surfaces
+    real-world business/personal ties that are otherwise only reachable through
+    the company node.
+
+    Conservative guards:
+      * only `name`-type people (natural persons) are linked;
+      * only *small* co-groups are linked (``--max-group``), because very large
+        shareholder lists (thousands of FOP-holders) produce noisy all-pairs
+        cliques and mostly reflect shell/spam registrations;
+      * idempotent: repeated runs only increment weights, never duplicate.
+    """
+    store = Store(args.db)
+
+    # Edge endpoints are stored as (min, max), so either column may hold the
+    # company id. Resolve each role-edge to its edrpou end by entity type.
+    edrpou_ids = {eid for eid, in store.db.execute("SELECT entity_id FROM entities WHERE type='edrpou'")}
+    comp_groups: dict[int, list[int]] = {}
+    for a, b, in store.db.execute(
+            "SELECT a, b FROM edges WHERE kind IN "
+            "('founder','signer','beneficial_owner','linked','works_at')"):
+        if a in edrpou_ids:
+            comp = a; person = b
+        elif b in edrpou_ids:
+            comp = b; person = a
+        else:
+            continue
+        if person == comp:
+            continue
+        comp_groups.setdefault(comp, []).append(person)
+
+    people_type = dict(store.db.execute("SELECT entity_id, type FROM entities"))
+    max_group = args.max_group
+    edges_added = skipped_groups = total_people = 0
+    for _comp, people in comp_groups.items():
+        # keep only natural persons, dedup within the group
+        uniq = list(dict.fromkeys(p for p in people if people_type.get(p) == "name"))
+        if len(uniq) < 2:
+            continue
+        total_people += len(uniq)
+        if len(uniq) > max_group:
+            skipped_groups += 1  # skip over-large groups (noise)
+            continue
+        for i in range(len(uniq)):
+            for j in range(i + 1, len(uniq)):
+                store.edge(uniq[i], uniq[j], "co_org", args.dataset)
+                edges_added += 1
+    store.commit()
+    print(
+        f"co-org: связей людей через общую компанию: {edges_added:,} "
+        f"(групп>max_group пропущено: {skipped_groups:,}, людей в малых группах: {total_people:,})"
+    )
+
+
 # ---------------------------------------------------------------- add-people
 
 def _load_edrpou_from_db(store: Store) -> dict[str, int]:
@@ -1222,6 +1283,12 @@ def main() -> None:
     lnk.add_argument("--min-score", type=float, default=0.95, help="порог уверенности (0..1), по умолчанию 0.95")
     lnk.add_argument("--limit", type=int, default=10, help="сколько примеров вывести (0 = не выводить)")
     lnk.set_defaults(func=cmd_link_names)
+
+    coorg = sub.add_parser("co-org", help="связать людей, делящих одну компанию (замкнуть founder/signer треугольники)")
+    coorg.add_argument("--db", required=True)
+    coorg.add_argument("--dataset", default="co_org", help="имя датасета для рёбер (по умолчанию co_org)")
+    coorg.add_argument("--max-group", type=int, default=40, help="максимум людей в группе компании для связывания (защита от шумных гигантских групп)")
+    coorg.set_defaults(func=cmd_link_coorg)
 
     inspect_ = sub.add_parser("inspect", help="распознать колонки персон/идентификаторов в файле реестра")
     inspect_.add_argument("path", help="CSV/JSON/ZIP-XML файл")

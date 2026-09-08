@@ -53,3 +53,72 @@ def test_resolve_entity_by_prefix():
     """)
     row = resolve_entity(db, "351976413199", None)  # ПДВ-номер → префикс 8
     assert row is not None and row[2] == "35197641"
+
+
+# ---- co-org: person-person edges through a shared company ----
+
+def _build_coorg_db():
+    """Company with 2 founders + 1 signer; another company sharing one founder."""
+    store = Store(":memory:")
+    comp_a = store.entity("edrpou", "11111111", "ТОВ «Альфа»")
+    comp_b = store.entity("edrpou", "22222222", "ТОВ «Бета»")
+    p1 = store.entity("name", "ІВАНЕНКО ПЕТРО ОЛЕКСІЙОВИЧ", "Іваненко Петро Олексійович")
+    p2 = store.entity("name", "ПЕТРЕНКО ОЛЕНА ВАСИЛІВНА", "Петренко Олена Василівна")
+    p3 = store.entity("name", "СИДОРЕНКО МАРІЯ ІВАНІВНА", "Сидоренко Марія Іванівна")
+    store.edge(p1, comp_a, "founder", "edr")
+    store.edge(p2, comp_a, "founder", "edr")
+    store.edge(p3, comp_a, "signer", "edr")   # same company, mixed role
+    store.edge(p1, comp_b, "founder", "edr")  # p1 shares B too -> extra weight
+    store.commit()
+    return store
+
+
+def test_coorg_links_people_sharing_company():
+    store = _build_coorg_db()
+    from types import SimpleNamespace
+    args = SimpleNamespace(db=":memory:", dataset="co_org", max_group=40)
+    # replace in-memory store db reference: re-run cmd against a Store over same file is not
+    # possible for ':memory:'; instead call logic by connecting cmd to a fresh Store is wrong.
+    # So directly assert we can build and that the edge function works via a real temp file.
+    import tempfile, os
+    # Use a file-backed store so cmd_link_coorg can re-open it.
+    store2 = Store(_tmp := tempfile.mktemp(suffix=".db"))
+    ca = store2.entity("edrpou", "11111111", "Альфа")
+    cb = store2.entity("edrpou", "22222222", "Бета")
+    x = store2.entity("name", "ІВАНЕНКО ПЕТРО", "Іваненко Петро")
+    y = store2.entity("name", "ПЕТРЕНКО ОЛЕНА", "Петренко Олена")
+    z = store2.entity("name", "СИДОРЕНКО МАРІЯ", "Сидоренко Марія")
+    store2.edge(x, ca, "founder", "edr")
+    store2.edge(y, ca, "founder", "edr")
+    store2.edge(z, ca, "signer", "edr")
+    store2.edge(x, cb, "founder", "edr")
+    store2.commit()
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    el.cmd_link_coorg(NS(db=_tmp, dataset="co_org", max_group=40))
+    rows = store2.db.execute("SELECT a,b,kind,weight FROM edges WHERE kind='co_org'").fetchall()
+    # 3 people in group A -> 3 pairs; x also in B alone (no partner) -> stays 3.
+    assert len(rows) == 3, rows
+    # weight of x-y should be 1 (only company A shared)
+    for a, b, k, w in rows:
+        assert w == 1
+        assert k == "co_org"
+    os.remove(_tmp)
+
+
+def test_coorg_skips_oversized_group():
+    import tempfile, os
+    store = Store(_tmp := tempfile.mktemp(suffix=".db"))
+    comp = store.entity("edrpou", "99999999", "МегаТОВ")
+    people = []
+    for i in range(10):
+        nm = f"ОСОБА {i:02d} ІВАНІВНА"
+        people.append(store.entity("name", nm, nm))
+        store.edge(people[-1], comp, "founder", "edr")
+    store.commit()
+    import scripts.entity_links as el
+    from types import SimpleNamespace as NS
+    el.cmd_link_coorg(NS(db=_tmp, dataset="co_org", max_group=5))  # group(10) > 5 -> skip
+    n = store.db.execute("SELECT COUNT(*) FROM edges WHERE kind='co_org'").fetchone()[0]
+    assert n == 0
+    os.remove(_tmp)
