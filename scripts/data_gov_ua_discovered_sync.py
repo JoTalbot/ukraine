@@ -5,6 +5,7 @@ import argparse, contextlib, hashlib, json, os, re, time
 from pathlib import Path
 import requests
 from huggingface_hub import HfApi
+from huggingface_hub.utils import EntryNotFoundError
 CHUNK=8*1024*1024; FETCH_ATTEMPTS=4; HEADERS={"User-Agent":"JoTalbot/ukraine-open-data-sync"}
 STRUCTURED={"CSV","TSV","JSON","JSONL","NDJSON","XML","XLS","XLSX","ODS","PARQUET","ZIP","7Z","GZ","GZIP"}
 
@@ -43,9 +44,13 @@ def same_resource(a,r):
 def load_manifest(hf,repo,offset):
     try:
         path=hf.hf_hub_download(repo_id=repo,filename=f"batch-manifests/discovered-manifest-{offset}.json",repo_type="dataset",local_dir=".manifest-cache")
-        return {x["source_url"]:x for x in json.loads(Path(path).read_text(encoding="utf-8"))}
-    except Exception as exc:
-        print(f"No prior manifest for batch offset {offset}: {exc}"); return {}
+    except EntryNotFoundError:
+        print(f"No prior manifest for batch offset {offset}: first incremental run for this batch")
+        return {}
+    data=json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data,list):
+        raise ValueError(f"Invalid prior manifest for batch offset {offset}: expected a JSON list")
+    return {x["source_url"]:x for x in data}
 
 def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--catalog",default="artifacts/discovery/data_gov_ua_catalog.json"); ap.add_argument("--max-dataset-files",type=int,default=0); ap.add_argument("--max-file-mb",type=int,default=0); ap.add_argument("--dataset-offset",type=int,default=0); ap.add_argument("--dataset-limit",type=int,default=250); ap.add_argument("--output",default="artifacts/discovered-open-data"); ap.add_argument("--incremental",action="store_true"); args=ap.parse_args()
