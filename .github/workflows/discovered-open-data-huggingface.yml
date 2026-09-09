@@ -11,6 +11,7 @@ on:
   push:
     paths:
       - 'scripts/data_gov_ua_discovered_sync.py'
+      - 'scripts/data_gov_ua_discovery.py'
       - '.github/workflows/discovered-open-data-huggingface.yml'
   schedule:
     - cron: '*/15 * * * *'
@@ -26,7 +27,6 @@ env:
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   HF_DATASET_REPO: JoTalbot/ua-open-data
   DISCOVERY_BATCH_SIZE: 50
-  DISCOVERY_BATCH_COUNT: 73
   PROGRESS_FILE: .github/state/discovered-open-data-progress.json
 
 jobs:
@@ -57,25 +57,30 @@ jobs:
         env:
           REQUESTED_BATCH: ${{ inputs.batch_index }}
           PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
-          BATCH_COUNT: ${{ env.DISCOVERY_BATCH_COUNT }}
           BATCH_SIZE: ${{ env.DISCOVERY_BATCH_SIZE }}
+          CATALOG_FILE: artifacts/discovery/data_gov_ua_catalog.json
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
           p = Path(os.environ['PROGRESS_FILE'])
+          catalog = json.loads(Path(os.environ['CATALOG_FILE']).read_text(encoding='utf-8'))
+          datasets = catalog.get('datasets', catalog) if isinstance(catalog, dict) else catalog
+          count = (len(datasets) + int(os.environ['BATCH_SIZE']) - 1) // int(os.environ['BATCH_SIZE'])
+          if count < 1:
+              raise SystemExit('Discovery catalog contains no datasets')
           requested = os.environ.get('REQUESTED_BATCH', '')
-          count = int(os.environ['BATCH_COUNT'])
-          size = int(os.environ['BATCH_SIZE'])
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
           if requested and requested != 'auto':
               batch = int(requested)
+              if batch < 0 or batch >= count:
+                  raise SystemExit(f'Invalid batch_index={batch}; catalog has {count} batches')
               skip = False
               mode = 'manual'
           elif state.get('bootstrap_complete'):
               print('Initial bootstrap already complete. Daily refresh workflow owns updates now.')
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-                  fh.write('skip=true\nmode=complete\nbatch=0\noffset=0\n')
+                  fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
               raise SystemExit(0)
           else:
               batch = int(state.get('next_batch', 0))
@@ -83,10 +88,10 @@ jobs:
                   batch = 0
               skip = False
               mode = 'bootstrap'
-          offset = batch * size
+          offset = batch * int(os.environ['BATCH_SIZE'])
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-              fh.write(f'skip={str(skip).lower()}\nmode={mode}\nbatch={batch}\noffset={offset}\n')
-          print(f'Selected {mode} dataset batch {batch}, offset {offset}, size {size}')
+              fh.write(f'skip={str(skip).lower()}\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
+          print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {os.environ["BATCH_SIZE"]}')
           PY
       - name: Mirror discovered datasets
         if: steps.batch.outputs.skip != 'true'
@@ -103,7 +108,7 @@ jobs:
           PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
           MODE: ${{ steps.batch.outputs.mode }}
           BATCH: ${{ steps.batch.outputs.batch }}
-          BATCH_COUNT: ${{ env.DISCOVERY_BATCH_COUNT }}
+          BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
         run: |
           mkdir -p "$(dirname "$PROGRESS_FILE")"
           python - <<'PY'
@@ -121,11 +126,13 @@ jobs:
                   state['bootstrap_complete'] = True
                   state['next_batch'] = count
                   state['completed_batches'] = count
+                  state['batch_count'] = count
                   print('Initial discovered-data bootstrap is complete; daily refresh takes over.')
               elif mode == 'bootstrap':
                   state['next_batch'] = nxt
                   state['bootstrap_complete'] = False
                   state['completed_batches'] = nxt
+                  state['batch_count'] = count
           state['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
           p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
