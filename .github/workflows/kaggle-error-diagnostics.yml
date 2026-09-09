@@ -8,9 +8,11 @@ on:
 permissions:
   contents: write
 
+# This is a polling/diagnostics workflow. Never queue an obsolete poll behind
+# another poll: the next tick should always inspect the current Kaggle state.
 concurrency:
   group: kaggle-failure-diagnostics
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   diagnose:
