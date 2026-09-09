@@ -2,6 +2,12 @@ name: Discovered Ukraine Open Data -> Hugging Face
 
 on:
   workflow_dispatch:
+    inputs:
+      batch_index:
+        description: 'Dataset batch index (0-based, 50 datasets per batch)'
+        required: false
+        default: 'auto'
+        type: string
   schedule:
     - cron: '0 5 * * *'
 
@@ -15,11 +21,13 @@ concurrency:
 env:
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   HF_DATASET_REPO: JoTalbot/ua-open-data
+  DISCOVERY_BATCH_SIZE: 50
+  DISCOVERY_BATCH_COUNT: 73
 
 jobs:
   mirror:
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 330
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -39,8 +47,32 @@ jobs:
           PY
       - name: Discover datasets
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
+      - name: Select mirror batch
+        id: batch
+        env:
+          REQUESTED_BATCH: ${{ inputs.batch_index }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          if [ -n "$REQUESTED_BATCH" ] && [ "$REQUESTED_BATCH" != "auto" ]; then
+            batch="$REQUESTED_BATCH"
+          else
+            batch=$(( (RUN_NUMBER - 1) % DISCOVERY_BATCH_COUNT ))
+          fi
+          case "$batch" in
+            ''|*[!0-9]*) echo "Invalid batch index: $batch"; exit 1 ;;
+          esac
+          offset=$(( batch * DISCOVERY_BATCH_SIZE ))
+          echo "batch=$batch" >> "$GITHUB_OUTPUT"
+          echo "offset=$offset" >> "$GITHUB_OUTPUT"
+          echo "Selected discovered-data batch $batch, offset $offset, size $DISCOVERY_BATCH_SIZE"
       - name: Mirror discovered datasets
-        run: python scripts/data_gov_ua_discovered_sync.py --catalog artifacts/discovery/data_gov_ua_catalog.json --max-dataset-files 0 --max-file-mb 0
+        run: |
+          python scripts/data_gov_ua_discovered_sync.py \
+            --catalog artifacts/discovery/data_gov_ua_catalog.json \
+            --dataset-offset "${{ steps.batch.outputs.offset }}" \
+            --dataset-limit "$DISCOVERY_BATCH_SIZE" \
+            --max-dataset-files 0 \
+            --max-file-mb 0
       - name: Write publication status signal
         if: ${{ always() }}
         env:
