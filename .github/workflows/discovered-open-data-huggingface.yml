@@ -13,10 +13,10 @@ on:
       - 'scripts/data_gov_ua_discovered_sync.py'
       - '.github/workflows/discovered-open-data-huggingface.yml'
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '*/15 * * * *'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ukraine-discovered-open-data
@@ -27,6 +27,7 @@ env:
   HF_DATASET_REPO: JoTalbot/ua-open-data
   DISCOVERY_BATCH_SIZE: 50
   DISCOVERY_BATCH_COUNT: 73
+  PROGRESS_FILE: .github/state/discovered-open-data-progress.json
 
 jobs:
   mirror:
@@ -51,25 +52,54 @@ jobs:
           PY
       - name: Discover datasets
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
-      - name: Select mirror batch
+      - name: Select next mirror batch
         id: batch
         env:
           REQUESTED_BATCH: ${{ inputs.batch_index }}
+          PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
+          BATCH_COUNT: ${{ env.DISCOVERY_BATCH_COUNT }}
           RUN_NUMBER: ${{ github.run_number }}
         run: |
-          if [ -n "$REQUESTED_BATCH" ] && [ "$REQUESTED_BATCH" != "auto" ]; then
-            batch="$REQUESTED_BATCH"
-          else
-            batch=$(( (RUN_NUMBER - 1) % DISCOVERY_BATCH_COUNT ))
-          fi
-          case "$batch" in
-            ''|*[!0-9]*) echo "Invalid batch index: $batch"; exit 1 ;;
-          esac
-          offset=$(( batch * DISCOVERY_BATCH_SIZE ))
-          echo "batch=$batch" >> "$GITHUB_OUTPUT"
-          echo "offset=$offset" >> "$GITHUB_OUTPUT"
-          echo "Selected discovered-data batch $batch, offset $offset, size $DISCOVERY_BATCH_SIZE"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['PROGRESS_FILE'])
+          requested = os.environ.get('REQUESTED_BATCH', '')
+          count = int(os.environ['BATCH_COUNT'])
+          state = {}
+          if p.exists():
+              state = json.loads(p.read_text(encoding='utf-8'))
+          completed = bool(state.get('bootstrap_complete'))
+          last_daily = state.get('last_daily_run', 0)
+          run_number = int(os.environ['RUN_NUMBER'])
+          if requested and requested != 'auto':
+              batch = int(requested)
+              mode = 'manual'
+          elif completed:
+              # Bootstrap is complete: only perform the normal daily refresh.
+              # The 15-minute schedule remains as a cheap gate so new runs do
+              # not require editing the workflow schedule.
+              if run_number - int(last_daily) < 96:
+                  print('Bootstrap complete and daily refresh is not due yet; exiting cleanly.')
+                  Path('artifacts/discovery/skip-mirror').parent.mkdir(parents=True, exist_ok=True)
+                  Path('artifacts/discovery/skip-mirror').write_text('daily refresh not due\n', encoding='utf-8')
+                  with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+                      fh.write('skip=true\n')
+                      fh.write('batch=0\n')
+                      fh.write('offset=0\n')
+                  raise SystemExit(0)
+              batch = 0
+              mode = 'daily'
+          else:
+              batch = int(state.get('next_batch', 0)) % count
+              mode = 'bootstrap'
+          offset = batch * int(os.environ.get('DISCOVERY_BATCH_SIZE', '50'))
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\n')
+          print(f'Selected {mode} dataset batch {batch}, offset {offset}')
+          PY
       - name: Mirror discovered datasets
+        if: steps.batch.outputs.skip != 'true'
         run: |
           python scripts/data_gov_ua_discovered_sync.py \
             --catalog artifacts/discovery/data_gov_ua_catalog.json \
@@ -77,6 +107,51 @@ jobs:
             --dataset-limit "$DISCOVERY_BATCH_SIZE" \
             --max-dataset-files 0 \
             --max-file-mb 0
+      - name: Persist mirror progress
+        if: steps.batch.outputs.skip != 'true'
+        env:
+          PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
+          MODE: ${{ steps.batch.outputs.mode }}
+          BATCH: ${{ steps.batch.outputs.batch }}
+          BATCH_COUNT: ${{ env.DISCOVERY_BATCH_COUNT }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          mkdir -p "$(dirname "$PROGRESS_FILE")"
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          p = Path(os.environ['PROGRESS_FILE'])
+          state = {}
+          if p.exists():
+              state = json.loads(p.read_text(encoding='utf-8'))
+          mode = os.environ['MODE']
+          batch = int(os.environ['BATCH'])
+          count = int(os.environ['BATCH_COUNT'])
+          run = int(os.environ['RUN_NUMBER'])
+          if mode == 'bootstrap':
+              nxt = batch + 1
+              if nxt >= count:
+                  state['bootstrap_complete'] = True
+                  state['next_batch'] = count
+                  state['last_bootstrap_run'] = run
+                  state['completed_batches'] = count
+                  print('Initial discovered-data bootstrap is complete.')
+              else:
+                  state['next_batch'] = nxt
+                  state['bootstrap_complete'] = False
+                  state['completed_batches'] = nxt
+          elif mode == 'daily':
+              state['bootstrap_complete'] = True
+              state['last_daily_run'] = run
+              state['last_daily_batch'] = batch
+          state['updated_at_utc'] = __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()
+          p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$PROGRESS_FILE"
+          git diff --cached --quiet || git commit -m "chore(data): persist discovered open-data progress"
+          git push
       - name: Write publication status signal
         if: ${{ always() }}
         env:
