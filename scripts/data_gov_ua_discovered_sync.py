@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Mirror discovered data.gov.ua datasets to Hugging Face.
 
-Downloads every discovered structured resource without artificial file-count or
-size limits. The runner timeout and Hugging Face storage limits still apply.
+Processes a bounded dataset batch so the scheduled mirror can make steady
+progress without hitting the GitHub Actions job timeout. Dataset batches are
+selected by offset/limit; resources inside a selected dataset are mirrored
+without artificial file-count or size limits.
 """
 from __future__ import annotations
 
@@ -39,8 +41,13 @@ def download_with_retries(url: str, dest: Path) -> int:
                             total += len(chunk)
                             f.write(chunk)
             return total
-        except (requests.ConnectionError, requests.Timeout, requests.ChunkedEncodingError, requests.HTTPError) as exc:
-            dest.unlink(missing_ok=True)  # never leave a truncated file behind
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+            requests.exceptions.HTTPError,
+        ) as exc:
+            dest.unlink(missing_ok=True)
             if attempt == FETCH_ATTEMPTS:
                 raise
             wait = min(2 ** attempt, 30)
@@ -66,17 +73,30 @@ def main() -> None:
     ap.add_argument("--catalog", default="artifacts/discovery/data_gov_ua_catalog.json")
     ap.add_argument("--max-dataset-files", type=int, default=0, help="0 = unlimited")
     ap.add_argument("--max-file-mb", type=int, default=0, help="0 = unlimited")
+    ap.add_argument("--dataset-offset", type=int, default=0, help="0-based dataset offset")
+    ap.add_argument("--dataset-limit", type=int, default=250, help="datasets per run; 0 = unlimited")
     ap.add_argument("--output", default="artifacts/discovered-open-data")
     args = ap.parse_args()
+    if args.dataset_offset < 0 or args.dataset_limit < 0:
+        raise SystemExit("dataset offset/limit must be >= 0")
     token = os.environ.get("HF_TOKEN")
     repo = os.environ.get("HF_DATASET_REPO", "JoTalbot/ua-open-data")
-    if not token: raise SystemExit("HF_TOKEN secret is missing")
+    if not token:
+        raise SystemExit("HF_TOKEN secret is missing")
     data = json.loads(Path(args.catalog).read_text(encoding="utf-8"))
+    all_datasets = data.get("datasets", [])
+    if args.dataset_limit > 0:
+        datasets = all_datasets[args.dataset_offset:args.dataset_offset + args.dataset_limit]
+    else:
+        datasets = all_datasets[args.dataset_offset:]
+    print(f"Selected dataset batch: offset={args.dataset_offset}, limit={args.dataset_limit}, count={len(datasets)}, catalog_total={len(all_datasets)}")
+
     hf = HfApi(token=token)
     hf.create_repo(repo_id=repo, repo_type="dataset", exist_ok=True, private=False)
-    root = Path(args.output); root.mkdir(parents=True, exist_ok=True)
+    root = Path(args.output)
+    root.mkdir(parents=True, exist_ok=True)
     decisions = []
-    for ds in data.get("datasets", []):
+    for ds in datasets:
         ds_id = safe(ds.get("id") or ds.get("name"))
         resources = [r for r in ds.get("resources", []) if r.get("url") and r.get("format", "").upper() in STRUCTURED]
         if args.max_dataset_files > 0:
@@ -87,16 +107,18 @@ def main() -> None:
             dest = None
             try:
                 name = safe(r.get("name") or Path(url.split("?")[0]).name or f"resource-{i}")
-                if "." not in name: name += "." + r.get("format", "bin").lower()
-                dest = root / ds_id / name; dest.parent.mkdir(parents=True, exist_ok=True)
+                if "." not in name:
+                    name += "." + r.get("format", "bin").lower()
+                dest = root / ds_id / name
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 total = download_with_retries(url, dest)
                 sha = file_sha256(dest)
                 target = f"discovered/{ds_id}/{name}"
                 hf.upload_file(path_or_fileobj=str(dest), path_in_repo=target, repo_id=repo, repo_type="dataset")
-                entry["files"].append({"path":target,"sha256":sha,"bytes":total,"format":r.get("format")})
+                entry["files"].append({"path": target, "sha256": sha, "bytes": total, "format": r.get("format")})
                 print(f"Uploaded {target} ({total} bytes)")
             except Exception as exc:
-                entry["skipped"].append({"url":url,"reason":str(exc)})
+                entry["skipped"].append({"url": url, "reason": str(exc)})
                 print(f"Resource failed, continuing: {url}: {exc}")
             finally:
                 if dest is not None:
@@ -105,7 +127,9 @@ def main() -> None:
         decisions.append(entry)
     manifest = root / "discovered-manifest.json"
     manifest.write_text(json.dumps(decisions, ensure_ascii=False, indent=2), encoding="utf-8")
-    hf.upload_file(path_or_fileobj=str(manifest), path_in_repo="discovered-manifest.json", repo_id=repo, repo_type="dataset")
+    hf.upload_file(path_or_fileobj=str(manifest), path_in_repo=f"batch-manifests/discovered-manifest-{args.dataset_offset}.json", repo_id=repo, repo_type="dataset")
     print(f"Processed {len(decisions)} discovered datasets")
 
-if __name__ == "__main__": main()
+
+if __name__ == "__main__":
+    main()
