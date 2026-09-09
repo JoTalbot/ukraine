@@ -47,11 +47,12 @@ jobs:
           PY
       - name: Discover datasets
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
-      - name: Mirror daily batch
+      - name: Mirror daily batch incrementally
         run: |
           python scripts/data_gov_ua_discovered_sync.py \
             --catalog artifacts/discovery/data_gov_ua_catalog.json \
             --dataset-offset "$(( ${{ matrix.batch }} * DISCOVERY_BATCH_SIZE ))" \
             --dataset-limit "$DISCOVERY_BATCH_SIZE" \
+            --incremental \
             --max-dataset-files 0 \
             --max-file-mb 0
