@@ -1,0 +1,57 @@
+name: Discovered Ukraine Open Data -> Hugging Face Daily Refresh
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 4 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ukraine-discovered-open-data-daily
+  cancel-in-progress: false
+
+env:
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  HF_DATASET_REPO: JoTalbot/ua-open-data
+  DISCOVERY_BATCH_SIZE: 50
+  DISCOVERY_BATCH_COUNT: 73
+
+jobs:
+  mirror:
+    name: Refresh batch ${{ matrix.batch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        batch: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72]
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip requests huggingface_hub
+      - name: Verify Hugging Face authentication
+        run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing'; exit 1; }
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api=HfApi(token=os.environ['HF_TOKEN'])
+          print('Hugging Face authentication OK:', api.whoami().get('name'))
+          api.create_repo(repo_id=os.environ['HF_DATASET_REPO'], repo_type='dataset', exist_ok=True, private=False)
+          PY
+      - name: Discover datasets
+        run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
+      - name: Mirror daily batch
+        run: |
+          python scripts/data_gov_ua_discovered_sync.py \
+            --catalog artifacts/discovery/data_gov_ua_catalog.json \
+            --dataset-offset "$(( ${{ matrix.batch }} * DISCOVERY_BATCH_SIZE ))" \
+            --dataset-limit "$DISCOVERY_BATCH_SIZE" \
+            --max-dataset-files 0 \
+            --max-file-mb 0
