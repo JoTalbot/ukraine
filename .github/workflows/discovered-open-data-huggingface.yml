@@ -52,13 +52,13 @@ jobs:
           PY
       - name: Discover datasets
         run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
-      - name: Select next mirror batch
+      - name: Select next bootstrap batch
         id: batch
         env:
           REQUESTED_BATCH: ${{ inputs.batch_index }}
           PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
           BATCH_COUNT: ${{ env.DISCOVERY_BATCH_COUNT }}
-          RUN_NUMBER: ${{ github.run_number }}
+          BATCH_SIZE: ${{ env.DISCOVERY_BATCH_SIZE }}
         run: |
           python - <<'PY'
           import json, os
@@ -66,37 +66,27 @@ jobs:
           p = Path(os.environ['PROGRESS_FILE'])
           requested = os.environ.get('REQUESTED_BATCH', '')
           count = int(os.environ['BATCH_COUNT'])
-          state = {}
-          if p.exists():
-              state = json.loads(p.read_text(encoding='utf-8'))
-          completed = bool(state.get('bootstrap_complete'))
-          last_daily = state.get('last_daily_run', 0)
-          run_number = int(os.environ['RUN_NUMBER'])
+          size = int(os.environ['BATCH_SIZE'])
+          state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
           if requested and requested != 'auto':
               batch = int(requested)
+              skip = False
               mode = 'manual'
-          elif completed:
-              # Bootstrap is complete: only perform the normal daily refresh.
-              # The 15-minute schedule remains as a cheap gate so new runs do
-              # not require editing the workflow schedule.
-              if run_number - int(last_daily) < 96:
-                  print('Bootstrap complete and daily refresh is not due yet; exiting cleanly.')
-                  Path('artifacts/discovery/skip-mirror').parent.mkdir(parents=True, exist_ok=True)
-                  Path('artifacts/discovery/skip-mirror').write_text('daily refresh not due\n', encoding='utf-8')
-                  with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-                      fh.write('skip=true\n')
-                      fh.write('batch=0\n')
-                      fh.write('offset=0\n')
-                  raise SystemExit(0)
-              batch = 0
-              mode = 'daily'
+          elif state.get('bootstrap_complete'):
+              print('Initial bootstrap already complete. Daily refresh workflow owns updates now.')
+              with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+                  fh.write('skip=true\nmode=complete\nbatch=0\noffset=0\n')
+              raise SystemExit(0)
           else:
-              batch = int(state.get('next_batch', 0)) % count
+              batch = int(state.get('next_batch', 0))
+              if batch >= count:
+                  batch = 0
+              skip = False
               mode = 'bootstrap'
-          offset = batch * int(os.environ.get('DISCOVERY_BATCH_SIZE', '50'))
+          offset = batch * size
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-              fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\n')
-          print(f'Selected {mode} dataset batch {batch}, offset {offset}')
+              fh.write(f'skip={str(skip).lower()}\nmode={mode}\nbatch={batch}\noffset={offset}\n')
+          print(f'Selected {mode} dataset batch {batch}, offset {offset}, size {size}')
           PY
       - name: Mirror discovered datasets
         if: steps.batch.outputs.skip != 'true'
@@ -107,44 +97,36 @@ jobs:
             --dataset-limit "$DISCOVERY_BATCH_SIZE" \
             --max-dataset-files 0 \
             --max-file-mb 0
-      - name: Persist mirror progress
+      - name: Persist bootstrap progress
         if: steps.batch.outputs.skip != 'true'
         env:
           PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
           MODE: ${{ steps.batch.outputs.mode }}
           BATCH: ${{ steps.batch.outputs.batch }}
           BATCH_COUNT: ${{ env.DISCOVERY_BATCH_COUNT }}
-          RUN_NUMBER: ${{ github.run_number }}
         run: |
           mkdir -p "$(dirname "$PROGRESS_FILE")"
           python - <<'PY'
           import json, os
+          from datetime import datetime, timezone
           from pathlib import Path
           p = Path(os.environ['PROGRESS_FILE'])
-          state = {}
-          if p.exists():
-              state = json.loads(p.read_text(encoding='utf-8'))
+          state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
           mode = os.environ['MODE']
           batch = int(os.environ['BATCH'])
           count = int(os.environ['BATCH_COUNT'])
-          run = int(os.environ['RUN_NUMBER'])
-          if mode == 'bootstrap':
+          if mode in ('bootstrap', 'manual'):
               nxt = batch + 1
-              if nxt >= count:
+              if mode == 'bootstrap' and nxt >= count:
                   state['bootstrap_complete'] = True
                   state['next_batch'] = count
-                  state['last_bootstrap_run'] = run
                   state['completed_batches'] = count
-                  print('Initial discovered-data bootstrap is complete.')
-              else:
+                  print('Initial discovered-data bootstrap is complete; daily refresh takes over.')
+              elif mode == 'bootstrap':
                   state['next_batch'] = nxt
                   state['bootstrap_complete'] = False
                   state['completed_batches'] = nxt
-          elif mode == 'daily':
-              state['bootstrap_complete'] = True
-              state['last_daily_run'] = run
-              state['last_daily_batch'] = batch
-          state['updated_at_utc'] = __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat()
+          state['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
           p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           PY
           git config user.name 'github-actions[bot]'
@@ -162,7 +144,7 @@ jobs:
         run: |
           state=red
           if [ "$JOB_STATUS" = "success" ]; then state=green; fi
-          detail="discovered open-data mirror completed with job status: $JOB_STATUS"
+          detail="discovered open-data bootstrap completed with job status: $JOB_STATUS"
           python scripts/write_status_signal.py \
             --signal publication --state "$state" --detail "$detail" \
             --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
