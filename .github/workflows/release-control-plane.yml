@@ -13,7 +13,6 @@ on:
       - EDRSR Hugging Face Upload
       - EDRSR Full Texts
       - Pages Dashboard
-      - Kaggle Kernel Results
       - Security scan
     types: [completed]
   workflow_dispatch:
@@ -49,7 +48,7 @@ jobs:
             "Ukraine data CI") echo 'SIGNAL=quality' >> "$GITHUB_ENV" ;;
             "Ukraine Open Data Discovery") echo 'SIGNAL=ingestion' >> "$GITHUB_ENV" ;;
             "Train Ukraine Models"|"Kaggle GPU Training") echo 'SIGNAL=training' >> "$GITHUB_ENV" ;;
-            "Ukraine Open Data -> Hugging Face"|"Discovered Ukraine Open Data -> Hugging Face"|"EDRSR Hugging Face Upload"|"EDRSR Full Texts"|"Pages Dashboard"|"Kaggle Kernel Results") echo 'SIGNAL=publication' >> "$GITHUB_ENV" ;;
+            "Ukraine Open Data -> Hugging Face"|"Discovered Ukraine Open Data -> Hugging Face"|"EDRSR Hugging Face Upload"|"EDRSR Full Texts"|"Pages Dashboard") echo 'SIGNAL=publication' >> "$GITHUB_ENV" ;;
             "Security scan") echo 'SIGNAL=security' >> "$GITHUB_ENV" ;;
             *) echo "Unsupported workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
           esac
