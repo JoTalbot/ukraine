@@ -9,9 +9,11 @@ permissions:
   contents: write
   issues: write  # создание issue при регрессии модели (quality gate)
 
+# This is a polling workflow. A 40-minute timeout with a 15-minute cadence
+# must not allow obsolete polls to queue behind newer polls.
 concurrency:
   group: kaggle-kernel-results
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   collect:
