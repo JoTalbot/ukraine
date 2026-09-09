@@ -8,6 +8,10 @@ on:
         required: false
         default: 'auto'
         type: string
+  push:
+    paths:
+      - 'scripts/data_gov_ua_discovered_sync.py'
+      - '.github/workflows/discovered-open-data-huggingface.yml'
   schedule:
     - cron: '0 5 * * *'
 
