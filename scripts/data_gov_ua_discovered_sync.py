@@ -1,13 +1,6 @@
 #!/usr/bin/env python3
-"""Mirror discovered data.gov.ua datasets to Hugging Face.
-
-Processes a bounded dataset batch so the scheduled mirror can make steady
-progress without hitting the GitHub Actions job timeout. Dataset batches are
-selected by offset/limit; resources inside a selected dataset are mirrored
-without artificial file-count or size limits.
-"""
+"""Mirror discovered data.gov.ua datasets to Hugging Face."""
 from __future__ import annotations
-
 import argparse
 import contextlib
 import hashlib
@@ -16,7 +9,6 @@ import os
 import re
 import time
 from pathlib import Path
-
 import requests
 from huggingface_hub import HfApi
 
@@ -25,9 +17,7 @@ FETCH_ATTEMPTS = 4
 HEADERS = {"User-Agent": "JoTalbot/ukraine-open-data-sync"}
 STRUCTURED = {"CSV", "TSV", "JSON", "JSONL", "NDJSON", "XML", "XLS", "XLSX", "ODS", "PARQUET", "ZIP", "7Z", "GZ", "GZIP"}
 
-
 def download_with_retries(url: str, dest: Path) -> int:
-    """Stream a resource with retries on transient failures and 5xx replies."""
     for attempt in range(1, FETCH_ATTEMPTS + 1):
         try:
             with requests.get(url, stream=True, timeout=600, headers=HEADERS) as resp:
@@ -41,12 +31,8 @@ def download_with_retries(url: str, dest: Path) -> int:
                             total += len(chunk)
                             f.write(chunk)
             return total
-        except (
-            requests.exceptions.ConnectionError,
-            requests.exceptions.Timeout,
-            requests.exceptions.ChunkedEncodingError,
-            requests.exceptions.HTTPError,
-        ) as exc:
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+                requests.exceptions.ChunkedEncodingError, requests.exceptions.HTTPError) as exc:
             dest.unlink(missing_ok=True)
             if attempt == FETCH_ATTEMPTS:
                 raise
@@ -55,10 +41,8 @@ def download_with_retries(url: str, dest: Path) -> int:
             time.sleep(wait)
     raise RuntimeError("unreachable")
 
-
 def safe(s: str) -> str:
     return (re.sub(r"[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ._-]+", "_", s or "resource")[:180] or "resource")
-
 
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -67,14 +51,13 @@ def file_sha256(path: Path) -> str:
             digest.update(chunk)
     return digest.hexdigest()
 
-
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--catalog", default="artifacts/discovery/data_gov_ua_catalog.json")
-    ap.add_argument("--max-dataset-files", type=int, default=0, help="0 = unlimited")
-    ap.add_argument("--max-file-mb", type=int, default=0, help="0 = unlimited")
-    ap.add_argument("--dataset-offset", type=int, default=0, help="0-based dataset offset")
-    ap.add_argument("--dataset-limit", type=int, default=250, help="datasets per run; 0 = unlimited")
+    ap.add_argument("--max-dataset-files", type=int, default=0)
+    ap.add_argument("--max-file-mb", type=int, default=0)
+    ap.add_argument("--dataset-offset", type=int, default=0)
+    ap.add_argument("--dataset-limit", type=int, default=250)
     ap.add_argument("--output", default="artifacts/discovered-open-data")
     args = ap.parse_args()
     if args.dataset_offset < 0 or args.dataset_limit < 0:
@@ -85,26 +68,21 @@ def main() -> None:
         raise SystemExit("HF_TOKEN secret is missing")
     data = json.loads(Path(args.catalog).read_text(encoding="utf-8"))
     all_datasets = data.get("datasets", [])
-    if args.dataset_limit > 0:
-        datasets = all_datasets[args.dataset_offset:args.dataset_offset + args.dataset_limit]
-    else:
-        datasets = all_datasets[args.dataset_offset:]
+    datasets = all_datasets[args.dataset_offset:args.dataset_offset + args.dataset_limit] if args.dataset_limit else all_datasets[args.dataset_offset:]
     print(f"Selected dataset batch: offset={args.dataset_offset}, limit={args.dataset_limit}, count={len(datasets)}, catalog_total={len(all_datasets)}")
-
     hf = HfApi(token=token)
     hf.create_repo(repo_id=repo, repo_type="dataset", exist_ok=True, private=False)
     root = Path(args.output)
     root.mkdir(parents=True, exist_ok=True)
-    decisions = []
+    decisions, failures = [], []
     for ds in datasets:
         ds_id = safe(ds.get("id") or ds.get("name"))
         resources = [r for r in ds.get("resources", []) if r.get("url") and r.get("format", "").upper() in STRUCTURED]
         if args.max_dataset_files > 0:
             resources = resources[:args.max_dataset_files]
-        entry = {"id": ds_id, "name": ds.get("name"), "source_url": ds.get("url"), "modified": ds.get("modified"), "files": [], "skipped": []}
+        entry = {"id": ds_id, "name": ds.get("name"), "source_url": ds.get("url"), "modified": ds.get("modified"), "files": [], "failed": []}
         for i, r in enumerate(resources):
-            url = r["url"]
-            dest = None
+            url, dest = r["url"], None
             try:
                 name = safe(r.get("name") or Path(url.split("?")[0]).name or f"resource-{i}")
                 if "." not in name:
@@ -112,24 +90,28 @@ def main() -> None:
                 dest = root / ds_id / name
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 total = download_with_retries(url, dest)
+                if args.max_file_mb > 0 and total > args.max_file_mb * 1024 * 1024:
+                    raise RuntimeError(f"resource exceeds --max-file-mb: {total} bytes")
                 sha = file_sha256(dest)
                 target = f"discovered/{ds_id}/{name}"
                 hf.upload_file(path_or_fileobj=str(dest), path_in_repo=target, repo_id=repo, repo_type="dataset")
                 entry["files"].append({"path": target, "sha256": sha, "bytes": total, "format": r.get("format")})
                 print(f"Uploaded {target} ({total} bytes)")
             except Exception as exc:
-                entry["skipped"].append({"url": url, "reason": str(exc)})
-                print(f"Resource failed, continuing: {url}: {exc}")
+                failure = {"url": url, "reason": str(exc)}
+                entry["failed"].append(failure)
+                failures.append({"dataset": ds_id, **failure})
+                print(f"Resource failed: {url}: {exc}")
             finally:
                 if dest is not None:
-                    with contextlib.suppress(Exception):
-                        dest.unlink(missing_ok=True)
+                    with contextlib.suppress(Exception): dest.unlink(missing_ok=True)
         decisions.append(entry)
     manifest = root / "discovered-manifest.json"
     manifest.write_text(json.dumps(decisions, ensure_ascii=False, indent=2), encoding="utf-8")
     hf.upload_file(path_or_fileobj=str(manifest), path_in_repo=f"batch-manifests/discovered-manifest-{args.dataset_offset}.json", repo_id=repo, repo_type="dataset")
-    print(f"Processed {len(decisions)} discovered datasets")
-
+    print(f"Processed {len(decisions)} discovered datasets; resource failures={len(failures)}")
+    if failures:
+        raise SystemExit(f"Batch incomplete: {len(failures)} resource(s) failed; progress must not advance")
 
 if __name__ == "__main__":
     main()
