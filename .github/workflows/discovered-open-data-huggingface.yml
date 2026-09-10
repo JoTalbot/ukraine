@@ -21,7 +21,7 @@ permissions:
 
 concurrency:
   group: ukraine-discovered-open-data
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
@@ -32,7 +32,7 @@ env:
 jobs:
   mirror:
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -96,12 +96,13 @@ jobs:
       - name: Mirror discovered datasets
         if: steps.batch.outputs.skip != 'true'
         run: |
-          python scripts/data_gov_ua_discovered_sync.py \
-            --catalog artifacts/discovery/data_gov_ua_catalog.json \
-            --dataset-offset "${{ steps.batch.outputs.offset }}" \
-            --dataset-limit "$DISCOVERY_BATCH_SIZE" \
-            --max-dataset-files 0 \
-            --max-file-mb 0
+          timeout --signal=TERM --kill-after=60s 150m \
+            python scripts/data_gov_ua_discovered_sync.py \
+              --catalog artifacts/discovery/data_gov_ua_catalog.json \
+              --dataset-offset "${{ steps.batch.outputs.offset }}" \
+              --dataset-limit "$DISCOVERY_BATCH_SIZE" \
+              --max-dataset-files 0 \
+              --max-file-mb 0
       - name: Persist bootstrap progress
         if: steps.batch.outputs.skip != 'true'
         env:
