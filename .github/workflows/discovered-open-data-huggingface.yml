@@ -92,8 +92,17 @@ jobs:
                   batch = failed[0]
                   mode = 'retry'
               else:
-                  batch = 0
-                  mode = 'bootstrap'
+                  print('All bootstrap batches are complete and no failed batches remain; marking bootstrap complete.')
+                  state['next_batch'] = count
+                  state['completed_batches'] = count
+                  state['batch_count'] = count
+                  state['failed_batches'] = []
+                  state['bootstrap_complete'] = True
+                  p.parent.mkdir(parents=True, exist_ok=True)
+                  p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+                  with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+                      fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
+                  raise SystemExit(0)
           offset = batch * size
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
               fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
@@ -178,7 +187,15 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add "$PROGRESS_FILE"
           git diff --cached --quiet || git commit -m "chore(data): persist discovered open-data progress"
-          git push
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "git push failed on attempt $attempt; rebasing onto origin/main before retry"
+            git pull --rebase origin main
+          done
+          echo 'Unable to persist bootstrap progress after 3 push attempts.'
+          exit 1
       - name: Write publication status signal
         if: ${{ always() }}
         env:
