@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from scripts.generate_status_index import build_status_index
@@ -12,7 +13,7 @@ def write_manifest(status: Path, commit: str = "abc123") -> None:
                 "release_class": "repository",
                 "git_commit": commit,
                 "git_branch": "main",
-                "generated_at_utc": "2026-09-03T00:00:00Z",
+                "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "python": "3.12.0",
                 "files": [{"path": "README.md", "sha256": "0" * 64, "bytes": 5}],
             }
@@ -60,7 +61,7 @@ def test_status_index_consumes_matching_producer_signal(tmp_path: Path) -> None:
             "state": "green",
             "detail": "graph build completed",
             "git_commit": "abc123",
-            "generated_at_utc": "2026-09-03T00:00:00Z",
+            "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "artifact": "graph_stats.json",
         }),
         encoding="utf-8",
@@ -84,7 +85,7 @@ def test_status_index_rejects_signal_from_different_release(tmp_path: Path) -> N
             "state": "green",
             "detail": "training completed",
             "git_commit": "different-release",
-            "generated_at_utc": "2026-09-03T00:00:00Z",
+            "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         }),
         encoding="utf-8",
     )
