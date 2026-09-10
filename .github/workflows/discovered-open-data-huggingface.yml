@@ -81,15 +81,12 @@ jobs:
 
           if progress.get('bootstrap_complete'):
               print('Bootstrap already complete')
-              print(f"::set-output name=skip::true")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
+                  fh.write('skip=true\n')
               raise SystemExit(0)
 
           requested = os.environ.get('BATCH_INDEX', 'auto')
-          if requested != 'auto':
-              index = int(requested)
-          else:
-              index = int(progress.get('next_batch', 0))
-
+          index = int(requested) if requested != 'auto' else int(progress.get('next_batch', 0))
           if index >= batch_count:
               index = max(0, batch_count - 1)
 
