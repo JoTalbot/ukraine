@@ -66,16 +66,17 @@ jobs:
           p = Path(os.environ['PROGRESS_FILE'])
           catalog = json.loads(Path(os.environ['CATALOG_FILE']).read_text(encoding='utf-8'))
           datasets = catalog.get('datasets', catalog) if isinstance(catalog, dict) else catalog
-          count = (len(datasets) + int(os.environ['BATCH_SIZE']) - 1) // int(os.environ['BATCH_SIZE'])
+          size = int(os.environ['BATCH_SIZE'])
+          count = (len(datasets) + size - 1) // size
           if count < 1:
               raise SystemExit('Discovery catalog contains no datasets')
           requested = os.environ.get('REQUESTED_BATCH', '')
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
+          failed = [int(x) for x in state.get('failed_batches', [])]
           if requested and requested != 'auto':
               batch = int(requested)
               if batch < 0 or batch >= count:
                   raise SystemExit(f'Invalid batch_index={batch}; catalog has {count} batches')
-              skip = False
               mode = 'manual'
           elif state.get('bootstrap_complete'):
               print('Initial bootstrap already complete. Daily refresh workflow owns updates now.')
@@ -83,18 +84,25 @@ jobs:
                   fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
               raise SystemExit(0)
           else:
-              batch = int(state.get('next_batch', 0))
-              if batch >= count:
+              next_batch = int(state.get('next_batch', 0))
+              if next_batch < count:
+                  batch = next_batch
+                  mode = 'bootstrap'
+              elif failed:
+                  batch = failed[0]
+                  mode = 'retry'
+              else:
                   batch = 0
-              skip = False
-              mode = 'bootstrap'
-          offset = batch * int(os.environ['BATCH_SIZE'])
+                  mode = 'bootstrap'
+          offset = batch * size
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-              fh.write(f'skip={str(skip).lower()}\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
-          print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {os.environ["BATCH_SIZE"]}')
+              fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
+          print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {size}')
           PY
       - name: Mirror discovered datasets
+        id: mirror
         if: steps.batch.outputs.skip != 'true'
+        continue-on-error: true
         run: |
           timeout --signal=TERM --kill-after=60s 150m \
             python scripts/data_gov_ua_discovered_sync.py \
@@ -103,7 +111,8 @@ jobs:
               --dataset-limit "$DISCOVERY_BATCH_SIZE" \
               --max-dataset-files 0 \
               --max-file-mb 0 \
-              --incremental
+              --incremental \
+              --allow-failures
       - name: Persist bootstrap progress
         if: steps.batch.outputs.skip != 'true'
         env:
@@ -111,6 +120,7 @@ jobs:
           MODE: ${{ steps.batch.outputs.mode }}
           BATCH: ${{ steps.batch.outputs.batch }}
           BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
+          MIRROR_OUTCOME: ${{ steps.mirror.outcome }}
         run: |
           mkdir -p "$(dirname "$PROGRESS_FILE")"
           python - <<'PY'
@@ -122,21 +132,23 @@ jobs:
           mode = os.environ['MODE']
           batch = int(os.environ['BATCH'])
           count = int(os.environ['BATCH_COUNT'])
-          if mode in ('bootstrap', 'manual'):
-              nxt = batch + 1
-              if mode == 'bootstrap' and nxt >= count:
-                  state['bootstrap_complete'] = True
-                  state['next_batch'] = count
-                  state['completed_batches'] = count
-                  state['batch_count'] = count
-                  print('Initial discovered-data bootstrap is complete; daily refresh takes over.')
-              elif mode == 'bootstrap':
-                  state['next_batch'] = nxt
-                  state['bootstrap_complete'] = False
-                  state['completed_batches'] = nxt
-                  state['batch_count'] = count
+          failed = {int(x) for x in state.get('failed_batches', [])}
+          outcome = os.environ['MIRROR_OUTCOME']
+          if outcome == 'success':
+              failed.discard(batch)
+          else:
+              failed.add(batch)
+          if mode == 'bootstrap':
+              state['next_batch'] = batch + 1
+          elif mode == 'retry':
+              state['next_batch'] = count
+          state['failed_batches'] = sorted(failed)
+          state['completed_batches'] = min(int(state.get('next_batch', 0)), count)
+          state['batch_count'] = count
+          state['bootstrap_complete'] = state['completed_batches'] >= count and not failed
           state['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
           p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(state, ensure_ascii=False, indent=2))
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
