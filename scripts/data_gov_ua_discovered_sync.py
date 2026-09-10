@@ -104,6 +104,7 @@ def main():
     ap.add_argument("--dataset-limit", type=int, default=250)
     ap.add_argument("--output", default="artifacts/discovered-open-data")
     ap.add_argument("--incremental", action="store_true")
+    ap.add_argument("--allow-failures", action="store_true", help="record resource failures but exit successfully")
     args = ap.parse_args()
     if args.dataset_offset < 0 or args.dataset_limit < 0:
         raise SystemExit("dataset offset/limit must be >= 0")
@@ -186,8 +187,10 @@ def main():
         repo_type="dataset",
     )
     print(f"Processed {len(decisions)} discovered datasets; resource failures={len(failures)}")
-    if failures:
+    if failures and not args.allow_failures:
         raise SystemExit(f"Batch incomplete: {len(failures)} resource(s) failed; progress must not advance")
+    if failures:
+        print(f"Batch recorded with {len(failures)} failed resource(s); caller may schedule a retry pass")
 
 
 if __name__ == "__main__":
