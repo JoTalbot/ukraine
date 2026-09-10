@@ -4,16 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       batch_index:
-        description: "Bootstrap batch index (0-based), or auto"
+        description: 'Dataset batch index (0-based, 50 datasets per batch)'
         required: false
-        default: "auto"
+        default: 'auto'
+        type: string
   push:
     paths:
-      - "scripts/data_gov_ua_discovered_sync.py"
-      - "scripts/data_gov_ua_discovery.py"
-      - ".github/workflows/discovered-open-data-huggingface.yml"
+      - 'scripts/data_gov_ua_discovered_sync.py'
+      - 'scripts/data_gov_ua_discovery.py'
+      - '.github/workflows/discovered-open-data-huggingface.yml'
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: '*/15 * * * *'
 
 permissions:
   contents: write
@@ -30,118 +31,138 @@ env:
 
 jobs:
   mirror:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
-          python-version: "3.12"
+          python-version: '3.12'
       - name: Install dependencies
         run: python -m pip install --upgrade pip requests huggingface_hub
       - name: Verify Hugging Face authentication
         run: |
+          test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing'; exit 1; }
           python - <<'PY'
           import os
           from huggingface_hub import HfApi
-          token = os.environ.get("HF_TOKEN")
-          if not token:
-              raise SystemExit("HF_TOKEN is not configured")
-          api = HfApi(token=token)
-          api.whoami()
-          api.create_repo(os.environ["HF_DATASET_REPO"], repo_type="dataset", exist_ok=True)
-          print("Hugging Face authentication OK")
+          api=HfApi(token=os.environ['HF_TOKEN'])
+          print('Hugging Face authentication OK:', api.whoami().get('name'))
+          api.create_repo(repo_id=os.environ['HF_DATASET_REPO'], repo_type='dataset', exist_ok=True, private=False)
           PY
       - name: Discover datasets
-        run: |
-          mkdir -p .github/state
-          python scripts/data_gov_ua_discovery.py --output .github/state/discovered-open-data-catalog.json --limit 0
+        run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
       - name: Select next bootstrap batch
         id: batch
-        shell: bash
-        run: |
-          python - <<'PY'
-          import json, os
-          from pathlib import Path
-          catalog = json.loads(Path('.github/state/discovered-open-data-catalog.json').read_text())
-          datasets = catalog.get('datasets', catalog if isinstance(catalog, list) else [])
-          size = int(os.environ['DISCOVERY_BATCH_SIZE'])
-          batch_count = max(1, (len(datasets) + size - 1) // size)
-          progress_path = Path(os.environ['PROGRESS_FILE'])
-          progress = json.loads(progress_path.read_text()) if progress_path.exists() else {}
-          if progress.get('bootstrap_complete'):
-              print('Bootstrap already complete')
-              with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-                  fh.write('skip=true\n')
-              raise SystemExit(0)
-          requested = os.environ.get('BATCH_INDEX', 'auto')
-          index = int(requested) if requested != 'auto' else int(progress.get('next_batch', 0))
-          if index >= batch_count:
-              index = max(0, batch_count - 1)
-          print(f"Datasets: {len(datasets)}")
-          print(f"Batch size: {size}")
-          print(f"Batch count: {batch_count}")
-          print(f"Selected batch: {index}")
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
-              fh.write(f"index={index}\n")
-              fh.write(f"batch_count={batch_count}\n")
-              fh.write("skip=false\n")
-          PY
         env:
-          BATCH_INDEX: ${{ inputs.batch_index || 'auto' }}
-      - name: Mirror discovered datasets
-        if: steps.batch.outputs.skip != 'true'
-        shell: bash
-        run: |
-          set -o pipefail
-          OFFSET=$(( ${{ steps.batch.outputs.index }} * DISCOVERY_BATCH_SIZE ))
-          timeout --signal=TERM --kill-after=60s 150m \
-            python scripts/data_gov_ua_discovered_sync.py \
-              --catalog .github/state/discovered-open-data-catalog.json \
-              --offset "$OFFSET" \
-              --limit "$DISCOVERY_BATCH_SIZE" \
-              --max-dataset-files 0 \
-              --max-file-mb 0 \
-              --incremental
-      - name: Persist bootstrap progress
-        if: success() && steps.batch.outputs.skip != 'true'
-        shell: bash
+          REQUESTED_BATCH: ${{ inputs.batch_index }}
+          PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
+          BATCH_SIZE: ${{ env.DISCOVERY_BATCH_SIZE }}
+          CATALOG_FILE: artifacts/discovery/data_gov_ua_catalog.json
         run: |
           python - <<'PY'
           import json, os
           from pathlib import Path
           p = Path(os.environ['PROGRESS_FILE'])
-          progress = json.loads(p.read_text()) if p.exists() else {}
-          index = int(os.environ['BATCH_INDEX'])
-          batch_count = int(os.environ['BATCH_COUNT'])
-          next_batch = index + 1
-          progress.update({
-              'version': 1,
-              'batch_size': int(os.environ['DISCOVERY_BATCH_SIZE']),
-              'batch_count': batch_count,
-              'last_completed_batch': index,
-              'next_batch': next_batch,
-              'bootstrap_complete': next_batch >= batch_count,
-          })
-          p.parent.mkdir(parents=True, exist_ok=True)
-          p.write_text(json.dumps(progress, ensure_ascii=False, indent=2) + '\n')
-          print(json.dumps(progress, ensure_ascii=False, indent=2))
+          catalog = json.loads(Path(os.environ['CATALOG_FILE']).read_text(encoding='utf-8'))
+          datasets = catalog.get('datasets', catalog) if isinstance(catalog, dict) else catalog
+          count = (len(datasets) + int(os.environ['BATCH_SIZE']) - 1) // int(os.environ['BATCH_SIZE'])
+          if count < 1:
+              raise SystemExit('Discovery catalog contains no datasets')
+          requested = os.environ.get('REQUESTED_BATCH', '')
+          state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
+          if requested and requested != 'auto':
+              batch = int(requested)
+              if batch < 0 or batch >= count:
+                  raise SystemExit(f'Invalid batch_index={batch}; catalog has {count} batches')
+              skip = False
+              mode = 'manual'
+          elif state.get('bootstrap_complete'):
+              print('Initial bootstrap already complete. Daily refresh workflow owns updates now.')
+              with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+                  fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
+              raise SystemExit(0)
+          else:
+              batch = int(state.get('next_batch', 0))
+              if batch >= count:
+                  batch = 0
+              skip = False
+              mode = 'bootstrap'
+          offset = batch * int(os.environ['BATCH_SIZE'])
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
+              fh.write(f'skip={str(skip).lower()}\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
+          print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {os.environ["BATCH_SIZE"]}')
           PY
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$PROGRESS_FILE"
-          git diff --cached --quiet || git commit -m "chore(data): persist discovered bootstrap progress"
-          git push
+      - name: Mirror discovered datasets
+        if: steps.batch.outputs.skip != 'true'
+        run: |
+          timeout --signal=TERM --kill-after=60s 150m \
+            python scripts/data_gov_ua_discovered_sync.py \
+              --catalog artifacts/discovery/data_gov_ua_catalog.json \
+              --dataset-offset "${{ steps.batch.outputs.offset }}" \
+              --dataset-limit "$DISCOVERY_BATCH_SIZE" \
+              --max-dataset-files 0 \
+              --max-file-mb 0 \
+              --incremental
+      - name: Persist bootstrap progress
+        if: steps.batch.outputs.skip != 'true'
         env:
-          BATCH_INDEX: ${{ steps.batch.outputs.index }}
+          PROGRESS_FILE: ${{ env.PROGRESS_FILE }}
+          MODE: ${{ steps.batch.outputs.mode }}
+          BATCH: ${{ steps.batch.outputs.batch }}
           BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
+        run: |
+          mkdir -p "$(dirname "$PROGRESS_FILE")"
+          python - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          p = Path(os.environ['PROGRESS_FILE'])
+          state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
+          mode = os.environ['MODE']
+          batch = int(os.environ['BATCH'])
+          count = int(os.environ['BATCH_COUNT'])
+          if mode in ('bootstrap', 'manual'):
+              nxt = batch + 1
+              if mode == 'bootstrap' and nxt >= count:
+                  state['bootstrap_complete'] = True
+                  state['next_batch'] = count
+                  state['completed_batches'] = count
+                  state['batch_count'] = count
+                  print('Initial discovered-data bootstrap is complete; daily refresh takes over.')
+              elif mode == 'bootstrap':
+                  state['next_batch'] = nxt
+                  state['bootstrap_complete'] = False
+                  state['completed_batches'] = nxt
+                  state['batch_count'] = count
+          state['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
+          p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add "$PROGRESS_FILE"
+          git diff --cached --quiet || git commit -m "chore(data): persist discovered open-data progress"
+          git push
       - name: Write publication status signal
-        if: always()
-        run: python scripts/write_status_signal.py --stage publication --status "${{ job.status }}" --run-id "${{ github.run_id }}" --output status-signal-publication.json
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="discovered open-data bootstrap completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py \
+            --signal publication --state "$state" --detail "$detail" \
+            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
+            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/discovery/data_gov_ua_catalog.json
       - name: Upload publication status signal
-        if: always()
-        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: status-signal-publication
-          path: status-signal-publication.json
+          path: artifacts/status/signals/publication.json
           if-no-files-found: error
+          retention-days: 30
