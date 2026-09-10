@@ -6,13 +6,16 @@ from pathlib import Path
 import requests
 from huggingface_hub import HfApi
 from huggingface_hub.utils import EntryNotFoundError
-CHUNK=8*1024*1024; FETCH_ATTEMPTS=4; HEADERS={"User-Agent":"JoTalbot/ukraine-open-data-sync"}
+CHUNK=8*1024*1024
+FETCH_ATTEMPTS=int(os.environ.get("DATA_GOV_FETCH_ATTEMPTS","3"))
+REQUEST_TIMEOUT=(30,60)
+HEADERS={"User-Agent":"JoTalbot/ukraine-open-data-sync"}
 STRUCTURED={"CSV","TSV","JSON","JSONL","NDJSON","XML","XLS","XLSX","ODS","PARQUET","ZIP","7Z","GZ","GZIP"}
 
 def download_with_retries(url,dest):
     for attempt in range(1,FETCH_ATTEMPTS+1):
         try:
-            with requests.get(url,stream=True,timeout=600,headers=HEADERS) as resp:
+            with requests.get(url,stream=True,timeout=REQUEST_TIMEOUT,headers=HEADERS) as resp:
                 if resp.status_code>=500: raise requests.HTTPError(f"server replied {resp.status_code}",response=resp)
                 resp.raise_for_status(); total=0
                 with dest.open("wb") as f:
