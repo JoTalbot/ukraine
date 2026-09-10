@@ -107,11 +107,12 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
+          OFFSET=$(( ${{ steps.batch.outputs.index }} * DISCOVERY_BATCH_SIZE ))
           timeout --signal=TERM --kill-after=60s 150m \
             python scripts/data_gov_ua_discovered_sync.py \
               --catalog .github/state/discovered-open-data-catalog.json \
-              --offset $(( ${{ steps.batch.outputs.index }} * DISCOVERY_BATCH_SIZE )) \
-              --limit $DISCOVERY_BATCH_SIZE \
+              --offset "$OFFSET" \
+              --limit "$DISCOVERY_BATCH_SIZE" \
               --max-dataset-files 0 \
               --max-file-mb 0 \
               --incremental
