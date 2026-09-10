@@ -34,14 +34,11 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Install dependencies
         run: python -m pip install --upgrade pip requests huggingface_hub
-
       - name: Verify Hugging Face authentication
         run: |
           python - <<'PY'
@@ -55,12 +52,10 @@ jobs:
           api.create_repo(os.environ["HF_DATASET_REPO"], repo_type="dataset", exist_ok=True)
           print("Hugging Face authentication OK")
           PY
-
       - name: Discover datasets
         run: |
           mkdir -p .github/state
           python scripts/data_gov_ua_discovery.py --output .github/state/discovered-open-data-catalog.json --limit 0
-
       - name: Select next bootstrap batch
         id: batch
         shell: bash
@@ -68,28 +63,21 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-
           catalog = json.loads(Path('.github/state/discovered-open-data-catalog.json').read_text())
           datasets = catalog.get('datasets', catalog if isinstance(catalog, list) else [])
           size = int(os.environ['DISCOVERY_BATCH_SIZE'])
           batch_count = max(1, (len(datasets) + size - 1) // size)
-
           progress_path = Path(os.environ['PROGRESS_FILE'])
-          progress = {}
-          if progress_path.exists():
-              progress = json.loads(progress_path.read_text())
-
+          progress = json.loads(progress_path.read_text()) if progress_path.exists() else {}
           if progress.get('bootstrap_complete'):
               print('Bootstrap already complete')
               with open(os.environ['GITHUB_OUTPUT'], 'a') as fh:
                   fh.write('skip=true\n')
               raise SystemExit(0)
-
           requested = os.environ.get('BATCH_INDEX', 'auto')
           index = int(requested) if requested != 'auto' else int(progress.get('next_batch', 0))
           if index >= batch_count:
               index = max(0, batch_count - 1)
-
           print(f"Datasets: {len(datasets)}")
           print(f"Batch size: {size}")
           print(f"Batch count: {batch_count}")
@@ -101,7 +89,6 @@ jobs:
           PY
         env:
           BATCH_INDEX: ${{ inputs.batch_index || 'auto' }}
-
       - name: Mirror discovered datasets
         if: steps.batch.outputs.skip != 'true'
         shell: bash
@@ -116,7 +103,6 @@ jobs:
               --max-dataset-files 0 \
               --max-file-mb 0 \
               --incremental
-
       - name: Persist bootstrap progress
         if: success() && steps.batch.outputs.skip != 'true'
         shell: bash
@@ -124,12 +110,8 @@ jobs:
           python - <<'PY'
           import json, os
           from pathlib import Path
-
           p = Path(os.environ['PROGRESS_FILE'])
-          progress = {}
-          if p.exists():
-              progress = json.loads(p.read_text())
-
+          progress = json.loads(p.read_text()) if p.exists() else {}
           index = int(os.environ['BATCH_INDEX'])
           batch_count = int(os.environ['BATCH_COUNT'])
           next_batch = index + 1
@@ -153,11 +135,9 @@ jobs:
         env:
           BATCH_INDEX: ${{ steps.batch.outputs.index }}
           BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
-
       - name: Write publication status signal
         if: always()
         run: python scripts/write_status_signal.py --stage publication --status "${{ job.status }}" --run-id "${{ github.run_id }}" --output status-signal-publication.json
-
       - name: Upload publication status signal
         if: always()
         uses: actions/upload-artifact@v4
