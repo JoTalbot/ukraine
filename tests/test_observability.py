@@ -13,6 +13,7 @@ PRODUCER_SIGNAL_CONTRACT = {
 }
 
 SUPPORT_WORKFLOWS = {
+    ".github/workflows/discovered-open-data-daily.yml",
     ".github/workflows/failure-alerts.yml",
     ".github/workflows/kaggle-error-diagnostics.yml",
     ".github/workflows/kaggle-results-trigger.yml",
