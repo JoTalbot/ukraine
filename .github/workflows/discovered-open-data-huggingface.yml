@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       batch_index:
-        description: 'Dataset batch index (0-based, 50 datasets per batch)'
+        description: 'Dataset batch index (0-based, 10 datasets per batch)'
         required: false
         default: 'auto'
         type: string
@@ -26,7 +26,7 @@ concurrency:
 env:
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   HF_DATASET_REPO: JoTalbot/ua-open-data
-  DISCOVERY_BATCH_SIZE: 50
+  DISCOVERY_BATCH_SIZE: 10
   PROGRESS_FILE: .github/state/discovered-open-data-progress.json
 
 jobs:
