@@ -16,7 +16,7 @@ def write_manifest(path: Path, commit: str = "a" * 40) -> None:
 
 
 def write_signal(path: Path, **overrides: object) -> None:
-    payload = {"schema_version": 1, "signal": "graph", "state": "green", "detail": "graph gate passed", "source_commit": "a" * 40, "workflow_name": "Entity graph", "workflow_run_id": 123, "generated_at_utc": "2026-09-03T10:00:00Z"}
+    payload = {"schema_version": 1, "signal": "graph", "state": "green", "detail": "graph gate passed", "source_commit": "a" * 40, "workflow_name": "Entity graph", "workflow_run_id": 123, "generated_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     payload.update(overrides)
     path.write_text(json.dumps(payload), encoding="utf-8")
 
