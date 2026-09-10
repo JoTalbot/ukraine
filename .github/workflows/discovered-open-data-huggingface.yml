@@ -113,6 +113,31 @@ jobs:
               --max-file-mb 0 \
               --incremental \
               --allow-failures
+      - name: Assess batch result
+        id: assess
+        if: steps.batch.outputs.skip != 'true'
+        run: |
+          failed=0
+          if [ ! -f artifacts/discovered-open-data/discovered-manifest.json ]; then
+            echo 'Batch manifest missing, treating batch as failed.'
+            failed=1
+          else
+            failed="$(python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('artifacts/discovered-open-data/discovered-manifest.json').read_text(encoding='utf-8'))
+          print(sum(len(x.get('failed', [])) for x in data if isinstance(x, dict)))
+          PY
+          )"
+          fi
+          echo "failed=$failed"
+          if [ "$failed" -gt 0 ]; then
+            echo 'Batch contains failed resources; it will be retried after the initial catalog pass.'
+            echo 'has_failures=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'Batch has no failed resources.'
+            echo 'has_failures=false' >> "$GITHUB_OUTPUT"
+          fi
       - name: Persist bootstrap progress
         if: steps.batch.outputs.skip != 'true'
         env:
@@ -120,7 +145,7 @@ jobs:
           MODE: ${{ steps.batch.outputs.mode }}
           BATCH: ${{ steps.batch.outputs.batch }}
           BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
-          MIRROR_OUTCOME: ${{ steps.mirror.outcome }}
+          HAS_FAILURES: ${{ steps.assess.outputs.has_failures }}
         run: |
           mkdir -p "$(dirname "$PROGRESS_FILE")"
           python - <<'PY'
@@ -133,13 +158,12 @@ jobs:
           batch = int(os.environ['BATCH'])
           count = int(os.environ['BATCH_COUNT'])
           failed = {int(x) for x in state.get('failed_batches', [])}
-          outcome = os.environ['MIRROR_OUTCOME']
-          if outcome == 'success':
-              failed.discard(batch)
-          else:
+          if os.environ['HAS_FAILURES'] == 'true':
               failed.add(batch)
+          else:
+              failed.discard(batch)
           if mode == 'bootstrap':
-              state['next_batch'] = batch + 1
+              state['next_batch'] = max(int(state.get('next_batch', 0)), batch + 1)
           elif mode == 'retry':
               state['next_batch'] = count
           state['failed_batches'] = sorted(failed)
