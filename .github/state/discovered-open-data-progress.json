@@ -1,13 +1,14 @@
 {
-  "next_batch": 4,
+  "next_batch": 5,
   "failed_batches": [
     0,
     1,
     2,
-    3
+    3,
+    4
   ],
-  "completed_batches": 4,
+  "completed_batches": 5,
   "batch_count": 361,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-11T10:17:44.889119+00:00"
+  "updated_at_utc": "2026-09-11T14:26:30.409303+00:00"
 }
