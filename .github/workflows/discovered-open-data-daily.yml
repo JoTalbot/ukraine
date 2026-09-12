@@ -24,7 +24,7 @@ jobs:
     outputs:
       complete: ${{ steps.check.outputs.complete }}
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Read bootstrap progress
         id: check
         run: |
@@ -60,7 +60,7 @@ jobs:
     outputs:
       batches: ${{ steps.matrix.outputs.batches }}
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: '3.12'
@@ -106,7 +106,7 @@ jobs:
       matrix:
         batch: ${{ fromJSON(needs.discover.outputs.batches) }}
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: discovered-open-data-catalog
