@@ -1,5 +1,5 @@
 {
-  "next_batch": 14,
+  "next_batch": 15,
   "failed_batches": [
     0,
     1,
@@ -14,10 +14,11 @@
     10,
     11,
     12,
-    13
+    13,
+    14
   ],
-  "completed_batches": 14,
+  "completed_batches": 15,
   "batch_count": 360,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-12T23:52:31.580213+00:00"
+  "updated_at_utc": "2026-09-13T01:41:45.469430+00:00"
 }
