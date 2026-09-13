@@ -1,5 +1,6 @@
 name: Kaggle GPU Training
 
+# Operational retrigger marker: keep the FT recovery path exercised after notebook fixes.
 on:
   schedule:
     - cron: '45 5 * * 1,4'
