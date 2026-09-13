@@ -18,6 +18,7 @@ on:
     branches: [main]
     paths:
       - 'training/**'
+      - 'training/kaggle/**'
       - 'scripts/train_lm.py'
       - 'scripts/build_lm_corpus.py'
       - 'scripts/patch_kaggle_notebooks.py'
