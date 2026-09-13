@@ -12,7 +12,8 @@ INSTALL_MARKERS = {
 
 FT_INSTALL = (
     "import subprocess\n"
-    "subprocess.run(['pip', 'uninstall', '-y', 'torchvision'], check=True)\n"
+    "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)\n"
+    "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchvision==0.20.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
     "subprocess.run(['pip', '-q', 'install', 'tokenizers', 'pyarrow', 'striprtf', "
     "'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
 )
@@ -25,7 +26,7 @@ def _lines(text: str) -> list[str]:
 def _ensure_ft_dependencies(text: str, marker: str, name: str) -> str:
     if name != "legal_lm_finetune.ipynb" or marker not in text:
         return text
-    if "transformers==4.57.1" in text and "peft==0.17.1" in text and "uninstall -y torchvision" in text:
+    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1":
         return text
     return text.replace(marker, FT_INSTALL, 1)
 
@@ -42,14 +43,16 @@ def _ensure_torchvision_removed(text: str, marker: str) -> str:
 
 def _ensure_hf_publish_is_nonfatal(text: str) -> str:
     """Do not turn a successful Kaggle training run into KernelWorkerStatus.ERROR."""
-    marker = "# Публикация в HF Hub (если в Kaggle добавлен секрет HF_TOKEN)\n"
+    marker = "if token and os.path.isdir('model-ft/final'):\n"
     if marker not in text or "HF publication failure is non-fatal" in text:
         return text
+    prefix, publish = text.split(marker, 1)
     wrapped = [
         "# HF publication failure is non-fatal: GitHub performs the authoritative publication.\n",
         "try:\n",
+        marker,
     ]
-    for line in text.splitlines(keepends=True):
+    for line in publish.splitlines(keepends=True):
         wrapped.append("    " + line)
     wrapped.extend([
         "except Exception as exc:\n",
@@ -57,7 +60,7 @@ def _ensure_hf_publish_is_nonfatal(text: str) -> str:
         "    Path('model-ft/hf-publish-error.txt').write_text(str(exc), encoding='utf-8')\n",
         "    print('HF publication skipped after error:', repr(exc))\n",
     ])
-    return "".join(wrapped)
+    return prefix + "".join(wrapped)
 
 
 def patch_notebook(path: Path) -> bool:
