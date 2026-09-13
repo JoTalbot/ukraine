@@ -129,3 +129,5 @@ if __name__ == "__main__":
         if path.is_file():
             patch_notebook(path)
             print("patched", path)
+
+# Trigger Kaggle training after patch changes are committed.
