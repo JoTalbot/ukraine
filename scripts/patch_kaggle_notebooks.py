@@ -10,11 +10,6 @@ INSTALL_MARKERS = {
     "legal_lm_finetune.ipynb": "!pip -q install tokenizers pyarrow peft striprtf\n",
 }
 
-# Kaggle's preinstalled transformers/peft stack can drift independently.  The
-# FT notebook imports PEFT before training, so keep a known-compatible pair and
-# remove torchvision, which can break transformers' lazy vision imports on the
-# Kaggle torch build.  Use subprocess with check=True because an IPython `!pip`
-# failure can otherwise leave the cell running with the broken package intact.
 FT_INSTALL = (
     "import subprocess\n"
     "subprocess.run(['pip', 'uninstall', '-y', 'torchvision'], check=True)\n"
@@ -43,6 +38,26 @@ def _ensure_torchvision_removed(text: str, marker: str) -> str:
         return text
     replacement = "!pip -q uninstall -y torchvision\n" + marker
     return text.replace(marker, replacement, 1)
+
+
+def _ensure_hf_publish_is_nonfatal(text: str) -> str:
+    """Do not turn a successful Kaggle training run into KernelWorkerStatus.ERROR."""
+    marker = "# Публикация в HF Hub (если в Kaggle добавлен секрет HF_TOKEN)\n"
+    if marker not in text or "HF publication failure is non-fatal" in text:
+        return text
+    wrapped = [
+        "# HF publication failure is non-fatal: GitHub performs the authoritative publication.\n",
+        "try:\n",
+    ]
+    for line in text.splitlines(keepends=True):
+        wrapped.append("    " + line)
+    wrapped.extend([
+        "except Exception as exc:\n",
+        "    from pathlib import Path\n",
+        "    Path('model-ft/hf-publish-error.txt').write_text(str(exc), encoding='utf-8')\n",
+        "    print('HF publication skipped after error:', repr(exc))\n",
+    ])
+    return "".join(wrapped)
 
 
 def patch_notebook(path: Path) -> bool:
@@ -94,6 +109,9 @@ def patch_notebook(path: Path) -> bool:
                 + "    raise RuntimeError('fine-tuning produced incomplete artifacts: ' + ', '.join(missing))\n"
             )
             text = text.replace(publish_marker, guard, 1)
+
+        if name == "legal_lm_finetune.ipynb":
+            text = _ensure_hf_publish_is_nonfatal(text)
 
         if text != original:
             cell["source"] = _lines(text)
