@@ -42,16 +42,25 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
         "!pip -q install tokenizers pyarrow peft striprtf\n"
         "print('FT exit code:', r.returncode)\n"
         "# Публикация в HF Hub (если в Kaggle добавлен секрет HF_TOKEN)\n"
+        "from pathlib import Path\n"
+        "required = [Path('model-ft/final'), Path('model-ft/metrics.jsonl'), Path('model-ft/samples.txt')]\n"
+        "if missing:\n"
+        "    raise RuntimeError('fine-tuning produced incomplete artifacts')\n"
         "if token and os.path.isdir('model-ft/final'):\n"
+        "    api.upload_folder(folder_path='model-ft/final', repo_id=HF_MODEL_REPO, repo_type='model')\n"
     )
     patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
-    assert "subprocess.run(['pip', 'uninstall', '-y', 'torchvision'], check=True)" in patched
-    assert "subprocess.run(['pip', '-q', 'install'" in patched
+    assert "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)" in patched
+    assert "torch==2.5.1" in patched
+    assert "--index-url', 'https://download.pytorch.org/whl/cu118'" in patched
     assert "transformers==4.57.1" in patched
     assert "peft==0.17.1" in patched
     assert "raise SystemExit(r.returncode)" in patched
     assert "model-ft/metrics.jsonl" in patched
     assert "fine-tuning produced incomplete artifacts" in patched
+    assert "# HF publication failure is non-fatal" in patched
+    assert "try:\nif token" not in patched
+    assert "try:\n    if token and os.path.isdir('model-ft/final'):" in patched
 
 
 def test_patch_is_strict_when_not_applicable(tmp_path):
