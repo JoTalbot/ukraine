@@ -79,8 +79,14 @@ jobs:
                 printf '%s\n' "$STATUS_RAW" > "artifacts/${{ matrix.slug }}/kaggle-error.txt"
               else
                 find "$OUT" -type f -name 'error.txt' -print -exec cp {} "artifacts/${{ matrix.slug }}/kaggle-error.txt" \; || true
+                find "$OUT" -type f -name '*.log' -print | sort | head -20 || true
+                LOG=$(find "$OUT" -type f -name '*.log' -print | sort | head -1 || true)
+                if [ -n "$LOG" ]; then
+                  tail -n 250 "$LOG" > "artifacts/${{ matrix.slug }}/kaggle-kernel-log-tail.txt"
+                  cp "artifacts/${{ matrix.slug }}/kaggle-kernel-log-tail.txt" ".training-manifests/${{ matrix.slug }}/kaggle-kernel-log-tail.txt"
+                fi
                 if [ ! -f "artifacts/${{ matrix.slug }}/kaggle-error.txt" ]; then
-                  find "$OUT" -type f \( -name '*.log' -o -name '*.txt' \) -print | sort | head -20 || true
+                  find "$OUT" -type f \( -name '*.txt' -o -name '*.log' \) -print | sort | head -20 || true
                   printf '%s\n' "$STATUS_RAW" > "artifacts/${{ matrix.slug }}/kaggle-error.txt"
                 fi
               fi
