@@ -26,7 +26,7 @@ def _lines(text: str) -> list[str]:
 def _ensure_ft_dependencies(text: str, marker: str, name: str) -> str:
     if name != "legal_lm_finetune.ipynb" or marker not in text:
         return text
-    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1":
+    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1" in text:
         return text
     return text.replace(marker, FT_INSTALL, 1)
 
