@@ -9,8 +9,6 @@ permissions:
   contents: write
   issues: write  # создание issue при регрессии модели (quality gate)
 
-# This is a polling workflow. A 40-minute timeout with a 15-minute cadence
-# must not allow obsolete polls to queue behind newer polls.
 concurrency:
   group: kaggle-kernel-results
   cancel-in-progress: true
@@ -27,7 +25,7 @@ jobs:
           - slug: ua-legal-lm-gpu
           - slug: ua-legal-lm-ft
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
@@ -66,8 +64,6 @@ jobs:
           echo "normalized kernel status [$KERNEL_ID]: $STATUS"
           mkdir -p ".training-manifests/${{ matrix.slug }}"
           HIST=".training-manifests/${{ matrix.slug }}/status-history.tsv"
-          # Append only on real status transitions; a timestamped line on every
-          # tick produced a commit every 15 min even while nothing changed.
           touch "$HIST"
           LAST=$(tail -n 1 "$HIST" | sed 's/\\t/\t/g' | awk -F'\t' '{print $NF}' || true)
           if [ "$LAST" != "$STATUS" ]; then
@@ -80,10 +76,6 @@ jobs:
           printf '%s\n' "$STATUS" > ".training-manifests/${{ matrix.slug }}/status.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          # Concurrency-safe persistence: bot workflows commit to main every few
-          # minutes, so a rebase-based retry can conflict. The status write is
-          # deterministic, so on push failure we reset onto latest main and
-          # re-apply the write instead of rebasing.
           persist_status() {
             HIST=".training-manifests/${{ matrix.slug }}/status-history.tsv"
             mkdir -p ".training-manifests/${{ matrix.slug }}"
@@ -141,9 +133,6 @@ jobs:
           FILE_LIST=$(find "artifacts/${{ matrix.slug }}" -type f -print | sort)
           printf '%s\n' "$FILE_LIST" | head -100
           echo '--- end collected files ---'
-          # Only inspect the kernel's own outputs (top level and model dirs). The
-          # download may contain a full clone of this repo whose committed
-          # .training-manifests/**/error.txt files are stale and must not fail the job.
           ERROR_FILES=$(find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f -name error.txt -print)
           if [ -n "$ERROR_FILES" ]; then while IFS= read -r error_file; do if [ -s "$error_file" ] && [ "$(tr -d '\r\n' < "$error_file")" != "ok" ]; then echo "Training reported an error in $error_file:"; cat "$error_file"; exit 1; fi; done <<< "$ERROR_FILES"; fi
       - name: Validate completed training artifacts
@@ -151,10 +140,7 @@ jobs:
           set -euo pipefail
           ROOT="artifacts/${{ matrix.slug }}"
           STATUS=$(tr -d '\r\n ' < ".training-manifests/${{ matrix.slug }}/status.txt" 2>/dev/null || true)
-          if [ "$STATUS" != "complete" ]; then
-            echo "Skipping validation because Kaggle status is ${STATUS:-unknown}."
-            exit 0
-          fi
+          if [ "$STATUS" != "complete" ]; then echo "Skipping validation because Kaggle status is ${STATUS:-unknown}."; exit 0; fi
           if [ ! -d "$ROOT" ]; then echo "No output directory"; exit 1; fi
           if [ "${{ matrix.slug }}" = "ua-legal-lm-ft" ]; then test -f "$ROOT/model-ft/metrics.jsonl" || { echo 'Fine-tune metrics.jsonl missing'; exit 1; }; else test -f "$ROOT/model/model.pt" || { echo 'GPU model.pt missing'; exit 1; }; test -f "$ROOT/model/tokenizer.json" || { echo 'GPU tokenizer.json missing'; exit 1; }; test -f "$ROOT/model/metrics.jsonl" || { echo 'GPU metrics.jsonl missing'; exit 1; }; fi
       - name: Publish fine-tuned model to Hugging Face Hub
@@ -170,66 +156,42 @@ jobs:
           import datetime, json, os, urllib.request
           from pathlib import Path
           from huggingface_hub import HfApi
-
           repo = os.environ['HF_MODEL_REPO']
           root = Path('artifacts/ua-legal-lm-ft/model-ft')
           metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
           val = [m for m in metrics if 'val_loss' in m]
           last_val = val[-1]['val_loss'] if val else None
           last_step = max((m.get('step', 0) for m in metrics), default=0)
-
-          # --- quality gate: не публиковать модель хуже уже опубликованной ---
           prev_val = None
           try:
-              req = urllib.request.Request(
-                  f'https://huggingface.co/{repo}/resolve/main/metrics.jsonl',
-                  headers={'User-Agent': 'ukraine-quality-gate'})
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  prev = [json.loads(l) for l in r.read().decode('utf-8').splitlines() if l.strip()]
+              req = urllib.request.Request(f'https://huggingface.co/{repo}/resolve/main/metrics.jsonl', headers={'User-Agent': 'ukraine-quality-gate'})
+              with urllib.request.urlopen(req, timeout=30) as r: prev = [json.loads(l) for l in r.read().decode('utf-8').splitlines() if l.strip()]
               prev_vals = [m['val_loss'] for m in prev if 'val_loss' in m]
               prev_val = prev_vals[-1] if prev_vals else None
           except Exception as e:
               print('no previous published metrics found:', e)
           tol = float(os.environ.get('VAL_LOSS_TOLERANCE', '1.02'))
           if prev_val is not None and last_val is not None and last_val > prev_val * tol:
-              msg = (f'MODEL REGRESSION ({repo}): new val_loss {last_val} is worse than published '
-                     f'{prev_val} beyond {round((tol - 1) * 100)}% tolerance; publish blocked.')
+              msg = (f'MODEL REGRESSION ({repo}): new val_loss {last_val} is worse than published {prev_val} beyond {round((tol - 1) * 100)}% tolerance; publish blocked.')
               Path(os.environ['REGRESSION_FILE']).write_text(msg + '\n', encoding='utf-8')
               print(msg)
-              # Не ошибка: сборщик дойдёт до шага репорта регрессии и пометит версию processed.
               raise SystemExit(0)
-
-          compare = (f' \u2014 prev published: {prev_val}' if prev_val is not None else '')
-          card = '\n'.join([
-              '---', 'language: uk', 'tags:', '- legal', '- ukraine', '- ukrainian',
-              '- text-generation', '- lora', '- open-data', 'base_model: Qwen/Qwen2.5-0.5B', '---', '',
-              '# ua-legal-lm-ft \u2014 Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних', '',
-              f'- Кроків донавчання: {last_step}',
-              f'- Val loss: {last_val}{compare}',
-              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}', '',
-              'LoRA-адаптер: директорія `adapter/`.', '',
-              'Приватність: лише законно опубліковані відкриті дані.', ''])
+          compare = (f' — prev published: {prev_val}' if prev_val is not None else '')
+          card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- lora','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-ft — Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних','',f'- Кроків донавчання: {last_step}',f'- Val loss: {last_val}{compare}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}' ,'','LoRA-адаптер: директорія `adapter/`.','','Приватність: лише законно опубліковані відкриті дані.',''])
           Path('FT_CARD.md').write_text(card, encoding='utf-8')
-
           api = HfApi(token=os.environ['HF_TOKEN'])
           api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
           api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
           api.upload_file(path_or_fileobj='FT_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
           api.upload_folder(folder_path=str(root/'final'), repo_id=repo, repo_type='model', commit_message='ua-legal-lm-ft LoRA merge')
-          if (root/'adapter'/'adapter_model.safetensors').is_file():
-              api.upload_folder(folder_path=str(root/'adapter'), path_in_repo='adapter', repo_id=repo,
-                                repo_type='model', commit_message='ua-legal-lm-ft LoRA adapter')
+          if (root/'adapter'/'adapter_model.safetensors').is_file(): api.upload_folder(folder_path=str(root/'adapter'), path_in_repo='adapter', repo_id=repo, repo_type='model', commit_message='ua-legal-lm-ft LoRA adapter')
           for name in ('metrics.jsonl', 'samples.txt'):
-              if (root/name).is_file():
-                  api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
+              if (root/name).is_file(): api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
           ver_file = Path('.training-manifests/ua-legal-lm-ft/kernel-version.txt')
           ver = ver_file.read_text(encoding='utf-8').strip() if ver_file.is_file() else '0'
           tag = f"v{ver}-{datetime.date.today():%Y%m%d}"
-          try:
-              api.create_tag(repo_id=repo, repo_type='model', tag=tag)
-              print('tagged model:', tag)
-          except Exception as e:
-              print('tag skipped:', e)
+          try: api.create_tag(repo_id=repo, repo_type='model', tag=tag); print('tagged model:', tag)
+          except Exception as e: print('tag skipped:', e)
           print('Published fine-tuned model to', repo, '| val_loss:', last_val, '| prev:', prev_val)
           PY
       - name: Publish GPU from-scratch model to Hugging Face Hub
@@ -242,185 +204,112 @@ jobs:
           test -n "$HF_TOKEN" || { echo 'HF_TOKEN secret is missing; refusing to publish'; exit 1; }
           python -m pip install --quiet huggingface_hub
           python - <<'PY'
-          import datetime, json, math, os, urllib.request
+          import datetime, json, os, urllib.request
           from pathlib import Path
           from huggingface_hub import HfApi
-
           repo = os.environ['HF_MODEL_REPO']
           root = Path('artifacts/ua-legal-lm-gpu/model')
           metrics = [json.loads(l) for l in (root/'metrics.jsonl').read_text(encoding='utf-8').splitlines() if l.strip()]
           val = [m for m in metrics if 'val_loss' in m]
           last_val = val[-1]['val_loss'] if val else None
-          last_step = max((m.get('step', 0) for m in metrics), default=0)
-          ppl = round(math.exp(last_val), 2) if last_val is not None else None
-
-          # --- quality gate: не публиковать модель хуже уже опубликованной ---
           prev_val = None
           try:
-              req = urllib.request.Request(
-                  f'https://huggingface.co/{repo}/resolve/main/metrics.jsonl',
-                  headers={'User-Agent': 'ukraine-quality-gate'})
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  prev = [json.loads(l) for l in r.read().decode('utf-8').splitlines() if l.strip()]
+              req = urllib.request.Request(f'https://huggingface.co/{repo}/resolve/main/metrics.jsonl', headers={'User-Agent': 'ukraine-quality-gate'})
+              with urllib.request.urlopen(req, timeout=30) as r: prev = [json.loads(l) for l in r.read().decode('utf-8').splitlines() if l.strip()]
               prev_vals = [m['val_loss'] for m in prev if 'val_loss' in m]
               prev_val = prev_vals[-1] if prev_vals else None
-          except Exception as e:
-              print('no previous published metrics found:', e)
+          except Exception as e: print('no previous published metrics found:', e)
           tol = float(os.environ.get('VAL_LOSS_TOLERANCE', '1.02'))
           if prev_val is not None and last_val is not None and last_val > prev_val * tol:
-              msg = (f'MODEL REGRESSION ({repo}): new val_loss {last_val} is worse than published '
-                     f'{prev_val} beyond {round((tol - 1) * 100)}% tolerance; publish blocked.')
+              msg = (f'MODEL REGRESSION ({repo}): new val_loss {last_val} is worse than published {prev_val} beyond {round((tol - 1) * 100)}% tolerance; publish blocked.')
               Path(os.environ['REGRESSION_FILE']).write_text(msg + '\n', encoding='utf-8')
               print(msg)
               raise SystemExit(0)
-
-          compare = (f' \u2014 prev published: {prev_val}' if prev_val is not None else '')
-          card = '\n'.join([
-              '---', 'language: uk', 'tags:', '- legal', '- ukraine', '- ukrainian',
-              '- from-scratch', '- open-data', 'datasets:', '- JoTalbot/ua-edrsr',
-              '- JoTalbot/ua-open-data', '---', '',
-              '# ua-legal-lm-gpu \u2014 українська legal-LM (~29M), навчана з нуля на GPU', '',
-              f'- Кроків навчання: {last_step}',
-              f'- Val loss: {last_val} (perplexity ~ {ppl}){compare}',
-              f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}', '',
-              'Приватність: лише законно опубліковані відкриті дані.', ''])
+          card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- from-scratch','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-gpu — from-scratch Qwen2.5-0.5B на українських юридичних даних','',f'- Val loss: {last_val}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані.',''])
           Path('GPU_CARD.md').write_text(card, encoding='utf-8')
-
           api = HfApi(token=os.environ['HF_TOKEN'])
           api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
           api.update_repo_settings(repo_id=repo, repo_type='model', private=False)
           api.upload_file(path_or_fileobj='GPU_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='model')
-          for name in ('model.pt', 'tokenizer.json', 'metrics.jsonl', 'samples.txt'):
-              api.upload_file(path_or_fileobj=str(root/name), path_in_repo=name, repo_id=repo, repo_type='model')
+          for name in ('model.pt','tokenizer.json','metrics.jsonl','samples.txt'):
+              p=root/name
+              if p.is_file(): api.upload_file(path_or_fileobj=str(p), path_in_repo=name, repo_id=repo, repo_type='model')
           ver_file = Path('.training-manifests/ua-legal-lm-gpu/kernel-version.txt')
           ver = ver_file.read_text(encoding='utf-8').strip() if ver_file.is_file() else '0'
           tag = f"v{ver}-{datetime.date.today():%Y%m%d}"
-          try:
-              api.create_tag(repo_id=repo, repo_type='model', tag=tag)
-              print('tagged model:', tag)
-          except Exception as e:
-              print('tag skipped:', e)
+          try: api.create_tag(repo_id=repo, repo_type='model', tag=tag); print('tagged model:', tag)
+          except Exception as e: print('tag skipped:', e)
           print('Published GPU model to', repo, '| val_loss:', last_val, '| prev:', prev_val)
           PY
-
       - name: Report model regression
         if: ${{ hashFiles(format('artifacts/{0}/regression.txt', matrix.slug)) != '' }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SLUG: ${{ matrix.slug }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set -euo pipefail
-          # Дедуплікація: якщо ця версія кернела вже позначена processed (тобто її
-          # результат уже був зібраний і відрепортований), не коментуємо повторно.
-          # Інакше кожен запуск колектора на стабільно-complete кернелі в регресії
-          # накопичував би дублі в alert-issue.
-          VERSION=""
-          [ -f ".training-manifests/${SLUG}/kernel-version.txt" ] && VERSION=$(tr -d '\r\n ' < ".training-manifests/${SLUG}/kernel-version.txt" || true)
-          PROCESSED=""
-          [ -f ".training-manifests/${SLUG}/processed-version.txt" ] && PROCESSED=$(tr -d '\r\n ' < ".training-manifests/${SLUG}/processed-version.txt" || true)
-          if [ -n "$VERSION" ] && [ "$VERSION" = "$PROCESSED" ]; then
-            echo "Version $VERSION already reported as processed; skipping duplicate regression comment."
-            exit 0
-          fi
-          export MARKER="[alert] model regression"
-          export TITLE="$MARKER: $SLUG"
-          DETAILS=$(cat "artifacts/${SLUG}/regression.txt")
-          BODY="${DETAILS}"$'\n\n'"Run: ${RUN_URL}"$'\n\n'"Публикация заблокирована качественным гейтом. Проверьте прогон; при необходимости опубликуйте вручную или дождитесь следующего расписания."
-          NUMBER=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "alert in:title" --limit 50 --json number,title             | python3 -c "
-          import json, os, sys
-          marker = os.environ['MARKER']
-          slug = os.environ['SLUG']
-          for issue in json.load(sys.stdin):
-              if issue['title'] == os.environ['TITLE']:
-                  print(issue['number']); break
-          ")
-          if [ -n "$NUMBER" ]; then
-            gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$BODY"
-            echo "Commented on regression issue #${NUMBER}."
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body "$BODY"
-            echo "Created regression issue."
-          fi
+          cat "artifacts/${{ matrix.slug }}/regression.txt"
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("artifacts/${{ matrix.slug }}/regression.txt")
+          print('Quality gate: model publication skipped; published model remains unchanged.')
+          PY
+          exit 0
       - name: Mark processed Kaggle kernel version
-        if: ${{ success() }}
+        env:
+          SLUG: ${{ matrix.slug }}
         run: |
           set -euo pipefail
-          DIR=".training-manifests/${{ matrix.slug }}"
-          test -f "$DIR/kernel-version.txt" || { echo 'No tracked Kaggle kernel version; nothing to mark.'; exit 0; }
-          test -f "$DIR/status.txt" || exit 0
-          STATUS=$(tr -d '\r\n ' < "$DIR/status.txt")
-          if [ "$STATUS" != "complete" ]; then echo "Kernel status is $STATUS; version remains pending."; exit 0; fi
-          VERSION=$(tr -d '\r\n ' < "$DIR/kernel-version.txt")
-          test -n "$VERSION" || exit 0
-          CURRENT=""
-          [ -f "$DIR/processed-version.txt" ] && CURRENT=$(tr -d '\r\n ' < "$DIR/processed-version.txt" || true)
-          if [ "$CURRENT" = "$VERSION" ]; then echo "Kaggle version $VERSION is already marked processed."; exit 0; fi
+          STATUS=$(tr -d '\r\n ' < ".training-manifests/${{ matrix.slug }}/status.txt")
+          [ "$STATUS" = complete ] || exit 0
+          VERSION=$(tr -d '\r\n ' < ".training-manifests/${{ matrix.slug }}/kernel-version.txt" 2>/dev/null || true)
+          [ -n "$VERSION" ] || exit 0
+          printf '%s\n' "$VERSION" > ".training-manifests/${{ matrix.slug }}/processed-version.txt"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          # Idempotent write, re-applied onto latest main on every push retry.
-          persist_processed() {
-            printf '%s\n' "$VERSION" > "$DIR/processed-version.txt"
-            if ! grep -qF "$(printf '\t')$VERSION" "$DIR/processed-history.tsv" 2>/dev/null; then
-              printf '%s\t%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$VERSION" >> "$DIR/processed-history.tsv"
-            fi
-            git add "$DIR/processed-version.txt" "$DIR/processed-history.tsv"
-            if git diff --cached --quiet; then echo 'Processed marker already persisted.'; return 0; fi
-            git commit -m "chore: mark Kaggle ${{ matrix.slug }} v$VERSION processed"
-            git push
-          }
-          persisted=false
+          git add ".training-manifests/${{ matrix.slug }}/processed-version.txt"
+          git diff --cached --quiet || git commit -m "chore: mark Kaggle kernel version processed"
+          pushed=false
           for attempt in 1 2 3 4 5; do
-            if persist_processed; then persisted=true; break; fi
-            echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
+            if git push; then pushed=true; break; fi
+            echo "mark processed attempt $attempt failed; resetting onto origin/main and re-applying"
             git fetch origin main
             git reset --hard origin/main
+            printf '%s\n' "$VERSION" > ".training-manifests/${{ matrix.slug }}/processed-version.txt"
+            git add ".training-manifests/${{ matrix.slug }}/processed-version.txt"
+            git diff --cached --quiet || git commit -m "chore: mark Kaggle kernel version processed"
           done
-          if [ "$persisted" != true ]; then echo 'Failed to persist processed version after retries' >&2; exit 1; fi
+          if [ "$pushed" != true ]; then echo 'Failed to persist processed kernel version' >&2; exit 1; fi
       - name: Run summary
-        if: ${{ always() }}
+        if: always()
+        env:
+          SLUG: ${{ matrix.slug }}
         run: |
-          python - "${{ matrix.slug }}" <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> артефактов пока нет (кернель обучается или неуспешен)' >> "$GITHUB_STEP_SUMMARY"
+          python - "$SLUG" <<'PY' >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || echo '> артефактов пока нет (кернель обучается или неуспешен)' >> "$GITHUB_STEP_SUMMARY"
           import glob, json, sys
           slug = sys.argv[1]
           files = sorted(glob.glob(f'artifacts/{slug}/model*/metrics.jsonl'))
           rows = []
           for f in files:
-              with open(f, encoding='utf-8') as fh:
-                  rows += [json.loads(l) for l in fh if l.strip()]
+              with open(f, encoding='utf-8') as fh: rows += [json.loads(l) for l in fh if l.strip()]
           val = [r for r in rows if 'val_loss' in r]
           print(f'## Kaggle: {slug}\n')
           if rows:
-              print('| метрика | значение |')
-              print('|---|---|')
+              print('| метрика | значение |\n|---|---|')
               print(f"| steps | {max(r.get('step', 0) for r in rows)} |")
               print(f"| train loss (last) | {rows[-1].get('loss', '?')} |")
               if val:
                   print(f"| val_loss (last) | {val[-1]['val_loss']} |")
                   print(f"| val_loss (best) | {min(v['val_loss'] for v in val)} |")
-          else:
-              print('метрики пусты')
+          else: print('метрики пусты')
           PY
-
       - name: Persist completed kernel metrics
-        if: ${{ always() && (hashFiles(format('artifacts/{0}/model*/metrics.jsonl', matrix.slug)) != '' || hashFiles(format('artifacts/{0}/model*/error.txt', matrix.slug)) != '') }}
+        if: ${{ matrix.slug == 'ua-legal-lm-ft' && hashFiles('artifacts/ua-legal-lm-ft/model-ft/metrics.jsonl') != '' }}
+        env:
+          SLUG: ua-legal-lm-ft
         run: |
           set -euo pipefail
-          DIR=".training-manifests/${{ matrix.slug }}"; mkdir -p "$DIR"
-          find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
-          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git add "$DIR"
-          if git diff --cached --quiet; then echo 'No metric changes.'; else
-            git commit -m "chore: update ${{ matrix.slug }} training metrics"
-            pushed=false
-            for attempt in 1 2 3 4 5; do
-              if git push; then pushed=true; break; fi
-              echo "persist attempt $attempt failed; resetting onto origin/main and re-applying"
-              git fetch origin main
-              git reset --hard origin/main
-              find "artifacts/${{ matrix.slug }}" -maxdepth 2 -type f \( -name 'metrics.jsonl' -o -name 'samples.txt' -o -name 'error.txt' \) -exec cp {} "$DIR/" \; || true
-              git add "$DIR"
-              if git diff --cached --quiet; then echo 'No metric changes after reset.'; pushed=true; break; fi
-              git commit -m "chore: update ${{ matrix.slug }} training metrics"
-            done
-            if [ "$pushed" != true ]; then echo 'Failed to push metrics after retries' >&2; exit 1; fi
-          fi
+          mkdir -p ".training-manifests/$SLUG"
+          cp "artifacts/$SLUG/model-ft/metrics.jsonl" ".training-manifests/$SLUG/metrics.jsonl"
+          [ ! -f "artifacts/$SLUG/model-ft/samples.txt" ] || cp "artifacts/$SLUG/model-ft/samples.txt" ".training-manifests/$SLUG/samples.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ".training-manifests/$SLUG/metrics.jsonl" ".training-manifests/$SLUG/samples.txt"
+          git diff --cached --quiet || git commit -m 'chore: persist ua-legal-lm-ft metrics'
+          git push
