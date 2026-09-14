@@ -195,6 +195,11 @@ jobs:
           done
           echo 'Unable to persist bootstrap progress after 3 push attempts.'
           exit 1
+      - name: Fail batch after persisting failure state
+        if: steps.batch.outputs.skip != 'true' && steps.assess.outputs.has_failures == 'true'
+        run: |
+          echo 'Batch contains failed resources. Progress was persisted; failing the job so publication state is RED.'
+          exit 1
       - name: Write publication status signal
         if: ${{ always() }}
         env:
