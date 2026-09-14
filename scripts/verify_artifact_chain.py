@@ -1,9 +1,11 @@
 """Verify the cryptographic binding of release-status artifacts."""
 from __future__ import annotations
+
 import argparse
 import hashlib
 import json
 from pathlib import Path
+
 V=1
 REQUIRED=("artifacts/status/release-manifest.json","artifacts/status/sbom.cdx.json","artifacts/status/status-index.json","artifacts/status/production-hardening-evidence.json","artifacts/status/production-promotion-authorization.json")
 def load(path): return json.loads(Path(path).read_text(encoding="utf-8"))
