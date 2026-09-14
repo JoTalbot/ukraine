@@ -37,7 +37,8 @@ jobs:
           from pathlib import Path
           p = Path('artifacts/status/production-readiness.json')
           data = json.loads(p.read_text(encoding='utf-8'))
-          assert data.get('overall_state') == 'green', data
+          if data.get('overall_state') != 'green':
+              raise SystemExit(f"production readiness is not green: {data!r}")
           PY
       - name: Verify current release manifest and control-plane identity
         run: |
@@ -45,11 +46,17 @@ jobs:
           python scripts/generate_release_manifest.py --output /tmp/release-manifest.json
           python - <<'PY'
           import json
+          import subprocess
           from pathlib import Path
           p = Path('/tmp/release-manifest.json')
           data = json.loads(p.read_text(encoding='utf-8'))
-          assert data.get('schema_version') == 1, data
-          assert data.get('release_class') == 'repository', data
-          assert isinstance(data.get('files'), list) and data['files'], data
-          assert data.get('git_commit') == __import__('subprocess').check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(), data
+          if data.get('schema_version') != 1:
+              raise SystemExit(f"unexpected manifest schema_version: {data.get('schema_version')!r}")
+          if data.get('release_class') != 'repository':
+              raise SystemExit(f"unexpected release_class: {data.get('release_class')!r}")
+          if not isinstance(data.get('files'), list) or not data['files']:
+              raise SystemExit('release manifest must contain a non-empty files list')
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if data.get('git_commit') != head:
+              raise SystemExit(f"manifest git_commit {data.get('git_commit')!r} does not match HEAD {head!r}")
           PY
