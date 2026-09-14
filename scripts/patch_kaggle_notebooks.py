@@ -13,7 +13,8 @@ INSTALL_MARKERS = {
 FT_INSTALL = (
     "import subprocess\n"
     "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)\n"
-    "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchvision==0.20.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
+    "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
+    "subprocess.run(['pip', '-q', 'uninstall', '-y', 'torchvision'], check=False)\n"
     "subprocess.run(['pip', '-q', 'install', 'tokenizers', 'pyarrow', 'striprtf', "
     "'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
 )
@@ -26,8 +27,14 @@ def _lines(text: str) -> list[str]:
 def _ensure_ft_dependencies(text: str, marker: str, name: str) -> str:
     if name != "legal_lm_finetune.ipynb" or marker not in text:
         return text
-    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1" in text:
+    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1" in text and "uninstall', '-y', 'torchvision'" in text:
         return text
+    if "torch==2.5.1" in text and "torchvision==0.20.1" in text:
+        return text.replace(
+            "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchvision==0.20.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n",
+            "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
+            "subprocess.run(['pip', '-q', 'uninstall', '-y', 'torchvision'], check=False)\n",
+        )
     return text.replace(marker, FT_INSTALL, 1)
 
 
