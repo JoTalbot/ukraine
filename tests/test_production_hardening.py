@@ -86,6 +86,20 @@ def test_rollback_requires_immutable_release_order(tmp_path):
     assert result["rollback_target"]["model_id"] == "old"
 
 
+def test_rollback_rejects_malformed_release_metadata(tmp_path):
+    model = tmp_path / "model.bin"; model.write_bytes(b"model")
+    registry_path = tmp_path / "registry.json"
+    registry(model, "old", "d1", "s1", registry_path)
+    data = json.loads(registry_path.read_text(encoding="utf-8"))
+    data["models"][0].update({"publication_state": "production", "release_sequence": 7, "promoted_at": "2026-09-14T12:00:00+03:00"})
+    data["models"].append({**data["models"][0], "model_id": "current", "release_sequence": 8, "promoted_at": "2026-09-14T12:00:00Z"})
+    registry_path.write_text(json.dumps(data), encoding="utf-8")
+    assert rollback(registry_path, "current", tmp_path / "rollback.json") == 1
+    result = json.loads((tmp_path / "rollback.json").read_text(encoding="utf-8"))
+    assert result["rollback_target"] is None
+    assert result["state"] == "red"
+
+
 def test_runtime_evidence_executes_all_contracts(tmp_path):
     output = tmp_path / "evidence.json"
     assert evidence(output, "abc123", "test-workflow", "42") == 0
