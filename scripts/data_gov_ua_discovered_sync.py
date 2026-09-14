@@ -18,20 +18,34 @@ from huggingface_hub.utils import EntryNotFoundError
 CHUNK = 8 * 1024 * 1024
 FETCH_ATTEMPTS = int(os.environ.get("DATA_GOV_FETCH_ATTEMPTS", "3"))
 REQUEST_TIMEOUT = (30, 60)
+MAX_RETRY_WAIT = int(os.environ.get("DATA_GOV_MAX_RETRY_WAIT", "60"))
 HEADERS = {"User-Agent": "JoTalbot/ukraine-open-data-sync"}
 STRUCTURED = {"CSV", "TSV", "JSON", "JSONL", "NDJSON", "XML", "XLS", "XLSX", "ODS", "PARQUET", "ZIP", "7Z", "GZ", "GZIP"}
 
 
+def _retry_wait(resp, attempt):
+    """Return a bounded retry delay, honoring a server-provided Retry-After hint."""
+    retry_after = resp.headers.get("Retry-After") if resp is not None else None
+    if retry_after:
+        try:
+            return min(max(float(retry_after), 0.0), float(MAX_RETRY_WAIT))
+        except ValueError:
+            pass
+    return min(float(2**attempt), float(MAX_RETRY_WAIT))
+
+
 def download_with_retries(url, dest):
     for attempt in range(1, FETCH_ATTEMPTS + 1):
+        resp = None
         try:
-            with requests.get(url, stream=True, timeout=REQUEST_TIMEOUT, headers=HEADERS) as resp:
-                if resp.status_code >= 500:
-                    raise requests.HTTPError(f"server replied {resp.status_code}", response=resp)
-                resp.raise_for_status()
+            with requests.get(url, stream=True, timeout=REQUEST_TIMEOUT, headers=HEADERS) as response:
+                resp = response
+                if response.status_code == 429 or 500 <= response.status_code <= 599:
+                    raise requests.HTTPError(f"server replied {response.status_code}", response=response)
+                response.raise_for_status()
                 total = 0
                 with dest.open("wb") as f:
-                    for chunk in resp.iter_content(CHUNK):
+                    for chunk in response.iter_content(CHUNK):
                         if chunk:
                             total += len(chunk)
                             f.write(chunk)
@@ -45,8 +59,8 @@ def download_with_retries(url, dest):
             dest.unlink(missing_ok=True)
             if attempt == FETCH_ATTEMPTS:
                 raise
-            wait = min(2**attempt, 30)
-            print(f"download attempt {attempt}/{FETCH_ATTEMPTS} failed for {url}: {exc!r}; retrying in {wait}s")
+            wait = _retry_wait(resp, attempt)
+            print(f"download attempt {attempt}/{FETCH_ATTEMPTS} failed for {url}: {exc!r}; retrying in {wait:g}s")
             time.sleep(wait)
     raise RuntimeError("unreachable")
 
@@ -190,7 +204,7 @@ def main():
     if failures and not args.allow_failures:
         raise SystemExit(f"Batch incomplete: {len(failures)} resource(s) failed; progress must not advance")
     if failures:
-        print(f"Batch recorded with {len(failures)} failed resource(s); caller may schedule a retry pass")
+        print(f"Batch recorded with {len(failures} failed resource(s); caller may schedule a retry pass")
 
 
 if __name__ == "__main__":
