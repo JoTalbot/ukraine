@@ -1,1 +1,1 @@
-ok
+jotalbot/ua-legal-lm-ft has status "KernelWorkerStatus.ERROR"
