@@ -27,15 +27,11 @@ def test_changed_resource_is_not_skipped():
 
 
 def test_retry_wait_honors_retry_after_and_is_bounded():
-    class Response:
-        headers = {"Retry-After": "120"}
-
-    assert m._retry_wait(Response(), 1) == m.MAX_RETRY_WAIT
+    response = type("Response", (), {"headers": {"Retry-After": "120"}})()
+    assert m._retry_wait(response, 1) == m.MAX_RETRY_WAIT
 
 
 def test_retry_wait_falls_back_to_exponential_backoff():
-    class Response:
-        headers = {}
-
-    assert m._retry_wait(Response(), 1) == 2
-    assert m._retry_wait(Response(), 3) == 8
+    response = type("Response", (), {"headers": {}})()
+    assert m._retry_wait(response, 1) == 2
+    assert m._retry_wait(response, 3) == 8
