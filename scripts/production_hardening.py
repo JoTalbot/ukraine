@@ -42,10 +42,10 @@ def _valid_timestamp(value):
     if not isinstance(value, str):
         return False
     try:
-        datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return False
-    return True
+    return parsed.tzinfo is not None and parsed.utcoffset() == timezone.utc.utcoffset(parsed)
 
 
 def drift(baseline, current, output, max_row_change=0.20):
