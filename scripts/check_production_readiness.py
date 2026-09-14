@@ -15,12 +15,17 @@ REQUIRED_DOCS = (
 )
 REQUIRED_SIGNALS = {"ci", "ingestion", "quality", "graph", "training", "publication", "security"}
 HARDENING_CONTRACTS = {"DRIFT-01": "scripts/production_hardening.py", "QUAR-01": "scripts/production_hardening.py", "REG-01": "scripts/production_hardening.py", "COMPAT-01": "scripts/production_hardening.py", "PROM-01": "scripts/production_hardening.py", "ROLL-01": "scripts/production_hardening.py"}
+PROMOTION_AUTHORIZATION = "artifacts/status/production-promotion-authorization.json"
 
 
 def _valid_freshness_policy(policy: object) -> bool:
     if not isinstance(policy, dict) or not policy:
         return False
     return all(isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0 for value in policy.values())
+
+
+def _valid_sha(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
 
 
 def check(root: Path) -> dict:
@@ -83,18 +88,36 @@ def check(root: Path) -> dict:
             chain_state = chain.get("state") == "green"
             chain_identity = bool(manifest_payload) and chain.get("source_commit") == manifest_payload.get("git_commit")
             artifact_set = set(chain.get("artifacts", {}))
-            required_set = {"artifacts/status/release-manifest.json", "artifacts/status/sbom.cdx.json", "artifacts/status/status-index.json", "artifacts/status/production-hardening-evidence.json"}
+            required_set = {"artifacts/status/release-manifest.json", "artifacts/status/sbom.cdx.json", "artifacts/status/status-index.json", "artifacts/status/production-hardening-evidence.json", PROMOTION_AUTHORIZATION}
             gates["artifact_chain"] = {"state": "green" if chain_state and chain_identity and artifact_set == required_set else "red", "identity_matches_release": chain_identity, "required_artifacts_bound": artifact_set == required_set}
         except (OSError, UnicodeDecodeError, json.JSONDecodeError, AttributeError):
             gates["artifact_chain"] = {"state": "red", "detail": "artifact chain is invalid JSON"}
     else:
         gates["artifact_chain"] = {"state": "red", "detail": "artifact chain missing"}
 
-    promotion_event = None
-    if evidence:
-        promotion_event = evidence.get("contracts", {}).get("PROM-01", {}).get("promotion_event")
-    promotion_valid = isinstance(promotion_event, dict) and promotion_event.get("to") == "production" and bool(promotion_event.get("model_id")) and isinstance(promotion_event.get("release_sequence"), int) and promotion_event.get("release_sequence") > 0 and bool(promotion_event.get("approval_identity"))
-    gates["promotion_policy"] = {"state": "green" if promotion_valid else "red", "authoritative_event_present": promotion_valid}
+    authorization_path = root / PROMOTION_AUTHORIZATION
+    authorization = None
+    if authorization_path.is_file():
+        try:
+            authorization = json.loads(authorization_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            authorization = None
+    manifest_commit = manifest_payload.get("git_commit") if manifest_payload else None
+    authorization_valid = (
+        isinstance(authorization, dict)
+        and authorization.get("schema_version") == 1
+        and authorization.get("target") == "production"
+        and authorization.get("source_commit") == manifest_commit
+        and bool(authorization.get("model_id"))
+        and _valid_sha(authorization.get("artifact_sha256"))
+        and _valid_sha(authorization.get("evaluation_evidence_sha256"))
+        and bool(authorization.get("approval_identity"))
+        and isinstance(authorization.get("release_sequence"), int)
+        and not isinstance(authorization.get("release_sequence"), bool)
+        and authorization.get("release_sequence") > 0
+        and bool(authorization.get("approved_at"))
+    )
+    gates["promotion_policy"] = {"state": "green" if authorization_valid else "red", "authoritative_authorization_present": authorization_valid, "path": PROMOTION_AUTHORIZATION}
 
     states = [str(gate.get("state", "red")) for gate in gates.values()]
     overall = "red" if "red" in states else "yellow" if "yellow" in states else "green"
