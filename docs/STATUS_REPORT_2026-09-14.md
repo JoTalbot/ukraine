@@ -2,63 +2,83 @@
 
 **Дата:** 2026-09-14  
 **Репозиторий:** `JoTalbot/ukraine`  
-**Последний hardening batch:** `2d2087046ebf314a00279e3db44926c4071c5122`
+**Текущий hardening batch:** `96ae5c4774a3ab81a987e137921f329f4dc00408`
 
 ## Итог
 
 **Control plane: GREEN по архитектуре и контрактам. Полный data product: NOT YET CERTIFIED.**
 
-## Шаг 1 — Production readiness audit
+## Шаг 1 — Повторная проверка production readiness
 
-Проверены readiness, hardening, artifact chain и production workflows. Найдена слабость: READY-01 мог считать `PROM-01` зелёным по promotion event из deterministic self-test fixture. Это не является доказательством реального разрешения production-релиза.
+Проверены readiness gate, hardening, artifact chain, promotion authorization, discovery state и последние GitHub Actions. Production остаётся **RED / fail-closed**.
 
-## Шаг 2 — Исправление authoritative promotion gate
+Причина не в отсутствии проверок: authoritative production authorization отсутствует, а discovery bootstrap не завершён. Production Release Gate корректно отказывается продолжать без подтверждённого release control plane.
 
-READY-01 теперь требует отдельный `artifacts/status/production-promotion-authorization.json`.
+## Шаг 2 — Найденная security-слабость
 
-Авторизация должна содержать точный `source_commit`, `model_id`, SHA-256 production artifact и evaluation evidence, `approval_identity`, положительный `release_sequence` и `approved_at`.
+`verify_promotion_authorization.py` принимал пути к production artifact и evaluation evidence без строгого ограничения рабочей директорией. Абсолютный путь или `..` мог привести к чтению файла вне репозитория.
 
-Fixture из `production_hardening.py evidence` больше не может удовлетворить production authorization gate.
+## Шаг 3 — Исправление path safety
 
-## Шаг 3 — Cryptographic chain
+Verifier теперь принимает только относительные пути внутри `artifacts/`, запрещает абсолютные пути и компоненты `..`, а после `resolve()` дополнительно проверяет принадлежность корню репозитория.
 
-CHAIN-01 теперь включает promotion authorization в SHA-256 binding. Отсутствие, изменение или несоответствие authorization делает chain красной.
+Это fail-closed поведение: небезопасный путь блокирует authorization.
 
-## Шаг 4 — Tests
+## Шаг 4 — Negative tests
 
-Добавлен negative test: отсутствие authoritative authorization обязано давать READY-01 = RED. Существующая проверка порядка workflow сохраняет требование `hardening → chain → readiness`.
+Добавлены тесты для подмены production artifact, отсутствующей authorization, `../` path traversal, абсолютного пути и небезопасного evaluation evidence path.
 
-## Шаг 5 — Runtime verification
+## Шаг 5 — Discovery bootstrap
 
-На commit `e344a79f9deb867f90fa951467ce9c09bcf1ad62` Production Release Gate ранее успешно завершился, но после нового исправления ожидаемое поведение изменилось: без реальной promotion authorization production gate должен быть RED. Это корректный fail-closed результат, а не регрессия.
+Текущее состояние всё ещё требует восстановления failed batches. Последнее зафиксированное состояние: `batch_count=360`, `failed_batches=0..20`, `bootstrap_complete=false`.
 
-## Текущий verdict
+`completed_batches` не используется как доказательство успешного bootstrap без проверки `successful_batches` и отсутствия failures.
+
+## Шаг 6 — Runtime
+
+Последние проверки на HEAD `eca5f6344df434b00e08a8fd70f5e0335a742390` дали:
+
+- Release Control Plane: **FAILURE**;
+- Production Release Gate: **FAILURE**.
+
+Gate остановился на проверке release control plane. Это соответствует fail-closed политике и не является основанием для создания фиктивной authorization.
+
+## Шаг 7 — Оставшиеся слабые места и улучшения
+
+### P0
+
+1. Завершить discovery bootstrap: `successful_batches == batch_count`, `failed_batches == []`, `bootstrap_complete=true`.
+2. Получить реальные production artifact и evaluation evidence.
+3. Оформлять promotion authorization только для конкретного проверенного release.
+
+### P1
+
+4. Защитить authorization отдельной approval boundary: protected environment/branch или криптографическая подпись.
+5. Добавить независимый signed provenance/attestation.
+6. Добавить deployment-side atomic rollback с фактическим recovery test.
+7. Сделать discovered-data workflow явно красным после сохранения progress, если batch содержит failed resources.
+
+### P2
+
+8. Расширить freshness/retry/recovery observability.
+9. Добавить периодическую end-to-end production certification.
+
+## Сертификационная матрица
 
 | Контур | Статус |
 |---|---|
 | Production architecture | **GREEN** |
 | Hardening contracts | **GREEN / УКРЕПЛЕНЫ** |
+| Promotion path safety | **GREEN / ИСПРАВЛЕНО** |
 | Cryptographic artifact chain | **УКРЕПЛЕНА** |
-| Authoritative promotion authorization | **ТРЕБУЕТСЯ** |
-| CI integration | **ОБНОВЛЕНО** |
-| Discovery bootstrap | **НЕ ЗАКРЫТ** |
+| Authoritative promotion authorization | **RED / ОТСУТСТВУЕТ** |
+| Discovery bootstrap | **RED / НЕ ЗАВЕРШЁН** |
+| Real producer evidence | **RED / НЕДОСТАТОЧНО** |
+| Deployment rollback evidence | **RED / НЕДОСТАТОЧНО** |
 | Full production certification | **RED / NOT YET CERTIFIED** |
-
-## Оставшиеся P0/P1 задачи
-
-1. Проверить новый CI → Control Plane → Production Gate после текущих изменений.
-2. Подтвердить, что отсутствие authorization действительно блокирует production.
-3. После review сформировать authorization только для конкретного реального release artifact.
-4. Завершить failed discovery batches и получить `bootstrap_complete=true`.
-5. Проверить реальный EDRSR/Hugging Face producer run.
-6. Подключить deployment-side atomic switch для фактического rollback.
-7. Привязать реальный evaluation artifact к authorization и promotion event.
-8. Провести финальную production certification.
 
 ## Решение
 
-**Сейчас: PRODUCTION HARDENING IN PROGRESS / CONTROL-PLANE ARCHITECTURE GREEN.**
+**PRODUCTION HARDENING IN PROGRESS. CONTROL-PLANE ARCHITECTURE GREEN. FULL DATA PRODUCT NOT YET CERTIFIED.**
 
-**Полный data product: NOT YET CERTIFIED.**
-
-Главная найденная архитектурная слабость устранена: self-test больше не может притворяться реальным production approval. Теперь система лучше делает то, что от неё требуется: сомневается в человеке, артефакте и даже самой себе, пока не увидит доказательство.
+Изменения verifier и тестов запушены в `main`. Следующий production-критичный рубеж — реальные успешные data producer/evaluation/release evidence и защищённое approval.
