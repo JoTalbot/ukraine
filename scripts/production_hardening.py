@@ -70,17 +70,17 @@ def drift(baseline, current, output, max_row_change=0.20):
 
 def quarantine(artifact, quarantine_dir, reason, source_commit, workflow_run_id, output):
     artifact = Path(artifact)
-    if not artifact.is_file():
-        raise SystemExit(f"artifact not found: {artifact}")
+    if not artifact.is_file() or artifact.is_symlink():
+        raise SystemExit(f"artifact must be a regular file: {artifact}")
     digest = sha(artifact)
     target = Path(quarantine_dir) / f"{artifact.name}.{digest}"
     target.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists():
-        if not target.is_file() or sha(target) != digest:
+    if target.exists() or target.is_symlink():
+        if target.is_symlink() or not target.is_file() or sha(target) != digest:
             raise SystemExit("immutable quarantine target checksum mismatch")
     else:
         shutil.copy2(artifact, target)
-        if sha(target) != digest:
+        if target.is_symlink() or not target.is_file() or sha(target) != digest:
             raise SystemExit("quarantine copy checksum mismatch")
     dump(output, {"schema_version": V, "state": "quarantined", "artifact": str(target), "sha256": digest, "reason": reason, "source_commit": source_commit, "workflow_run_id": workflow_run_id})
     return 0
