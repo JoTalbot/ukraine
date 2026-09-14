@@ -2,96 +2,91 @@
 
 **Дата:** 2026-09-14  
 **Репозиторий:** `JoTalbot/ukraine`  
-**Последний commit этой итерации:** `a24e6736a6f8c5f2a9c1e51e7c9fbf21a2c8e2f8`
+**Проверяемый commit:** `168182133e5ab9f9a7d93f7018f0d6ea2e1fed30`
 
 ## Итог
 
-Проект имеет зрелый набор production-контрактов для provenance, SBOM, reproducibility, drift, quarantine, model registry, compatibility, promotion, rollback и readiness. Однако **production-ready окончательно не подтверждён**: обязательная GitHub Actions цепочка после последних изменений ещё выполняется, а несколько P1-слабых мест требуют усиления.
+**Control-plane production readiness: GREEN.** Последовательность `Ukraine data CI` → `Release Control Plane` → `Production Release Gate` для проверяемого commit завершилась успешно. Это подтверждает готовность автоматизированного release/control-plane контура, но не означает, что весь data product полностью закрыт: discovery и часть внешних producer-процессов продолжают работу.
 
-## Проверено
+## Шаг 1 — Проверка CI
 
-- READY-01 агрегирует документацию, release manifest, control-plane, recovery, dependency lock, SBOM, provenance и hardening contracts.
-- EVID-02 требует runtime evidence непосредственно перед readiness gate во всех workflow, которые вызывают READY-01.
-- Release Control Plane и Production Release Gate используют generated readiness evidence.
-- GitHub Actions закреплены immutable commit SHA.
-- `requirements.lock` существует и содержит детерминированный CI baseline.
-- Kaggle finetune patch исправлен: HF publication failure теперь оборачивается корректным `try` с вложенным `if`, чтобы ошибка публикации не превращала успешное обучение в `KernelWorkerStatus.ERROR`.
+`Ukraine data CI`, run `34812705342`, job `validate` завершён со статусом **success**. Успешно выполнены lint, компиляция, unit-тесты, release manifest, SBOM, status index, contract validation, runtime hardening evidence и production readiness.
 
-## Найденные слабые места
+## Шаг 2 — Проверка Control Plane
 
-### P0 — runtime ещё не сертифицирован
+`Release Control Plane`, run `34812726855`, job `aggregate` завершён **success**. Проверены checkout исходного release, deterministic lock, release manifest, producer identity, producer signal, SBOM, canonical status index, control-plane validation, runtime hardening evidence и readiness.
 
-`Ukraine data CI`, `Release Control Plane` и `Production Release Gate` после изменений были запущены цепочкой, но на момент отчёта не завершили полный зелёный проход. Поэтому финальный production verdict остаётся **PENDING VERIFICATION**.
+## Шаг 3 — Проверка Production Gate
 
-### P1 — readiness ранее доверял наличию файлов
+`Production Release Gate`, run `34812771316`, job `gate` завершён **success**. Gate подтвердил результат control plane и соответствие текущих release manifest/control-plane identity.
 
-READY-01 проверял наличие release manifest/status index и hardening script, но не связывал runtime evidence с конкретным release manifest. Это создавало возможность принять evidence другого commit.
+## Шаг 4 — Что найдено как слабое место
 
-**Исправлено:** readiness теперь требует валидную схему evidence, identity и совпадение `source_commit` с `release-manifest.git_commit`; добавлены regression tests.
+### P1 — Promotion пока недостаточно авторитетен
 
-### P1 — freshness policy могла быть формально неполной
+`promotion_policy` в READY-01 всё ещё в основном документальный. Наличие документа не доказывает реальное production promotion.
 
-Проверка freshness использовала truthiness и не гарантировала корректную структуру окон.
+**Нужно:** machine-readable promotion event с `model_id`, artifact SHA-256, evaluation evidence SHA-256, compatibility result, approval identity/time, target и immutable sequence.
 
-**Исправлено:** readiness требует непустую mapping-структуру с положительными числовыми окнами; добавлен отрицательный тест.
+### P1 — Rollback зависит от структуры registry
 
-### P1 — promotion policy пока документальный
+Текущий ROLL-контракт выбирает последний production объект по порядку списка registry. Это слабее, чем явные immutable `release_sequence` + `promoted_at`.
 
-`promotion_policy` фактически становится green при наличии `docs/PRODUCTION_READINESS.md`. Это не доказывает, что production promotion реально выполнен через registry/promotion contract.
+**Нужно:** выбирать last-known-good только по immutable promotion metadata и выполнять фактический атомарный switch артефакта/ссылки.
 
-**Улучшение:** связать readiness с машинно-читаемым promotion record: candidate model ID, artifact SHA-256, evaluation evidence SHA, compatibility result, approval identity/time и target `production`.
+### P1 — Quarantine требует строгой content-addressed семантики
 
-### P1 — rollback зависит от порядка registry
+Digest-qualified имя полезно, но production-контракт должен явно запрещать изменение уже существующего объекта с тем же digest-qualified путём.
 
-`ROLL-01` выбирает последний production model по порядку элементов registry. Для production надёжнее использовать immutable promotion timestamp/version.
+**Нужно:** при существующем объекте пересчитывать SHA-256 и отклонять mismatch; публиковать manifest объекта.
 
-**Улучшение:** хранить `promoted_at`, monotonic release sequence и immutable production event; выбирать rollback по ним.
+### P1 — Полная checksum chain ещё не является отдельным gate
 
-### P1 — quarantine не полностью immutable
+Evidence уже привязывается к release commit, но readiness не является полноценной криптографической проверкой цепочки `release manifest → SBOM → signals → hardening evidence`.
 
-Digest-qualified имя хорошо защищает от путаницы, но повторная запись в тот же путь пока не запрещена.
+**Нужно:** хранить и проверять SHA-256 каждого входного артефакта перед promotion.
 
-**Улучшение:** при существующем объекте сравнивать SHA-256 и отказывать при несовпадении; предпочтительно использовать content-addressed storage/manifest.
+### P2 — Discovery/data ingestion не закрыты полностью
 
-### P1 — checksum chain не проверяется целиком
+Ранее зафиксированное состояние discovery показывало `bootstrap_complete=false`, `next_batch=21`, `completed_batches=21` из `batch_count=360`, при failed batches 0–20. Поэтому полный data-product production certification пока преждевременен.
 
-READY-01 связывает evidence с commit, но ещё не пересчитывает и не сверяет SHA-256 всей цепочки release manifest → SBOM → status signals → hardening evidence.
+## Шаг 5 — Что уже усилено
 
-**Улучшение:** добавить cryptographic artifact binding для каждого входного артефакта.
+1. READY-01 проверяет schema и release/evidence identity.
+2. Freshness policy валидируется структурно и fail-closed.
+3. Добавлены regression tests для identity mismatch и invalid freshness policy.
+4. Исправлен Kaggle notebook patcher с корректной Python indentation для non-fatal HF publication.
+5. Runtime hardening evidence выполняется непосредственно перед readiness gate.
+6. GitHub Actions используют immutable action references там, где это предусмотрено политикой.
+7. Recovery checkpoints и deterministic replay manifest проходят отдельный CI-контроль.
 
-### P2 — discovery не завершён
+## Шаг 6 — Текущий production verdict
 
-Последнее зафиксированное состояние discovery показывало `bootstrap_complete=false`, `next_batch=21`, `completed_batches=21` из `batch_count=360`, при failed batches 0–20. Следовательно, ingestion ещё нельзя считать полностью закрытым.
+| Контур | Статус |
+|---|---|
+| Unit/lint/compile CI | **GREEN** |
+| Release manifest | **GREEN** |
+| SBOM | **GREEN** |
+| Canonical control plane | **GREEN** |
+| Runtime hardening evidence | **GREEN** |
+| Production Release Gate | **GREEN** |
+| Полная discovery/data ingestion | **НЕ ЗАКРЫТА** |
+| Полная криптографическая artifact chain | **УСИЛИТЬ** |
+| Авторитетный promotion/rollback | **УСИЛИТЬ** |
 
-## Выполнено в этой итерации
+## Шаг 7 — Следующий production batch
 
-1. Усилен `scripts/check_production_readiness.py`.
-2. Добавлены тесты на mismatch release/evidence identity.
-3. Добавлен тест на пустую freshness policy.
-4. Исправлен Kaggle notebook patcher для валидного Python `try/if` блока.
-5. В `docs/ROADMAP.md` добавлены READY-02, KAG-01 и приоритеты следующего hardening этапа.
-6. Этот отчёт сохранён в репозитории.
-
-## Runtime status
-
-- `Ukraine data CI`: выполнялся после изменений.
-- `Release Control Plane`: выполнялся цепочкой после producer/CI событий.
-- `Production Release Gate`: был поставлен в цепочку после Release Control Plane.
-- Финальный verdict: **HARDENED / NOT YET CERTIFIED**.
-
-## Следующий production batch
-
-1. Подтвердить green `Ukraine data CI`.
-2. Подтвердить green `Release Control Plane`.
-3. Подтвердить green `Production Release Gate`.
-4. Проверить Kaggle FT rerun и results collector.
-5. Ввести cryptographic artifact binding.
-6. Усилить promotion, rollback и quarantine semantics.
-7. Закрыть failed discovery batches и подтвердить `bootstrap_complete=true`.
-8. Только после этого объявить production-ready.
+1. Сделать promotion event обязательным machine-readable контрактом.
+2. Добавить immutable `release_sequence` и `promoted_at` в model registry/promotion.
+3. Добавить cryptographic binding для всех release/control-plane artifacts.
+4. Закрыть quarantine overwrite/mismatch path.
+5. Добавить negative tests для tampered artifact, stale signal, checksum mismatch и rollback без last-known-good.
+6. Завершить failed discovery batches и добиться `bootstrap_complete=true`.
+7. Проверить scheduled EDRSR/Hugging Face producer после завершения текущего запуска.
 
 ## Решение
 
-**Статус: HARDENED / NOT YET CERTIFIED.**
+**CONTROL PLANE: PRODUCTION READY / GREEN.**  
+**FULL DATA PRODUCT: NOT YET CERTIFIED.**
 
-Архитектура уже близка к production, но сертификат нельзя выдавать, пока тесты ещё бегут. Люди почему-то любят именно такой порядок действий, поэтому здесь порядок будет обратным: сначала доказательства, потом печать диплома.
+То есть пульт управления уже можно выпускать в production, а вот объявлять весь украинский data pipeline законченным было бы преждевременно. Машины завелись, но груз ещё не весь погружен.
