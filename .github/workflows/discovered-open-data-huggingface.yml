@@ -72,7 +72,8 @@ jobs:
               raise SystemExit('Discovery catalog contains no datasets')
           requested = os.environ.get('REQUESTED_BATCH', '')
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
-          failed = [int(x) for x in state.get('failed_batches', [])]
+          failed = {int(x) for x in state.get('failed_batches', [])}
+          successful = {int(x) for x in state.get('successful_batches', [])}
           if requested and requested != 'auto':
               batch = int(requested)
               if batch < 0 or batch >= count:
@@ -83,30 +84,28 @@ jobs:
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
                   fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
               raise SystemExit(0)
+          elif failed:
+              batch, mode = min(failed), 'retry'
           else:
-              next_batch = int(state.get('next_batch', 0))
-              if next_batch < count:
-                  batch = next_batch
-                  mode = 'bootstrap'
-              elif failed:
-                  batch = failed[0]
-                  mode = 'retry'
-              else:
-                  print('All bootstrap batches are complete and no failed batches remain; marking bootstrap complete.')
+              candidates = [i for i in range(count) if i not in successful]
+              if not candidates:
                   state['next_batch'] = count
-                  state['completed_batches'] = count
-                  state['batch_count'] = count
+                  state['completed_batches'] = len(successful)
+                  state['successful_batches'] = sorted(successful)
                   state['failed_batches'] = []
-                  state['bootstrap_complete'] = True
+                  state['batch_count'] = count
+                  state['bootstrap_complete'] = len(successful) == count
                   p.parent.mkdir(parents=True, exist_ok=True)
                   p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
                   with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
                       fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
                   raise SystemExit(0)
+              batch, mode = candidates[0], 'bootstrap'
           offset = batch * size
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
               fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
           print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {size}')
+          print(f'Successful batches: {sorted(successful)}; failed batches: {sorted(failed)}')
           PY
       - name: Mirror discovered datasets
         id: mirror
@@ -141,7 +140,7 @@ jobs:
           fi
           echo "failed=$failed"
           if [ "$failed" -gt 0 ]; then
-            echo 'Batch contains failed resources; it will be retried after the initial catalog pass.'
+            echo 'Batch contains failed resources; it will be retried.'
             echo 'has_failures=true' >> "$GITHUB_OUTPUT"
           else
             echo 'Batch has no failed resources.'
@@ -163,22 +162,22 @@ jobs:
           from pathlib import Path
           p = Path(os.environ['PROGRESS_FILE'])
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
-          mode = os.environ['MODE']
           batch = int(os.environ['BATCH'])
           count = int(os.environ['BATCH_COUNT'])
           failed = {int(x) for x in state.get('failed_batches', [])}
+          successful = {int(x) for x in state.get('successful_batches', [])}
           if os.environ['HAS_FAILURES'] == 'true':
               failed.add(batch)
+              successful.discard(batch)
           else:
               failed.discard(batch)
-          if mode == 'bootstrap':
-              state['next_batch'] = max(int(state.get('next_batch', 0)), batch + 1)
-          elif mode == 'retry':
-              state['next_batch'] = count
+              successful.add(batch)
+          state['successful_batches'] = sorted(successful)
           state['failed_batches'] = sorted(failed)
-          state['completed_batches'] = min(int(state.get('next_batch', 0)), count)
+          state['next_batch'] = max(int(state.get('next_batch', 0)), batch + 1)
+          state['completed_batches'] = len(successful)
           state['batch_count'] = count
-          state['bootstrap_complete'] = state['completed_batches'] >= count and not failed
+          state['bootstrap_complete'] = len(successful) == count and not failed
           state['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
           p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           print(json.dumps(state, ensure_ascii=False, indent=2))
@@ -210,7 +209,7 @@ jobs:
           python scripts/write_status_signal.py \
             --signal publication --state "$state" --detail "$detail" \
             --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
-            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/discovery/data_gov_ua_catalog.json
+            --workflow-run-id "$GITHUB_RUN_ID" --artifact artifacts/discovery/data_gov_ua_catalog.json
       - name: Upload publication status signal
         if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
