@@ -4,7 +4,16 @@ from pathlib import Path
 
 import pytest
 
-from scripts.production_hardening import compat, drift, evidence, promote, registry, rollback, quarantine, sha
+from scripts.production_hardening import (
+    compat,
+    drift,
+    evidence,
+    promote,
+    quarantine,
+    registry,
+    rollback,
+    sha,
+)
 
 
 def write(path: Path, value):
