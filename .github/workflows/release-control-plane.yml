@@ -79,6 +79,8 @@ jobs:
           set -euo pipefail
           SOURCE_COMMIT="$(git rev-parse HEAD)"
           python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$SOURCE_COMMIT" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
+      - name: Verify cryptographic artifact chain
+        run: python scripts/verify_artifact_chain.py --output artifacts/status/artifact-chain.json
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Upload canonical control-plane snapshot
