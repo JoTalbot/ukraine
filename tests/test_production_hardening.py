@@ -56,6 +56,15 @@ def test_promotion_requires_authoritative_metadata(tmp_path):
     assert payload["promotion_event"]["artifact_sha256"] == model_sha
 
 
+def test_promotion_requires_utc_timestamp(tmp_path):
+    gates = tmp_path / "g.json"; output = tmp_path / "p.json"
+    write(gates, {"compatibility": "green", "evaluation": "green", "readiness": "green"})
+    common = {"model_id": "m1", "artifact_sha256": "a" * 64, "evaluation_evidence_sha256": "b" * 64, "approval_identity": "ci", "release_sequence": 1}
+    assert promote("candidate", "production", gates, output, **common, promoted_at="2026-09-14T12:00:00") == 1
+    assert promote("candidate", "production", gates, output, **common, promoted_at="2026-09-14T15:00:00+03:00") == 1
+    assert promote("candidate", "production", gates, output, **common, promoted_at="2026-09-14T12:00:00Z") == 0
+
+
 def test_quarantine_rejects_digest_mismatch(tmp_path):
     artifact = tmp_path / "artifact.bin"; artifact.write_bytes(b"good")
     out = tmp_path / "q.json"
