@@ -28,7 +28,7 @@ def _complete_tree(tmp_path: Path) -> None:
     (tmp_path / "requirements-ci.lock").write_text("pytest==1.0\n", encoding="utf-8")
 
 
-def _write_status_and_evidence(tmp_path: Path, source_commit: str = "abc123", freshness: object = None) -> None:
+def _write_status_and_evidence(tmp_path: Path, source_commit: str = "abc123", freshness: object = None, authorization: bool = True) -> None:
     status = tmp_path / "artifacts/status/status-index.json"; status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(json.dumps({"signals": {"ci": {}, "ingestion": {}, "quality": {}, "graph": {}, "training": {}, "publication": {}, "security": {}}, "policy": {"freshness_hours": {"ingestion": 48} if freshness is None else freshness}, "overall_state": "green"}), encoding="utf-8")
     event = {"schema_version": 1, "event": "promote", "from": "candidate", "to": "production", "model_id": "m1", "artifact_sha256": "a" * 64, "evaluation_evidence_sha256": "b" * 64, "approval_identity": "test", "release_sequence": 1, "promoted_at": "2026-09-14T00:00:00+00:00"}
@@ -36,9 +36,14 @@ def _write_status_and_evidence(tmp_path: Path, source_commit: str = "abc123", fr
     evidence.write_text(json.dumps({"schema_version": 1, "state": "green", "source_commit": source_commit, "workflow_name": "test", "workflow_run_id": "42", "negative_tests": {"quarantine_tamper_rejected": True, "promotion_missing_metadata_rejected": True}, "contracts": {**{name: {"state": "green"} for name in ("DRIFT-01", "QUAR-01", "REG-01", "COMPAT-01", "ROLL-01")}, "PROM-01": {"state": "green", "promotion_event": event}}}), encoding="utf-8")
     manifest = tmp_path / "artifacts/status/release-manifest.json"
     manifest.write_text(json.dumps({"schema_version": 1, "git_commit": source_commit, "files": [{"path": "README.md", "sha256": "a" * 64}]}), encoding="utf-8")
-    chain = tmp_path / "artifacts/status/artifact-chain.json"
-    chain.write_text(json.dumps({"schema_version": 1, "state": "green", "source_commit": source_commit, "artifacts": {p: {"sha256": "a" * 64, "bytes": 1} for p in ("artifacts/status/release-manifest.json", "artifacts/status/sbom.cdx.json", "artifacts/status/status-index.json", "artifacts/status/production-hardening-evidence.json")}, "issues": []}), encoding="utf-8")
     (tmp_path / "artifacts/status/sbom.cdx.json").write_text("{}", encoding="utf-8")
+    if authorization:
+        auth = {"schema_version": 1, "target": "production", "source_commit": source_commit, "model_id": "m1", "artifact_sha256": "a" * 64, "evaluation_evidence_sha256": "b" * 64, "approval_identity": "approver", "release_sequence": 1, "approved_at": "2026-09-14T00:00:00+00:00"}
+        (tmp_path / "artifacts/status/production-promotion-authorization.json").write_text(json.dumps(auth), encoding="utf-8")
+    chain_artifacts = {p: {"sha256": "a" * 64, "bytes": 1} for p in ("artifacts/status/release-manifest.json", "artifacts/status/sbom.cdx.json", "artifacts/status/status-index.json", "artifacts/status/production-hardening-evidence.json")}
+    if authorization: chain_artifacts["artifacts/status/production-promotion-authorization.json"] = {"sha256": "a" * 64, "bytes": 1}
+    chain = tmp_path / "artifacts/status/artifact-chain.json"
+    chain.write_text(json.dumps({"schema_version": 1, "state": "green", "source_commit": source_commit, "artifacts": chain_artifacts, "issues": []}), encoding="utf-8")
 
 
 def test_readiness_accepts_complete_contract(tmp_path: Path) -> None:
@@ -50,6 +55,14 @@ def test_readiness_accepts_complete_contract(tmp_path: Path) -> None:
     assert result["gates"]["runtime_hardening_evidence"]["state"] == "green"
     assert result["gates"]["artifact_chain"]["state"] == "green"
     assert result["gates"]["promotion_policy"]["state"] == "green"
+
+
+def test_readiness_rejects_missing_authoritative_authorization(tmp_path: Path) -> None:
+    _complete_tree(tmp_path); _write_status_and_evidence(tmp_path, authorization=False)
+    result = check(tmp_path)
+    assert result["overall_state"] == "red"
+    assert result["gates"]["promotion_policy"]["state"] == "red"
+    assert result["gates"]["promotion_policy"]["authoritative_authorization_present"] is False
 
 
 def test_readiness_rejects_evidence_for_different_release(tmp_path: Path) -> None:
