@@ -36,15 +36,16 @@ Production намеренно остаётся **RED / fail-closed**: discovery 
 
 ## Шаг 5 — Discovery state
 
-После последнего runtime batch state остаётся честно неполным:
+Текущее состояние `main` остаётся честно неполным:
 
 - `batch_count=360`;
 - `failed_batches=0..20`;
 - `successful_batches=[]`;
 - `completed_batches=0`;
+- `next_batch=21`;
 - `bootstrap_complete=false`.
 
-Ни один failed batch искусственно успешным не объявлялся. Состояние сохранено в репозитории после run `34848512473`.
+Ни один failed batch искусственно успешным не объявлялся. Последняя зафиксированная запись состояния имеет timestamp `2026-09-14T13:49:52.130227+00:00`.
 
 ## Шаг 6 — Причина текущих data failures
 
@@ -55,16 +56,29 @@ Runtime evidence показывает два класса внешних про�
 
 Это реальные source-side availability/rate-limit failures. Pipeline корректно учитывает их как failed resources, сохраняет progress и оставляет publication RED. Их нельзя превращать в успешный batch только ради зелёного CI, потому что тогда контрольная система начнёт врать.
 
-## Шаг 7 — Runtime gate
+## Шаг 7 — Усиление retry/backoff
 
-Последний наблюдаемый Release Control Plane корректно дошёл до проверки authoritative promotion authorization и остановился на ней. Последующие artifact-chain/readiness стадии были пропущены. Это ожидаемое fail-closed поведение при отсутствии разрешения на production.
+В commit `9027ad2b385715c55bd8ead414756fae53100da7` усилена загрузка discovered resources:
 
-## Шаг 8 — Остаточные слабые места
+- HTTP `429` теперь явно считается retryable;
+- все `5xx` остаются retryable;
+- используется серверный `Retry-After`, если он присутствует;
+- задержка ограничена `DATA_GOV_MAX_RETRY_WAIT` (по умолчанию 60 секунд), чтобы внешний источник не мог заставить runner ждать бесконечно;
+- при отсутствии корректного `Retry-After` сохраняется экспоненциальный backoff;
+- после исчерпания попыток ресурс остаётся failed, поэтому readiness/truthfulness gate не ослабляется.
+
+Добавлены regression tests в commit `2716cc979c2bfcdb9564c4b90986649252d242cf` для bounded `Retry-After` и fallback exponential backoff.
+
+## Шаг 8 — CI verification
+
+После commit `2716cc979c2bfcdb9564c4b90986649252d242cf` GitHub Actions создал новые runs `Ukraine data CI #527` и `Security scan #188`. На момент фиксации отчёта они находятся в `queued`, поэтому зелёный результат пока **не заявляется**. Production Release Gate после документационного коммита остаётся RED, что соответствует отсутствию authoritative production authorization.
+
+## Шаг 9 — Остаточные слабые места
 
 ### P0
 
 1. Завершить discovery bootstrap: `successful_batches == batch_count`, `failed_batches == []`, `bootstrap_complete=true`.
-2. Улучшить устойчивость загрузки к `429` и временным timeout без ослабления truthfulness gate.
+2. Прогнать и подтвердить новый retry/backoff код в CI и runtime discovery.
 3. Получить реальные production artifact и evaluation evidence.
 4. Оформлять authorization только для конкретного проверенного release и фактически существующих файлов.
 
@@ -91,6 +105,7 @@ Runtime evidence показывает два класса внешних про�
 | Discovery publication truthfulness | **GREEN / УКРЕПЛЕНО** |
 | Discovery progress persistence | **GREEN / ПРОВЕРЕНО RUNTIME** |
 | Discovery scheduler liveness | **GREEN / ИСПРАВЛЕНО + TEST** |
+| Rate-limit/timeout retry policy | **GREEN / УСИЛЕНО + TEST** |
 | Cryptographic artifact chain | **УКРЕПЛЕНА, НЕ SIGNED PROVENANCE** |
 | Authoritative promotion authorization | **RED / ОТСУТСТВУЕТ** |
 | Discovery bootstrap | **RED / НЕ ЗАВЕРШЁН** |
@@ -100,13 +115,12 @@ Runtime evidence показывает два класса внешних про�
 
 ## Изменения этого батча
 
-1. `c20b54283f6642c54aef69e3b94a6887e7d16c83` — сделан rebase-safe retry для сохранения discovery progress.
-2. `34848512473` — runtime verification: progress успешно сохранён после failed batch; producer остался RED.
-3. `d726ad9251ed119bf9dd616a04e49fe84a89a233` — устранён scheduler starvation: непроверенные batch имеют приоритет над retry.
-4. `22f30ccc071754477502c5518bdb5c770a8ae926` — добавлен regression test scheduler liveness.
+1. `9027ad2b385715c55bd8ead414756fae53100da7` — добавлен bounded `Retry-After`/exponential backoff для discovery downloads.
+2. `2716cc979c2bfcdb9564c4b90986649252d242cf` — добавлены regression tests retry/backoff.
+3. Текущее состояние discovery повторно проверено: `next_batch=21`, failed `0..20`, успешных `0`, bootstrap incomplete.
 
 ## Решение
 
 **PRODUCTION HARDENING IN PROGRESS. CONTROL-PLANE ARCHITECTURE GREEN. FULL DATA PRODUCT NOT YET CERTIFIED.**
 
-Следующий обязательный рубеж: прогнать исправленный scheduler в CI и продолжить discovery с batch `21+`, параллельно улучшая backoff/обработку `429` и timeout. После завершения discovery нужны реальные producer/evaluation/release evidence, затем защищённое approval и deployment/rollback verification. До этого production должен оставаться заблокированным.
+Следующий обязательный рубеж: дождаться CI verification нового retry/backoff кода и runtime-проверить продвижение scheduler к batch `21+`. После завершения discovery нужны реальные producer/evaluation/release evidence, затем защищённое approval и deployment/rollback verification. До этого production должен оставаться заблокированным.
