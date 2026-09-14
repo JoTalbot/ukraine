@@ -85,3 +85,14 @@ def test_every_readiness_workflow_has_runtime_evidence_and_chain_before_gate() -
         if readiness_call not in content: continue
         assert evidence_call in content and chain_call in content, f"{workflow.name} is missing production evidence or artifact-chain verification"
         assert content.index(evidence_call) < content.index(chain_call) < content.index(readiness_call), f"{workflow.name} has invalid production-gate order"
+
+
+def test_discovered_open_data_workflow_fails_after_persisting_batch_failures() -> None:
+    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "discovered-open-data-huggingface.yml"
+    content = workflow.read_text(encoding="utf-8")
+    persist = content.index("- name: Persist bootstrap progress")
+    fail = content.index("- name: Fail batch after persisting failure state")
+    publication = content.index("- name: Write publication status signal")
+    assert persist < fail < publication
+    assert "if: steps.batch.outputs.skip != 'true' && steps.assess.outputs.has_failures == 'true'" in content[fail:publication]
+    assert "exit 1" in content[fail:publication]
