@@ -69,6 +69,18 @@ The repository is considered production-ready when every automated data/model re
 - **DEP-03 — Workflow lock partitioning:** workflows with materially different dependency indexes, such as Hugging Face publishers or GPU training, must use dedicated deterministic lock files rather than silently installing mutable latest packages. **Hugging Face publisher partition implemented; GPU/Kaggle remains intentionally isolated because its CUDA/package-index contract is hardware-specific and is not safely interchangeable with CPU CI.**
 - **EVID-01 — Runtime hardening evidence:** READY-01 must validate execution evidence for DRIFT, QUAR, REG, COMPAT, PROM, and ROLL, not merely the presence of their contract code. Evidence must be generated from deterministic self-tests in CI, include the exact source commit and workflow identity, and be treated as generated output rather than readiness input. **Implemented and tested.**
 - **EVID-02 — Readiness evidence parity across CI workflows:** every workflow invoking READY-01 must generate deterministic hardening evidence immediately before the readiness gate, using the exact checkout SHA and workflow/run identity. **Implemented and enforced in Ukraine data CI, Release observability, and Release Control Plane; repository-level caller coverage test added.**
+- **READY-02 — Evidence-to-release identity binding:** readiness must reject hardening evidence generated for a different release manifest commit and must reject empty or malformed freshness policies. **Implemented in `check_production_readiness.py`; regression tests added.**
+- **KAG-01 — Kaggle finetune runtime correctness:** non-fatal Hugging Face publication must be wrapped with valid Python indentation so publication errors do not convert successful training into `KernelWorkerStatus.ERROR`. **Fix committed; Kaggle rerun is pending CI-triggered validation.**
+
+## Next production hardening priorities
+
+1. **Make readiness cryptographically authoritative:** verify every status signal and hardening evidence artifact against the release-manifest identity and checksum, not only matching commit strings.
+2. **Strengthen model promotion:** require immutable evaluation evidence, candidate artifact checksum, and an explicit approval/promotion record before production state.
+3. **Make rollback operational:** select rollback targets by recorded production timestamp/version and execute an atomic artifact switch, rather than relying on registry list order.
+4. **Make quarantine actually immutable:** refuse to overwrite an existing digest-qualified quarantine object and record a content-addressed manifest.
+5. **Close the generated-artifact gap:** keep runtime evidence ephemeral while publishing only the final verified snapshot, avoiding stale committed readiness JSON becoming an accidental input.
+6. **Exercise failure paths continuously:** add negative tests for stale signals, tampered artifacts, checksum mismatch, missing model baselines, invalid promotion transitions, and rollback with no last-known-good release.
+7. **Finish release observability:** require the production gate to inspect the latest producer signals and explicit artifact checksums before declaring a release deployable.
 
 ## Operating rule
 
