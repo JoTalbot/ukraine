@@ -36,7 +36,7 @@ Regression test зафиксирован в commit `22f30ccc071754477502c5518bdb
 
 ## Шаг 5 — Discovery state и проверка продвижения
 
-Текущее состояние `main` после очередного runtime запуска:
+Текущее проверенное состояние `main`:
 
 - `batch_count=360`;
 - `failed_batches=0..21`;
@@ -46,7 +46,7 @@ Regression test зафиксирован в commit `22f30ccc071754477502c5518bdb
 - `bootstrap_complete=false`;
 - последний timestamp состояния: `2026-09-14T14:41:08.070554+00:00`.
 
-Это важный результат: scheduler действительно продвинулся с batch `21` и теперь должен выбирать следующий непроверенный batch `22`, несмотря на наличие failed batches. Starvation больше не наблюдается. Ни один failed batch искусственно успешным не объявлялся. fileciteturn316file0
+Это подтверждает продвижение scheduler с batch `21` до следующего непроверенного batch `22`, несмотря на наличие failed batches. Ни один failed batch искусственно успешным не объявлялся. fileciteturn319file0
 
 ## Шаг 6 — Причина текущих data failures
 
@@ -61,25 +61,22 @@ Runtime evidence показывает два класса внешних про�
 
 В discovery downloader реализованы:
 
-- HTTP `429` как retryable;
+- HTTP `408`, `425` и `429` как retryable;
 - все `5xx` как retryable;
-- использование серверного `Retry-After`, если он присутствует;
+- использование числового `Retry-After`, если он присутствует;
+- **новое:** разбор стандартного HTTP-date формата `Retry-After`;
 - ограничение задержки через `DATA_GOV_MAX_RETRY_WAIT` с default 60 секунд;
 - exponential backoff при отсутствии корректного `Retry-After`;
+- удаление частичного файла перед следующей попыткой;
 - сохранение ресурса в failed после исчерпания попыток.
 
-Это не превращает временную недоступность источника в ложный успех.
+Изменение `88b7376845ffe3812832f769dbd9836cb6b8133f` усиливает взаимодействие с rate-limited источниками, не превращая временную недоступность в ложный успех.
 
-## Шаг 8 — Найденная ошибка CI и исправление
+## Шаг 8 — CI и исправление обнаруженных ошибок
 
-CI run `34856112949` / `Ukraine data CI #529` выявил две проблемы в новом retry тестовом изменении:
+CI run `34856112949` / `Ukraine data CI #529` ранее выявил синтаксическую ошибку в failure log и Ruff `RUF012` в retry tests. Они исправлены commits `f65b464fc655cf81ec583448c18816e223c14223` и `70dbb97c33bc3ee23fe206bd2e3d3963008720c5`.
 
-1. синтаксическая ошибка в failure log: `len(failures}` вместо `len(failures)`;
-2. Ruff `RUF012` для mutable class attributes в тестах.
-
-RUF012 был исправлен commit `f65b464fc655cf81ec583448c18816e223c14223`, после чего синтаксическая ошибка была исправлена commit `70dbb97c33bc3ee23fe206bd2e3d3963008720c5`.
-
-Новый CI run `34856558232` на `70dbb97c33bc3ee23fe206bd2e3d3963008720c5` прошёл все технические проверки:
+Новый CI run `34856558232` на `70dbb97c33bc3ee23fe206bd2e3d3963008720c5` подтвердил:
 
 - Ruff — GREEN;
 - compileall — GREEN;
@@ -90,7 +87,9 @@ RUF012 был исправлен commit `f65b464fc655cf81ec583448c18816e223c1422
 - release contract — GREEN;
 - production hardening self-test — GREEN.
 
-Run завершился RED только на `Verify authoritative promotion authorization`, потому что отсутствует `artifacts/status/production-promotion-authorization.json`. Это ожидаемый fail-closed production gate, а не дефект retry-кода.
+Run завершился RED только на `Verify authoritative promotion authorization`, потому что отсутствует `artifacts/status/production-promotion-authorization.json`. Это ожидаемый fail-closed production gate, а не дефект retry-кода. fileciteturn328file0
+
+После этого выполнено новое изменение retry-after: commit `690d283d3a48a66c01b7cd2b4dcbb8b21a1528a8`, добавляющее детерминированный тест HTTP-date `Retry-After`. На момент отчёта GitHub ещё не опубликовал status checks для этого commit.
 
 ## Шаг 9 — Остаточные слабые места
 
@@ -135,13 +134,13 @@ Run завершился RED только на `Verify authoritative promotion a
 
 ## Изменения этого батча
 
-1. `f65b464fc655cf81ec583448c18816e223c14223` — lint-safe retry regression tests.
-2. `70dbb97c33bc3ee23fe206bd2e3d3963008720c5` — исправлена синтаксическая ошибка discovery failure log.
+1. `88b7376845ffe3812832f769dbd9836cb6b8133f` — HTTP-date `Retry-After` и retryable `408/425/429`.
+2. `690d283d3a48a66c01b7cd2b4dcbb8b21a1528a8` — стабильный regression test HTTP-date retry hint.
 3. CI `34856558232` подтвердил 140 passed / 1 skipped и зелёную техническую валидацию до authoritative authorization gate.
-4. Discovery state продвинулся до `next_batch=22`; batches `0..21` остаются честно failed.
+4. Discovery state остаётся `next_batch=22`; batches `0..21` остаются честно failed.
 
 ## Решение
 
 **PRODUCTION HARDENING IN PROGRESS. CONTROL-PLANE ARCHITECTURE GREEN. FULL DATA PRODUCT NOT YET CERTIFIED.**
 
-Следующий обязательный рубеж: runtime-проверить batch `22+`, оценить фактический эффект retry/backoff и продолжить bootstrap без ослабления fail-closed политики. После завершения discovery нужны реальные producer/evaluation/release evidence, затем защищённое approval и deployment/rollback verification. До этого production должен оставаться заблокированным.
+Следующий обязательный рубеж: дождаться CI для retry hardening, затем runtime-проверить batch `22+`, оценить фактический эффект Retry-After/backoff и продолжить bootstrap без ослабления fail-closed политики. После завершения discovery нужны реальные producer/evaluation/release evidence, затем защищённое approval и deployment/rollback verification. До этого production должен оставаться заблокированным.
