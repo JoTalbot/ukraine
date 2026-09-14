@@ -33,10 +33,9 @@ def test_retry_wait_honors_retry_after_and_is_bounded():
 
 
 def test_retry_wait_honors_http_date(monkeypatch):
-    monkeypatch.setattr(m.time, "time", lambda: 1_000_000.0)
-    response = SimpleNamespace(headers={"Retry-After": "Sat, 13 Sep 2026 12:00:30 GMT"})
-    wait = m._retry_wait(response, 1)
-    assert 0 < wait <= m.MAX_RETRY_WAIT
+    monkeypatch.setattr(m.time, "time", lambda: 1_000.0)
+    response = SimpleNamespace(headers={"Retry-After": "Thu, 01 Jan 1970 00:16:50 GMT"})
+    assert m._retry_wait(response, 1) == 10.0
 
 
 def test_retry_wait_falls_back_to_exponential_backoff():
