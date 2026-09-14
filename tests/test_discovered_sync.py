@@ -1,4 +1,4 @@
-"""Tests for incremental discovered-data decisions."""
+"""Tests for incremental discovered-data decisions and retry behavior."""
 import importlib.util
 from pathlib import Path
 
@@ -24,3 +24,18 @@ def test_changed_resource_is_not_skipped():
     prior = {"url": "https://example.test/a.csv", "source_hash": "abc"}
     current = {"url": "https://example.test/a.csv", "hash": "def", "last_modified": None, "size": None}
     assert not m.same_resource(prior, current)
+
+
+def test_retry_wait_honors_retry_after_and_is_bounded():
+    class Response:
+        headers = {"Retry-After": "120"}
+
+    assert m._retry_wait(Response(), 1) == m.MAX_RETRY_WAIT
+
+
+def test_retry_wait_falls_back_to_exponential_backoff():
+    class Response:
+        headers = {}
+
+    assert m._retry_wait(Response(), 1) == 2
+    assert m._retry_wait(Response(), 3) == 8
