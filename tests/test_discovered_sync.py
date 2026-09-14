@@ -1,6 +1,7 @@
 """Tests for incremental discovered-data decisions and retry behavior."""
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("sync", ROOT / "scripts" / "data_gov_ua_discovered_sync.py")
@@ -29,6 +30,13 @@ def test_changed_resource_is_not_skipped():
 def test_retry_wait_honors_retry_after_and_is_bounded():
     response = type("Response", (), {"headers": {"Retry-After": "120"}})()
     assert m._retry_wait(response, 1) == m.MAX_RETRY_WAIT
+
+
+def test_retry_wait_honors_http_date(monkeypatch):
+    monkeypatch.setattr(m.time, "time", lambda: 1_000_000.0)
+    response = SimpleNamespace(headers={"Retry-After": "Sat, 13 Sep 2026 12:00:30 GMT"})
+    wait = m._retry_wait(response, 1)
+    assert 0 < wait <= m.MAX_RETRY_WAIT
 
 
 def test_retry_wait_falls_back_to_exponential_backoff():
