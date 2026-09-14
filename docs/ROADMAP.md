@@ -77,6 +77,7 @@ The repository is considered production-ready when every automated data/model re
 - **EVID-02 — Readiness evidence parity across CI workflows:** every workflow invoking READY-01 generates deterministic hardening evidence immediately before the readiness gate using the exact checkout SHA and workflow/run identity. **Implemented and enforced.**
 - **READY-02 — Evidence-to-release identity binding:** readiness rejects hardening evidence generated for a different release manifest commit and rejects empty or malformed freshness policies. **Implemented with regression tests.**
 - **KAG-01 — Kaggle finetune runtime correctness:** non-fatal Hugging Face publication must be wrapped with valid Python indentation so publication errors do not convert successful training into `KernelWorkerStatus.ERROR`. **Fix committed; producer rerun remains to be checked after scheduled execution.**
+- **CI-01 — Lint-safe hardening self-test:** replace runtime `assert` statements in production hardening self-tests with explicit failure handling so optimized Python execution and Ruff policy cannot silently disable or reject safety checks. **Implemented in commit `84012e4`.**
 
 ## Next production hardening priorities
 
