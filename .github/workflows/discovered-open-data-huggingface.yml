@@ -191,7 +191,18 @@ jobs:
               exit 0
             fi
             echo "git push failed on attempt $attempt; rebasing onto origin/main before retry"
-            git pull --rebase origin main
+            git fetch origin main
+            git stash push --keep-index --include-untracked -m "discovery-progress-push-retry"
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              git stash pop || true
+              echo 'Unable to rebase discovery progress onto origin/main.'
+              exit 1
+            fi
+            if ! git stash pop; then
+              echo 'Unable to restore discovery workspace after progress rebase.'
+              exit 1
+            fi
           done
           echo 'Unable to persist bootstrap progress after 3 push attempts.'
           exit 1
