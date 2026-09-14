@@ -51,7 +51,9 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
     )
     patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
     assert "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)" in patched
+    assert "subprocess.run(['pip', '-q', 'uninstall', '-y', 'torchvision'], check=False)" in patched
     assert "torch==2.5.1" in patched
+    assert "torchvision==0.20.1" not in patched
     assert "--index-url', 'https://download.pytorch.org/whl/cu118'" in patched
     assert "transformers==4.57.1" in patched
     assert "peft==0.17.1" in patched
@@ -61,6 +63,19 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
     assert "# HF publication failure is non-fatal" in patched
     assert "try:\nif token" not in patched
     assert "try:\n    if token and os.path.isdir('model-ft/final'):" in patched
+
+
+def test_patch_repairs_existing_pinned_p100_install(tmp_path):
+    source = (
+        "!pip -q install tokenizers pyarrow peft striprtf\n"
+        "import subprocess\n"
+        "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)\n"
+        "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchvision==0.20.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
+        "subprocess.run(['pip', '-q', 'install', 'tokenizers', 'pyarrow', 'striprtf', 'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
+    )
+    patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
+    assert "torchvision==0.20.1" not in patched
+    assert "uninstall', '-y', 'torchvision'" in patched
 
 
 def test_patch_is_strict_when_not_applicable(tmp_path):
