@@ -191,7 +191,9 @@ def evidence(output, source_commit, workflow_name, workflow_run_id):
             raise SystemExit("negative promotion metadata test failed")
         evaluation_sha = sha(root / "model.bin")
         promoted_at = datetime.now(timezone.utc).isoformat()
-        assert promote("candidate", "production", gates, promote_result, model_id="fixture-model", artifact_sha256=sha(model), evaluation_evidence_sha256=evaluation_sha, approval_identity="self-test", release_sequence=1, promoted_at=promoted_at) == 0
+        promotion_rc = promote("candidate", "production", gates, promote_result, model_id="fixture-model", artifact_sha256=sha(model), evaluation_evidence_sha256=evaluation_sha, approval_identity="self-test", release_sequence=1, promoted_at=promoted_at)
+        if promotion_rc != 0:
+            raise SystemExit("positive promotion self-test failed")
         database = load(registry_result); database["models"][0].update({"publication_state": "production", "release_sequence": 1, "promoted_at": promoted_at}); database["models"].append({**database["models"][0], "model_id": "fixture-current", "release_sequence": 2, "promoted_at": datetime.now(timezone.utc).isoformat()}); dump(registry_result, database)
         rollback_result = root / "rollback.json"; rollback(registry_result, "fixture-current", rollback_result)
         results = {"DRIFT-01": load(drift_result), "QUAR-01": load(quarantine_result), "REG-01": {"state": "green" if load(registry_result).get("models") else "red"}, "COMPAT-01": load(compat_result), "PROM-01": load(promote_result), "ROLL-01": load(rollback_result)}
