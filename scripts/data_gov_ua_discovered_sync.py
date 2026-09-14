@@ -9,6 +9,7 @@ import json
 import os
 import re
 import time
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 import requests
@@ -21,6 +22,7 @@ REQUEST_TIMEOUT = (30, 60)
 MAX_RETRY_WAIT = int(os.environ.get("DATA_GOV_MAX_RETRY_WAIT", "60"))
 HEADERS = {"User-Agent": "JoTalbot/ukraine-open-data-sync"}
 STRUCTURED = {"CSV", "TSV", "JSON", "JSONL", "NDJSON", "XML", "XLS", "XLSX", "ODS", "PARQUET", "ZIP", "7Z", "GZ", "GZIP"}
+RETRYABLE_STATUS_CODES = {408, 425, 429}
 
 
 def _retry_wait(resp, attempt):
@@ -30,7 +32,13 @@ def _retry_wait(resp, attempt):
         try:
             return min(max(float(retry_after), 0.0), float(MAX_RETRY_WAIT))
         except ValueError:
-            pass
+            try:
+                retry_at = parsedate_to_datetime(retry_after)
+                if retry_at.tzinfo is not None:
+                    delay = retry_at.timestamp() - time.time()
+                    return min(max(delay, 0.0), float(MAX_RETRY_WAIT))
+            except (TypeError, ValueError, OverflowError):
+                pass
     return min(float(2**attempt), float(MAX_RETRY_WAIT))
 
 
@@ -40,7 +48,7 @@ def download_with_retries(url, dest):
         try:
             with requests.get(url, stream=True, timeout=REQUEST_TIMEOUT, headers=HEADERS) as response:
                 resp = response
-                if response.status_code == 429 or 500 <= response.status_code <= 599:
+                if response.status_code in RETRYABLE_STATUS_CODES or 500 <= response.status_code <= 599:
                     raise requests.HTTPError(f"server replied {response.status_code}", response=response)
                 response.raise_for_status()
                 total = 0
