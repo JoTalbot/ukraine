@@ -84,11 +84,13 @@ jobs:
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
                   fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
               raise SystemExit(0)
-          elif failed:
-              batch, mode = min(failed), 'retry'
           else:
-              candidates = [i for i in range(count) if i not in successful]
-              if not candidates:
+              candidates = [i for i in range(count) if i not in successful and i not in failed]
+              if candidates:
+                  batch, mode = candidates[0], 'bootstrap'
+              elif failed:
+                  batch, mode = min(failed), 'retry'
+              else:
                   state['next_batch'] = count
                   state['completed_batches'] = len(successful)
                   state['successful_batches'] = sorted(successful)
@@ -100,7 +102,6 @@ jobs:
                   with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
                       fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
                   raise SystemExit(0)
-              batch, mode = candidates[0], 'bootstrap'
           offset = batch * size
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
               fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
