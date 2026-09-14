@@ -5,7 +5,9 @@ import argparse
 import json
 from pathlib import Path
 
-from scripts.verify_promotion_authorization import verify as verify_promotion_authorization
+from scripts.verify_promotion_authorization import (
+    verify as verify_promotion_authorization,
+)
 
 REQUIRED_DOCS = (
     "README.md", "docs/ROADMAP.md", "docs/OBSERVABILITY.md", "docs/RECOVERY.md",
