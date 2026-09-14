@@ -55,7 +55,7 @@ def test_unsafe_paths_fail_closed(tmp_path: Path) -> None:
     ok, issues = verify(tmp_path)
     assert not ok and "unsafe artifact_path" in issues
 
-    auth["artifact_path"] = "/tmp/outside.bin"  # noqa: S108 - intentional unsafe-path rejection test
+    auth["artifact_path"] = str((tmp_path.parent / "outside.bin").resolve())
     auth_path.write_text(json.dumps(auth), encoding="utf-8")
     ok, issues = verify(tmp_path)
     assert not ok and "unsafe artifact_path" in issues
