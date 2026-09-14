@@ -73,6 +73,23 @@ def test_quarantine_rejects_digest_mismatch(tmp_path):
     with pytest.raises(SystemExit): quarantine(artifact, tmp_path / "q", "test", "abc", "1", out)
 
 
+def test_quarantine_rejects_symlink_identity(tmp_path):
+    artifact = tmp_path / "artifact.bin"; artifact.write_bytes(b"good")
+    out = tmp_path / "q.json"
+    quarantine_dir = tmp_path / "q"; quarantine_dir.mkdir()
+    digest = sha(artifact)
+    target = quarantine_dir / f"artifact.bin.{digest}"
+    backing = tmp_path / "backing.bin"; backing.write_bytes(b"good")
+    target.symlink_to(backing)
+    with pytest.raises(SystemExit): quarantine(artifact, quarantine_dir, "test", "abc", "1", out)
+
+
+def test_quarantine_rejects_symlink_artifact(tmp_path):
+    backing = tmp_path / "backing.bin"; backing.write_bytes(b"good")
+    artifact = tmp_path / "artifact.bin"; artifact.symlink_to(backing)
+    with pytest.raises(SystemExit): quarantine(artifact, tmp_path / "q", "test", "abc", "1", tmp_path / "q.json")
+
+
 def test_rollback_requires_immutable_release_order(tmp_path):
     model = tmp_path / "model.bin"; model.write_bytes(b"model")
     registry_path = tmp_path / "registry.json"
