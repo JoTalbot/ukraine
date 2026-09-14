@@ -50,7 +50,7 @@ def _ensure_hf_publish_is_nonfatal(text: str) -> str:
     wrapped = [
         "# HF publication failure is non-fatal: GitHub performs the authoritative publication.\n",
         "try:\n",
-        marker,
+        "    if token and os.path.isdir('model-ft/final'):\n",
     ]
     for line in publish.splitlines(keepends=True):
         wrapped.append("    " + line)
