@@ -40,6 +40,8 @@ jobs:
         run: python scripts/validate_release.py
       - name: Execute runtime hardening evidence self-test
         run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
+      - name: Verify authoritative promotion authorization
+        run: python scripts/verify_promotion_authorization.py --output artifacts/status/promotion-authorization-verification.json
       - name: Verify cryptographic artifact chain
         run: python scripts/verify_artifact_chain.py --output artifacts/status/artifact-chain.json
       - name: Evaluate production readiness
