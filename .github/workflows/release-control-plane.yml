@@ -79,6 +79,14 @@ jobs:
           set -euo pipefail
           SOURCE_COMMIT="$(git rev-parse HEAD)"
           python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$SOURCE_COMMIT" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
+      - name: Upload pre-gate diagnostic snapshot
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-control-plane-pre-gate
+          path: artifacts/status/*.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: Verify authoritative promotion authorization
         run: python scripts/verify_promotion_authorization.py --output artifacts/status/promotion-authorization-verification.json
       - name: Verify cryptographic artifact chain
@@ -86,6 +94,7 @@ jobs:
       - name: Evaluate production readiness
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Upload canonical control-plane snapshot
+        if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-control-plane
