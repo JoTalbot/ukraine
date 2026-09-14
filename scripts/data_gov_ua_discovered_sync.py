@@ -204,7 +204,7 @@ def main():
     if failures and not args.allow_failures:
         raise SystemExit(f"Batch incomplete: {len(failures)} resource(s) failed; progress must not advance")
     if failures:
-        print(f"Batch recorded with {len(failures} failed resource(s); caller may schedule a retry pass")
+        print(f"Batch recorded with {len(failures)} failed resource(s); caller may schedule a retry pass")
 
 
 if __name__ == "__main__":
