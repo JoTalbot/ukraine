@@ -5,6 +5,8 @@ import argparse
 import json
 from pathlib import Path
 
+from scripts.verify_promotion_authorization import verify as verify_promotion_authorization
+
 REQUIRED_DOCS = (
     "README.md",
     "docs/ROADMAP.md",
@@ -102,12 +104,11 @@ def check(root: Path) -> dict:
             authorization = json.loads(authorization_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             authorization = None
-    manifest_commit = manifest_payload.get("git_commit") if manifest_payload else None
     authorization_valid = (
         isinstance(authorization, dict)
         and authorization.get("schema_version") == 1
         and authorization.get("target") == "production"
-        and authorization.get("source_commit") == manifest_commit
+        and authorization.get("source_commit") == (manifest_payload.get("git_commit") if manifest_payload else None)
         and bool(authorization.get("model_id"))
         and _valid_sha(authorization.get("artifact_sha256"))
         and _valid_sha(authorization.get("evaluation_evidence_sha256"))
@@ -117,7 +118,14 @@ def check(root: Path) -> dict:
         and authorization.get("release_sequence") > 0
         and bool(authorization.get("approved_at"))
     )
-    gates["promotion_policy"] = {"state": "green" if authorization_valid else "red", "authoritative_authorization_present": authorization_valid, "path": PROMOTION_AUTHORIZATION}
+    verifier_ok, verifier_issues = verify_promotion_authorization(root)
+    gates["promotion_policy"] = {
+        "state": "green" if authorization_valid and verifier_ok else "red",
+        "authoritative_authorization_present": authorization_valid,
+        "real_artifact_binding_verified": verifier_ok,
+        "verifier_issues": verifier_issues,
+        "path": PROMOTION_AUTHORIZATION,
+    }
 
     states = [str(gate.get("state", "red")) for gate in gates.values()]
     overall = "red" if "red" in states else "yellow" if "yellow" in states else "green"
