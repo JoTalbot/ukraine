@@ -36,37 +36,6 @@ jobs:
           python-version: '3.12'
       - name: Install control-plane dependencies from deterministic lock
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.lock
-      - name: Resolve producer identity
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Production Promotion Authorization' }}
-        env:
-          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
-        run: |
-          set -euo pipefail
-          case "$WORKFLOW_NAME" in
-            "Entity Graph Build") echo 'SIGNAL=graph' >> "$GITHUB_ENV" ;;
-            "Ukraine data CI") echo 'SIGNAL=quality' >> "$GITHUB_ENV" ;;
-            "Ukraine Open Data Discovery") echo 'SIGNAL=ingestion' >> "$GITHUB_ENV" ;;
-            "Train Ukraine Models"|"Kaggle GPU Training") echo 'SIGNAL=training' >> "$GITHUB_ENV" ;;
-            "Ukraine Open Data -> Hugging Face"|"Discovered Ukraine Open Data -> Hugging Face"|"EDRSR Hugging Face Upload"|"EDRSR Full Texts"|"Pages Dashboard") echo 'SIGNAL=publication' >> "$GITHUB_ENV" ;;
-            "Security scan") echo 'SIGNAL=security' >> "$GITHUB_ENV" ;;
-            *) echo "Unsupported workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
-          esac
-      - name: Download producer signal
-        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Production Promotion Authorization' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
-          SIGNAL: ${{ env.SIGNAL }}
-        run: |
-          set -euo pipefail
-          rm -rf artifacts/status/signals
-          mkdir -p artifacts/status/signals
-          if ! gh run download "$RUN_ID" --name "status-signal-$SIGNAL" --dir artifacts/status/signals >/dev/null 2>&1; then
-            echo "Required producer signal artifact status-signal-$SIGNAL is missing" >&2
-            exit 1
-          fi
-          test -s "artifacts/status/signals/$SIGNAL.json"
-          echo "Using producer signal artifact for $SIGNAL"
       - name: Download authoritative promotion authorization
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
         env:
@@ -74,27 +43,100 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/status/promotion-authorization
-          if ! gh run download "$RUN_ID" --name production-promotion-authorization --dir artifacts/status/promotion-authorization >/dev/null 2>&1; then
-            echo "Authoritative promotion authorization artifact is missing" >&2
-            exit 1
-          fi
-          test -s artifacts/status/promotion-authorization/production-promotion-authorization.json
-          cp artifacts/status/promotion-authorization/production-promotion-authorization.json artifacts/status/production-promotion-authorization.json
+          tmp_dir="$(mktemp -d)"
+          gh run download "$RUN_ID" --name production-promotion-authorization --dir "$tmp_dir"
+          test -s "$tmp_dir/promotion-authorization/production-promotion-authorization.json"
+          cp "$tmp_dir/promotion-authorization/production-promotion-authorization.json" artifacts/status/production-promotion-authorization.json
+          ARTIFACT_PATH="$(python -c 'import json; print(json.load(open("artifacts/status/production-promotion-authorization.json"))["artifact_path"])')"
+          EVALUATION_PATH="$(python -c 'import json; print(json.load(open("artifacts/status/production-promotion-authorization.json"))["evaluation_evidence_path"])')"
+          test -s "$tmp_dir/$ARTIFACT_PATH"
+          test -s "$tmp_dir/$EVALUATION_PATH"
+          mkdir -p "$(dirname "$ARTIFACT_PATH")" "$(dirname "$EVALUATION_PATH")"
+          cp "$tmp_dir/$ARTIFACT_PATH" "$ARTIFACT_PATH"
+          cp "$tmp_dir/$EVALUATION_PATH" "$EVALUATION_PATH"
           SOURCE_COMMIT="$(python -c 'import json; print(json.load(open("artifacts/status/production-promotion-authorization.json"))["source_commit"])')"
           [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
           git fetch --no-tags --depth=1 origin "$SOURCE_COMMIT"
           git checkout --detach "$SOURCE_COMMIT"
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+      - name: Determine release source commit
+        env:
+          PROMOTION_SOURCE: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
+        run: |
+          set -euo pipefail
+          if [ "$PROMOTION_SOURCE" = "true" ]; then
+            test -s artifacts/status/production-promotion-authorization.json
+            python - <<'PY'
+            import json
+            from pathlib import Path
+            source = json.loads(Path('artifacts/status/production-promotion-authorization.json').read_text())['source_commit']
+            if source != __import__('subprocess').check_output(['git','rev-parse','HEAD'], text=True).strip():
+                raise SystemExit('promotion authorization source_commit does not match checked out release')
+            PY
+          fi
+      - name: Collect all producer signals for exact release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_COMMIT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' && 'promotion' || github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/status/signals
+          python - <<'PY'
+          import json, os, subprocess
+          from pathlib import Path
+
+          repo = os.environ['REPOSITORY']
+          release = os.environ['RELEASE_COMMIT']
+          auth = Path('artifacts/status/production-promotion-authorization.json')
+          if auth.is_file():
+              release = json.loads(auth.read_text())['source_commit']
+          if not release or release == 'promotion':
+              raise SystemExit('unable to determine release commit')
+
+          groups = {
+              'ingestion': ['Ukraine Open Data Discovery'],
+              'quality': ['Ukraine data CI'],
+              'graph': ['Entity Graph Build'],
+              'training': ['Train Ukraine Models', 'Kaggle GPU Training'],
+              'publication': ['Ukraine Open Data -> Hugging Face', 'Discovered Ukraine Open Data -> Hugging Face', 'EDRSR Hugging Face Upload', 'EDRSR Full Texts', 'Pages Dashboard'],
+              'security': ['Security scan'],
+          }
+          runs = json.loads(subprocess.check_output([
+              'gh', 'api', f'repos/{repo}/actions/runs?per_page=100&branch=main'
+          ], text=True))['workflow_runs']
+          runs = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
+
+          out = Path('artifacts/status/signals')
+          for signal, names in groups.items():
+              candidates = [r for r in runs if r.get('name') in names]
+              candidates.sort(key=lambda r: r.get('run_number', 0), reverse=True)
+              if not candidates:
+                  raise SystemExit(f'missing successful producer run for {signal} at {release}')
+              selected = candidates[0]
+              artifact_name = f'status-signal-{signal}'
+              target = out / signal
+              target.mkdir(parents=True, exist_ok=True)
+              subprocess.run(['gh', 'run', 'download', str(selected['id']), '--name', artifact_name, '--dir', str(target)], check=True)
+              signal_file = target / f'{signal}.json'
+              if not signal_file.is_file() or signal_file.stat().st_size == 0:
+                  raise SystemExit(f'{artifact_name} from run {selected["id"]} did not contain {signal}.json')
+              payload = json.loads(signal_file.read_text())
+              if payload.get('source_commit', payload.get('git_commit')) != release:
+                  raise SystemExit(f'{signal} signal source commit mismatch')
+              print(f'Using {signal} from run {selected["id"]} ({selected["name"]})')
+          Path('artifacts/status/release-source-commit.txt').write_text(release + '\n', encoding='utf-8')
+          PY
+          for signal in ingestion quality graph training publication security; do
+            cp "artifacts/status/signals/$signal/$signal.json" "artifacts/status/signals/$signal.json"
+          done
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Aggregate canonical status index
-        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Production Promotion Authorization' }}
         run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --sbom artifacts/status/sbom.cdx.json --output artifacts/status/status-index.json
       - name: Validate canonical control plane
-        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Production Promotion Authorization' }}
         run: python scripts/validate_release.py
       - name: Execute runtime hardening evidence self-test
         run: |
