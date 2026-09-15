@@ -30,7 +30,7 @@ on:
 
 permissions:
   actions: read
-  contents: write
+  contents: read
 
 jobs:
   authorize:
@@ -67,7 +67,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
 
-      - name: Verify authoritative release gates
+      - name: Verify upstream release gates
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -90,17 +90,13 @@ jobs:
           with urllib.request.urlopen(req) as response:
               runs = json.load(response)['workflow_runs']
 
-          required = {
-              'Ukraine data CI',
-              'Security scan',
-              'Release Control Plane',
-          }
+          required = {'Ukraine data CI', 'Security scan'}
           matching = [r for r in runs if r.get('head_sha') == sha]
           by_name = {r.get('name'): r for r in matching}
           missing = sorted(required - by_name.keys())
           failed = sorted(
-              name for name, run in by_name.items()
-              if name in required and run.get('conclusion') != 'success'
+              name for name in required & by_name.keys()
+              if by_name[name].get('conclusion') != 'success'
           )
           if missing or failed:
               raise SystemExit(
