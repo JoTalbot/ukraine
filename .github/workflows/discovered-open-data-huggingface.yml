@@ -245,7 +245,10 @@ jobs:
           state['successful_batches'] = sorted(successful)
           state['failed_batches'] = sorted(failed)
           state['blocked_batches'] = sorted(blocked)
-          state['next_batch'] = max(int(state.get('next_batch', 0)), batch + 1)
+          # next_batch is the next previously unseen batch, not the latest attempted batch.
+          # Retries are selected independently from failed_batches/blocked_batches.
+          unseen = [i for i in range(count) if i not in successful and i not in failed and i not in blocked]
+          state['next_batch'] = unseen[0] if unseen else count
           state['completed_batches'] = len(successful)
           state['batch_count'] = count
           state['blocked_batch_count'] = len(blocked)
