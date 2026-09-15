@@ -43,15 +43,15 @@ required = {
 }
 
 def api(path):
-    return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+    return json.loads(subprocess.check_output(['gh', 'api', path], text=True))['workflow_runs']
 
 # Find the newest successful quality run. Its head SHA is the release identity.
-quality_runs = api(f'repos/{repo}/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')['workflow_runs']
+quality_runs = api(f'repos/{repo}/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')
 for quality in quality_runs:
     release = quality.get('head_sha')
     if not release:
         continue
-    runs = api(f'repos/{repo}/actions/runs?head_sha={release}&per_page=100')['workflow_runs']
+    runs = api(f'repos/{repo}/actions/runs?head_sha={release}&per_page=100')
     successful = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
     missing = [
         group for group, names in required.items()
@@ -61,7 +61,7 @@ for quality in quality_runs:
         print(f'Candidate {release} ({quality.get("run_number")}) incomplete: {", ".join(missing)}')
         continue
 
-    control_runs = api(f'repos/{repo}/actions/workflows/release-control-plane.yml/runs?per_page=100')['workflow_runs']
+    control_runs = api(f'repos/{repo}/actions/workflows/release-control-plane.yml/runs?per_page=100')
     already = [
         r for r in control_runs
         if r.get('event') == 'workflow_dispatch'
@@ -73,7 +73,11 @@ for quality in quality_runs:
         raise SystemExit(0)
 
     print(f'Release {release} is complete; dispatching Release Control Plane.')
-    subprocess.run(['gh', 'workflow', 'run', 'release-control-plane.yml', '--ref', 'main'], check=True)
+    subprocess.run([
+        'gh', 'workflow', 'run', 'release-control-plane.yml',
+        '--ref', 'main',
+        '-f', f'source_commit={release}',
+    ], check=True)
     raise SystemExit(0)
 
 print('No complete release candidate found; nothing to dispatch.')
