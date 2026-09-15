@@ -1,6 +1,8 @@
 name: Release Control Plane
 
 on:
+  push:
+    branches: [main]
   workflow_run:
     workflows:
       - Entity Graph Build
@@ -22,7 +24,7 @@ permissions:
   contents: read
 jobs:
   aggregate:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout triggering source
@@ -71,7 +73,6 @@ jobs:
 import json
 import subprocess
 from pathlib import Path
-
 source = json.loads(Path('artifacts/status/production-promotion-authorization.json').read_text())['source_commit']
 head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 if source != head:
@@ -83,6 +84,7 @@ PY
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           RELEASE_COMMIT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          PROMOTION_EVENT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/status/signals
@@ -94,6 +96,7 @@ from pathlib import Path
 
 repo = os.environ['REPOSITORY']
 release = os.environ['RELEASE_COMMIT']
+promotion = os.environ.get('PROMOTION_EVENT') == 'true'
 auth = Path('artifacts/status/production-promotion-authorization.json')
 if auth.is_file():
     release = json.loads(auth.read_text())['source_commit']
@@ -114,11 +117,16 @@ runs = json.loads(subprocess.check_output([
 runs = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
 
 out = Path('artifacts/status/signals')
+collection = {'schema_version': 1, 'release_commit': release, 'promotion_event': promotion, 'signals': {}}
 for signal, names in groups.items():
     candidates = [r for r in runs if r.get('name') in names]
     candidates.sort(key=lambda r: r.get('run_number', 0), reverse=True)
     if not candidates:
-        raise SystemExit(f'missing successful producer run for {signal} at {release}')
+        collection['signals'][signal] = {'state': 'missing', 'workflows': names}
+        if promotion:
+            raise SystemExit(f'missing successful producer run for {signal} at {release}')
+        print(f'No successful producer run for {signal} at {release}; leaving signal unknown for diagnostic aggregation')
+        continue
     selected = candidates[0]
     artifact_name = f'status-signal-{signal}'
     target = out / signal
@@ -126,15 +134,28 @@ for signal, names in groups.items():
     subprocess.run(['gh', 'run', 'download', str(selected['id']), '--name', artifact_name, '--dir', str(target)], check=True)
     signal_file = target / f'{signal}.json'
     if not signal_file.is_file() or signal_file.stat().st_size == 0:
-        raise SystemExit(f'{artifact_name} from run {selected["id"]} did not contain {signal}.json')
+        collection['signals'][signal] = {'state': 'invalid', 'run_id': selected['id']}
+        if promotion:
+            raise SystemExit(f'{artifact_name} from run {selected["id"]} did not contain {signal}.json')
+        print(f'{artifact_name} from run {selected["id"]} did not contain {signal}.json; leaving signal unknown')
+        continue
     payload = json.loads(signal_file.read_text())
     if payload.get('source_commit', payload.get('git_commit')) != release:
-        raise SystemExit(f'{signal} signal source commit mismatch')
+        collection['signals'][signal] = {'state': 'mismatch', 'run_id': selected['id']}
+        if promotion:
+            raise SystemExit(f'{signal} signal source commit mismatch')
+        print(f'{signal} signal source commit mismatch; leaving signal unknown')
+        continue
+    collection['signals'][signal] = {'state': 'present', 'run_id': selected['id'], 'workflow': selected['name']}
     print(f'Using {signal} from run {selected["id"]} ({selected["name"]})')
+
+Path('artifacts/status/producer-signal-collection.json').write_text(json.dumps(collection, indent=2) + '\n', encoding='utf-8')
 Path('artifacts/status/release-source-commit.txt').write_text(release + '\n', encoding='utf-8')
 PY
           for signal in ingestion quality graph training publication security; do
-            cp "artifacts/status/signals/$signal/$signal.json" "artifacts/status/signals/$signal.json"
+            if test -f "artifacts/status/signals/$signal/$signal.json"; then
+              cp "artifacts/status/signals/$signal/$signal.json" "artifacts/status/signals/$signal.json"
+            fi
           done
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
