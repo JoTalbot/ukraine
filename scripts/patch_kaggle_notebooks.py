@@ -13,7 +13,9 @@ INSTALL_MARKERS = {
 
 # Kaggle P100 is Pascal (sm_60). Keep the runtime deterministic and avoid
 # installing unnecessary audio/vision wheels that consume hundreds of MB and
-# can destabilize the preconfigured notebook environment.
+# can destabilize the preconfigured notebook environment. The selected
+# PyTorch build is also usable on newer CUDA-capable Kaggle GPUs, so the FT
+# guard must validate CUDA availability rather than reject T4/Ampere runtimes.
 FT_INSTALL = (
     "import subprocess\n"
     "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)\n"
@@ -21,7 +23,6 @@ FT_INSTALL = (
     "subprocess.run(['pip', '-q', 'install', '--no-cache-dir', 'tokenizers', 'pyarrow', 'striprtf', 'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
     "import torch\n"
     "assert torch.cuda.is_available(), 'CUDA is unavailable after deterministic torch install'\n"
-    "assert torch.cuda.get_device_capability(0)[0] < 7, 'Unexpected non-Pascal GPU for this FT runtime'\n"
     "print('FT runtime:', torch.__version__, '| GPU:', torch.cuda.get_device_name(0), '| capability:', torch.cuda.get_device_capability(0))\n"
 )
 
@@ -45,7 +46,7 @@ def _drop_vision_audio_pins(text: str) -> str:
     """Убрать пины torchvision/torchaudio из install-команд ноутбука.
 
     Kaggle P100 (sm_60) не должен тянуть vision/audio-колёса: предустановленный
-    torchvision несовместим с пересобранным torch и роняет рантайм.
+    torchvision несовместим с пересобранным torch и роняет импорт.
     """
     if "torchvision==" not in text and "torchaudio==" not in text:
         return text
