@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 INSTALL_MARKERS = {
@@ -35,6 +36,46 @@ def _ensure_ft_dependencies(text: str, marker: str, name: str) -> str:
     if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1" in text and "--no-cache-dir" in text and "torchaudio" in text:
         return text
     return text.replace(marker, FT_INSTALL, 1)
+
+
+VISION_AUDIO_PINS = re.compile(r"['\"]torch(?:vision|audio)==[^'\"]*['\"],?\s*")
+
+
+def _drop_vision_audio_pins(text: str) -> str:
+    """Убрать пины torchvision/torchaudio из install-команд ноутбука.
+
+    Kaggle P100 (sm_60) не должен тянуть vision/audio-колёса: предустановленный
+    torchvision несовместим с пересобранным torch и роняет рантайм.
+    """
+    if "torchvision==" not in text and "torchaudio==" not in text:
+        return text
+    patched_lines = []
+    for line in text.splitlines(keepends=True):
+        if "install" in line and ("torchvision==" in line or "torchaudio==" in line):
+            line = VISION_AUDIO_PINS.sub("", line)
+        patched_lines.append(line)
+    return "".join(patched_lines)
+
+
+TORCHVISION_UNINSTALL = "subprocess.run(['pip', 'uninstall', '-y', 'torchvision'], check=True)\n"
+
+
+def _ensure_torchvision_uninstall(text: str) -> str:
+    """Гарантировать удаление предустановленного torchvision после сборки torch.
+
+    Wheel'ы torchvision из образа Kaggle собраны под другой torch и на P100
+    ломают импорт; убираем их python-командой, а не shell-префиксом ``!pip``.
+    """
+    if "uninstall', '-y', 'torchvision'" in text:
+        return text
+    anchors = (
+        "subprocess.run(['pip', '-q', 'install', '--no-cache-dir', 'torch==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n",
+        "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)\n",
+    )
+    for anchor in anchors:
+        if anchor in text:
+            return text.replace(anchor, anchor + TORCHVISION_UNINSTALL, 1)
+    return text
 
 
 def _ensure_torchvision_removed(text: str, marker: str) -> str:
@@ -83,7 +124,10 @@ def patch_notebook(path: Path) -> bool:
         marker = INSTALL_MARKERS.get(name)
         if marker:
             text = _ensure_ft_dependencies(text, marker, name)
-            if name != "legal_lm_finetune.ipynb":
+            if name == "legal_lm_finetune.ipynb":
+                text = _drop_vision_audio_pins(text)
+                text = _ensure_torchvision_uninstall(text)
+            else:
                 text = _ensure_torchvision_removed(text, marker)
 
         if "print('training exit code:', result.returncode)" in text and "raise SystemExit(result.returncode)" not in text:
