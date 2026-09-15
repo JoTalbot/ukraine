@@ -22,6 +22,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
       - name: Download release control plane result
+        id: classify
         if: ${{ github.event_name == 'workflow_run' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,12 +32,14 @@ jobs:
           test "${{ github.event.workflow_run.conclusion }}" = success
           mkdir -p /tmp/release-control-plane
           gh run download "$RUN_ID" --name release-control-plane --dir /tmp/release-control-plane
-          test -s /tmp/release-control-plane/production-readiness.json
+          if test -s /tmp/release-control-plane/production-readiness.json; then
+            echo "promotion_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "promotion_run=false" >> "$GITHUB_OUTPUT"
+            echo "Normal control-plane aggregation detected; production promotion gate is not applicable."
+          fi
       - name: Checkout verified release source
-        if: ${{ github.event_name == 'workflow_run' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RUN_ID: ${{ github.event.workflow_run.id }}
+        if: ${{ github.event_name == 'workflow_run' && steps.classify.outputs.promotion_run == 'true' }}
         run: |
           set -euo pipefail
           SOURCE_COMMIT="$(python -c 'import json; print(json.load(open("/tmp/release-control-plane/release-manifest.json"))["git_commit"])')"
@@ -45,43 +48,44 @@ jobs:
           git checkout --detach "$SOURCE_COMMIT"
           test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
       - name: Verify release control plane result
-        if: ${{ github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' && steps.classify.outputs.promotion_run == 'true' }}
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json
-          from pathlib import Path
-          p = Path('/tmp/release-control-plane/production-readiness.json')
-          data = json.loads(p.read_text(encoding='utf-8'))
-          if data.get('overall_state') != 'green':
-              raise SystemExit(f"production readiness is not green: {data!r}")
-          manifest = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
-          import subprocess
-          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          if manifest.get('git_commit') != head:
-              raise SystemExit(f"control-plane release commit {manifest.get('git_commit')!r} does not match checked-out source {head!r}")
-          PY
+import json
+from pathlib import Path
+p = Path('/tmp/release-control-plane/production-readiness.json')
+data = json.loads(p.read_text(encoding='utf-8'))
+if data.get('overall_state') != 'green':
+    raise SystemExit(f"production readiness is not green: {data!r}")
+manifest = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
+import subprocess
+head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+if manifest.get('git_commit') != head:
+    raise SystemExit(f"control-plane release commit {manifest.get('git_commit')!r} does not match checked-out source {head!r}")
+PY
       - name: Verify current release manifest and control-plane identity
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.classify.outputs.promotion_run == 'true' }}
         run: |
           set -euo pipefail
           python scripts/generate_release_manifest.py --output /tmp/current-release-manifest.json
           python - <<'PY'
-          import json
-          import subprocess
-          from pathlib import Path
-          p = Path('/tmp/current-release-manifest.json')
-          data = json.loads(p.read_text(encoding='utf-8'))
-          if data.get('schema_version') != 1:
-              raise SystemExit(f"unexpected manifest schema_version: {data.get('schema_version')!r}")
-          if data.get('release_class') != 'repository':
-              raise SystemExit(f"unexpected release_class: {data.get('release_class')!r}")
-          if not isinstance(data.get('files'), list) or not data['files']:
-              raise SystemExit('release manifest must contain a non-empty files list')
-          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-          if data.get('git_commit') != head:
-              raise SystemExit(f"manifest git_commit {data.get('git_commit')!r} does not match HEAD {head!r}")
-          if Path('/tmp/release-control-plane/release-manifest.json').exists():
-              control = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
-              if control.get('git_commit') != head:
-                  raise SystemExit('control-plane manifest identity does not match verified source')
-          PY
+import json
+import subprocess
+from pathlib import Path
+p = Path('/tmp/current-release-manifest.json')
+data = json.loads(p.read_text(encoding='utf-8'))
+if data.get('schema_version') != 1:
+    raise SystemExit(f"unexpected manifest schema_version: {data.get('schema_version')!r}")
+if data.get('release_class') != 'repository':
+    raise SystemExit(f"unexpected release_class: {data.get('release_class')!r}")
+if not isinstance(data.get('files'), list) or not data['files']:
+    raise SystemExit('release manifest must contain a non-empty files list')
+head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+if data.get('git_commit') != head:
+    raise SystemExit(f"manifest git_commit {data.get('git_commit')!r} does not match HEAD {head!r}")
+if Path('/tmp/release-control-plane/release-manifest.json').exists():
+    control = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
+    if control.get('git_commit') != head:
+        raise SystemExit('control-plane manifest identity does not match verified source')
+PY
