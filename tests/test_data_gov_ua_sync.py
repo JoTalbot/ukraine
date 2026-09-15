@@ -1,6 +1,5 @@
 """Regression tests for the Data.gov.ua mirror transport and resource naming."""
 import importlib.util
-import io
 from pathlib import Path
 from unittest import mock
 
@@ -27,19 +26,6 @@ class _Response:
         self.closed = True
 
 
-class _StreamResponse(io.BytesIO):
-    status_code = 200
-
-    def raise_for_status(self):
-        return None
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-
 def test_safe_name_preserves_extension_and_stays_below_byte_limit():
     source = ("дуже-довга-назва-ресурсу-" * 30) + ".xlsx"
     result = m.safe_name(source)
@@ -47,13 +33,15 @@ def test_safe_name_preserves_extension_and_stays_below_byte_limit():
     assert result.endswith(".xlsx")
     assert len(result.encode("utf-8")) <= 180
     assert result != source
-    assert result.rsplit("_", 1)[-1].removesuffix(".xlsx").__len__() >= 0
 
 
 def test_safe_name_hashes_long_names_deterministically():
     source = ("resource-" * 50) + ".csv"
-    assert m.safe_name(source) == m.safe_name(source)
-    assert len(m.safe_name(source).encode("utf-8")) <= 180
+    result = m.safe_name(source)
+
+    assert result == m.safe_name(source)
+    assert len(result.encode("utf-8")) <= 180
+    assert result.endswith(".csv")
 
 
 def test_get_with_retries_retries_chunked_encoding_error():
