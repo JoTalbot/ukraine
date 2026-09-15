@@ -1,5 +1,7 @@
 name: Release Control Plane
 
+run-name: Release Control Plane • ${{ inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}
+
 on:
   workflow_run:
     workflows:
@@ -76,7 +78,6 @@ jobs:
 import json
 import subprocess
 from pathlib import Path
-
 source = json.loads(Path('artifacts/status/production-promotion-authorization.json').read_text())['source_commit']
 head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 if source != head:
@@ -98,7 +99,6 @@ import json
 import os
 import subprocess
 from pathlib import Path
-
 repo = os.environ['REPOSITORY']
 release = os.environ['RELEASE_COMMIT']
 auth = Path('artifacts/status/production-promotion-authorization.json')
@@ -106,7 +106,6 @@ if auth.is_file():
     release = json.loads(auth.read_text())['source_commit']
 if not release:
     raise SystemExit('unable to determine release commit')
-
 groups = {
     'ingestion': ['Ukraine Open Data Discovery'],
     'quality': ['Ukraine data CI'],
@@ -115,12 +114,8 @@ groups = {
     'publication': ['Ukraine Open Data -> Hugging Face', 'Discovered Ukraine Open Data -> Hugging Face', 'EDRSR Hugging Face Upload', 'EDRSR Full Texts', 'Pages Dashboard'],
     'security': ['Security scan'],
 }
-runs = json.loads(subprocess.check_output([
-    'gh', 'api', f'repos/{repo}/actions/runs?head_sha={release}&per_page=100'
-], text=True))['workflow_runs']
+runs = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/actions/runs?head_sha={release}&per_page=100'], text=True))['workflow_runs']
 runs = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
-
-out = Path('artifacts/status/signals')
 for signal, names in groups.items():
     candidates = [r for r in runs if r.get('name') in names]
     candidates.sort(key=lambda r: r.get('run_number', 0), reverse=True)
@@ -128,7 +123,7 @@ for signal, names in groups.items():
         raise SystemExit(f'missing successful producer run for {signal} at {release}')
     selected = candidates[0]
     artifact_name = f'status-signal-{signal}'
-    target = out / signal
+    target = Path('artifacts/status/signals') / signal
     target.mkdir(parents=True, exist_ok=True)
     subprocess.run(['gh', 'run', 'download', str(selected['id']), '--name', artifact_name, '--dir', str(target)], check=True)
     signal_file = target / f'{signal}.json'
