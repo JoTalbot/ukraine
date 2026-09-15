@@ -52,7 +52,17 @@ def test_host_of_extracts_domain():
     assert m.host_of("") == ""
 
 
+class _OpenSocket:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
 def test_probe_host_marks_timeout_as_unreachable(monkeypatch):
+    """TCP открывается, но HTTPS-ответа нет (так молчит opendata.gov.ua)."""
+    monkeypatch.setattr(m.socket, "create_connection", lambda *a, **k: _OpenSocket())
     monkeypatch.setattr(
         m.requests, "head",
         lambda *a, **k: (_ for _ in ()).throw(m.requests.exceptions.ReadTimeout("silent TLS")),
@@ -60,6 +70,17 @@ def test_probe_host_marks_timeout_as_unreachable(monkeypatch):
     result = m.probe_host("opendata.gov.ua", timeout=0.1)
     assert result["reachable"] is False
     assert "ReadTimeout" in result["detail"]
+
+
+def test_probe_host_marks_tcp_timeout_as_unreachable(monkeypatch):
+    """TCP-этап сам по себе может таймаутиться (так видит хост GitHub runner)."""
+    def boom(*a, **k):
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr(m.socket, "create_connection", boom)
+    result = m.probe_host("opendata.gov.ua", timeout=0.1)
+    assert result["reachable"] is False
+    assert "timeout" in result["detail"].lower()
 
 
 def test_probe_host_marks_any_http_answer_as_reachable(monkeypatch):
