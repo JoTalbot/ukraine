@@ -33,6 +33,8 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          CURRENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -45,6 +47,8 @@ jobs:
           token = os.environ['GH_TOKEN']
           event_name = os.environ['EVENT_NAME']
           workflow_name = os.environ.get('WORKFLOW_NAME', '')
+          workflow_conclusion = os.environ.get('WORKFLOW_CONCLUSION', '')
+          current_sha = os.environ.get('CURRENT_SHA', '')
           api = f'https://api.github.com/repos/{repo}'
 
           def request(path, method='GET', payload=None):
@@ -74,18 +78,34 @@ jobs:
                   if r.get('status') in {'queued', 'in_progress'}
               ]
 
-          if event_name == 'workflow_run' and workflow_name == 'Ukraine data CI':
-              if active_runs('release-control-plane-dispatch.yml'):
-                  print('Release Control Plane Dispatch is already active; no duplicate trigger.')
-              else:
-                  print('Ukraine data CI completed; triggering Release Control Plane Dispatch.')
-                  request('/actions/workflows/release-control-plane-dispatch.yml/dispatches', method='POST', payload={'ref': 'main'})
+          def successful_quality_for_current_main():
+              _, payload = request('/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')
+              return any(
+                  r.get('head_sha') == current_sha and r.get('conclusion') == 'success'
+                  for r in payload.get('workflow_runs', [])
+              )
+
+          # Any successful producer completion can safely wake the dispatcher once
+          # the quality anchor for the current main revision is green. This avoids
+          # relying on a particular workflow_run name arriving last.
+          if event_name == 'workflow_run':
+              if workflow_conclusion != 'success':
+                  print(f'Workflow {workflow_name} completed with {workflow_conclusion}; no release progression.')
+                  raise SystemExit(0)
+              if successful_quality_for_current_main():
+                  if active_runs('release-control-plane-dispatch.yml'):
+                      print('Release Control Plane Dispatch is already active; no duplicate trigger.')
+                  else:
+                      print(f'{workflow_name} completed successfully and quality is green for {current_sha}; triggering Release Control Plane Dispatch.')
+                      request('/actions/workflows/release-control-plane-dispatch.yml/dispatches', method='POST', payload={'ref': 'main'})
+                  raise SystemExit(0)
+              print(f'{workflow_name} completed successfully, but quality is not yet green for {current_sha}; no progression needed.')
               raise SystemExit(0)
 
           if active_runs('ukraine-data-ci.yml'):
               print('Ukraine data CI is already queued/running; no duplicate trigger.')
               raise SystemExit(0)
 
-          print(f'Event {event_name} / {workflow_name}: triggering Ukraine data CI for current main revision.')
+          print(f'Event {event_name} / {workflow_name}: triggering Ukraine data CI for current main revision {current_sha}.')
           request('/actions/workflows/ukraine-data-ci.yml/dispatches', method='POST', payload={'ref': 'main'})
           PY
