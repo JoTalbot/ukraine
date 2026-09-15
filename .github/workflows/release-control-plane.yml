@@ -24,7 +24,6 @@ permissions:
   contents: read
 jobs:
   aggregate:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout triggering source
