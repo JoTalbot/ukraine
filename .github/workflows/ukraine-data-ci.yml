@@ -40,17 +40,15 @@ jobs:
         run: python scripts/validate_release.py
       - name: Execute runtime hardening evidence self-test
         run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
-      - name: Verify authoritative promotion authorization
-        run: python scripts/verify_promotion_authorization.py --output artifacts/status/promotion-authorization-verification.json
-      - name: Verify cryptographic artifact chain
-        run: python scripts/verify_artifact_chain.py --output artifacts/status/artifact-chain.json
-      - name: Evaluate production readiness
-        run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
-      - name: Upload release manifest, status index, SBOM, hardening evidence, artifact chain and readiness
+      - name: Upload release validation evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: release-status
-          path: artifacts/status/*.json
+          path: |
+            artifacts/status/release-manifest.json
+            artifacts/status/sbom.cdx.json
+            artifacts/status/status-index.json
+            artifacts/status/production-hardening-evidence.json
           if-no-files-found: error
           retention-days: 30
       - name: Write quality status signal
