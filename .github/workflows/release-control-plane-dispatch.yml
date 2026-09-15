@@ -15,7 +15,7 @@ jobs:
   dispatch-when-release-is-complete:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository for gh workflow dispatch
+      - name: Checkout repository for workflow definitions
         uses: actions/checkout@v5
       - name: Select release and dispatch missing producers or control plane
         env:
@@ -27,8 +27,12 @@ jobs:
           import json
           import os
           import subprocess
+          import urllib.error
+          import urllib.request
 
           repo = os.environ['REPOSITORY']
+          token = os.environ['GH_TOKEN']
+          api_base = f'https://api.github.com/repos/{repo}'
           required = {
               'ingestion': ['Ukraine Open Data Discovery'],
               'quality': ['Ukraine data CI'],
@@ -43,91 +47,82 @@ jobs:
               'security': ['Security scan'],
           }
           dispatchable = {
-              'Ukraine Open Data Discovery': '.github/workflows/data-gov-discovery.yml',
-              'Entity Graph Build': '.github/workflows/entity-graph.yml',
-              'Train Ukraine Models': '.github/workflows/train-models.yml',
-              'Kaggle GPU Training': '.github/workflows/kaggle-training.yml',
-              'Ukraine Open Data -> Hugging Face': '.github/workflows/open-data-huggingface.yml',
-              'Discovered Ukraine Open Data -> Hugging Face': '.github/workflows/discovered-open-data-huggingface.yml',
-              'EDRSR Hugging Face Upload': '.github/workflows/edrsr-huggingface.yml',
-              'EDRSR Full Texts': '.github/workflows/edrsr-full-texts.yml',
-              'Security scan': '.github/workflows/security-scan.yml',
+              'Ukraine Open Data Discovery': 'data-gov-discovery.yml',
+              'Entity Graph Build': 'entity-graph.yml',
+              'Train Ukraine Models': 'train-models.yml',
+              'Kaggle GPU Training': 'kaggle-training.yml',
+              'Ukraine Open Data -> Hugging Face': 'open-data-huggingface.yml',
+              'Discovered Ukraine Open Data -> Hugging Face': 'discovered-open-data-huggingface.yml',
+              'EDRSR Hugging Face Upload': 'edrsr-huggingface.yml',
+              'EDRSR Full Texts': 'edrsr-full-texts.yml',
+              'Security scan': 'security-scan.yml',
           }
 
           def api(path):
-              return json.loads(subprocess.check_output(['gh', 'api', path], text=True))['workflow_runs']
+              req = urllib.request.Request(
+                  api_base + '/' + path.lstrip('/'),
+                  headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'},
+              )
+              with urllib.request.urlopen(req) as response:
+                  return json.load(response)
 
           def dispatch(name, ref):
               workflow = dispatchable[name]
+              url = f'{api_base}/actions/workflows/{workflow}/dispatches'
+              payload = json.dumps({'ref': ref}).encode()
+              req = urllib.request.Request(
+                  url,
+                  data=payload,
+                  method='POST',
+                  headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'},
+              )
               print(f'Dispatching {name} at exact release SHA {ref} via {workflow}')
-              subprocess.run(['gh', 'workflow', 'run', workflow, '--ref', ref], check=True)
+              try:
+                  with urllib.request.urlopen(req) as response:
+                      if response.status not in (201, 204):
+                          raise RuntimeError(f'workflow dispatch returned HTTP {response.status}')
+              except urllib.error.HTTPError as exc:
+                  body = exc.read().decode('utf-8', errors='replace')
+                  raise RuntimeError(f'workflow dispatch failed: HTTP {exc.code}: {body}') from exc
 
-          quality_runs = api(
-              f'repos/{repo}/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50'
-          )
-          control_runs = api(f'repos/{repo}/actions/workflows/release-control-plane.yml/runs?per_page=100')
+          quality_runs = api('/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')['workflow_runs']
+          control_runs = api('/actions/workflows/release-control-plane.yml/runs?per_page=100')['workflow_runs']
 
           for quality in quality_runs:
               release = quality.get('head_sha')
               if not release:
                   continue
-              runs = api(f'repos/{repo}/actions/runs?head_sha={release}&per_page=100')
-              successful = [
-                  r for r in runs
-                  if r.get('head_sha') == release and r.get('conclusion') == 'success'
-              ]
-              missing = [
-                  group for group, names in required.items()
-                  if not any(r.get('name') in names for r in successful)
-              ]
+              runs = api(f'/actions/runs?head_sha={release}&per_page=100')['workflow_runs']
+              successful = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
+              missing = [group for group, names in required.items() if not any(r.get('name') in names for r in successful)]
               if not missing:
                   marker = f'Release Control Plane • {release}'
-                  already = [
-                      r for r in control_runs
-                      if r.get('event') == 'workflow_dispatch'
-                      and r.get('display_title') == marker
-                      and r.get('status') in {'queued', 'in_progress'}
-                  ]
-                  completed = [
-                      r for r in control_runs
-                      if r.get('event') == 'workflow_dispatch'
-                      and r.get('display_title') == marker
-                      and r.get('conclusion') in {'success', 'failure', 'cancelled'}
-                  ]
+                  already = [r for r in control_runs if r.get('event') == 'workflow_dispatch' and r.get('display_title') == marker and r.get('status') in {'queued', 'in_progress'}]
+                  completed = [r for r in control_runs if r.get('event') == 'workflow_dispatch' and r.get('display_title') == marker and r.get('conclusion') in {'success', 'failure', 'cancelled'}]
                   if already or completed:
                       print(f'Control Plane already scheduled/processed release {release}; nothing to dispatch.')
                       raise SystemExit(0)
                   print(f'Release {release} is complete; dispatching Release Control Plane.')
-                  subprocess.run([
-                      'gh', 'workflow', 'run', 'release-control-plane.yml',
-                      '--ref', 'main',
-                      '-f', f'source_commit={release}',
-                  ], check=True)
+                  url = f'{api_base}/actions/workflows/release-control-plane.yml/dispatches'
+                  payload = json.dumps({'ref': 'main', 'inputs': {'source_commit': release}}).encode()
+                  req = urllib.request.Request(url, data=payload, method='POST', headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json'})
+                  with urllib.request.urlopen(req) as response:
+                      if response.status not in (201, 204):
+                          raise RuntimeError(f'control-plane dispatch returned HTTP {response.status}')
                   raise SystemExit(0)
 
               print(f'Candidate {release} ({quality.get("run_number")}) incomplete: {", ".join(missing)}')
               for group in missing:
-                  names = required[group]
-                  if group == 'training':
-                      names = ['Kaggle GPU Training', 'Train Ukraine Models']
-                  dispatched = False
+                  names = ['Kaggle GPU Training', 'Train Ukraine Models'] if group == 'training' else required[group]
                   for name in names:
                       if name not in dispatchable:
                           continue
-                      existing = [
-                          r for r in runs
-                          if r.get('head_sha') == release and r.get('name') == name
-                          and r.get('status') in {'queued', 'in_progress'}
-                      ]
+                      existing = [r for r in runs if r.get('head_sha') == release and r.get('name') == name and r.get('status') in {'queued', 'in_progress'}]
                       if existing:
                           print(f'{name} already queued/running for {release}')
-                          dispatched = True
                           break
                       dispatch(name, release)
-                      dispatched = True
                       break
-                  if not dispatched:
-                      print(f'No dispatchable workflow found for required group {group}')
               raise SystemExit(0)
 
           print('No successful quality release candidate found; nothing to dispatch.')
