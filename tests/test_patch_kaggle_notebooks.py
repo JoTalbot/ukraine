@@ -60,6 +60,7 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
     assert "peft==0.17.1" in patched
     assert "torch.cuda.is_available()" in patched
     assert "torch.cuda.get_device_capability(0)" in patched
+    assert "Unexpected non-Pascal GPU" not in patched
     assert "raise SystemExit(r.returncode)" in patched
     assert "model-ft/metrics.jsonl" in patched
     assert "fine-tuning produced incomplete artifacts" in patched
