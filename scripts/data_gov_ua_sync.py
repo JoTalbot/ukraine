@@ -5,6 +5,7 @@ The source is the official Ukrainian open-data portal CKAN API.
 Only datasets explicitly enabled in config/ukraine_open_data_catalog.json are mirrored.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -26,13 +27,17 @@ def get_with_retries(url, *, stream=False, attempts=FETCH_ATTEMPTS, **kwargs):
     kwargs.setdefault("headers", HEADERS)
     for attempt in range(1, attempts + 1):
         try:
-            r = requests.get(url, stream=stream, **kwargs)  # noqa: S113 -- timeout всегда передаётся вызывающим кодом через kwargs
+            r = requests.get(url, stream=stream, **kwargs)  # noqa: S113 -- timeout передаётся вызывающим кодом
             if r.status_code < 500:
                 r.raise_for_status()
                 return r
-            exc = requests.HTTPError(f"server replied {r.status_code}", response=r)
+            exc = requests.exceptions.HTTPError(f"server replied {r.status_code}", response=r)
             r.close()
-        except (requests.ConnectionError, requests.Timeout, requests.ChunkedEncodingError) as err:
+        except (
+            requests.exceptions.ConnectionError,
+            requests.exceptions.Timeout,
+            requests.exceptions.ChunkedEncodingError,
+        ) as err:
             exc = err
         if attempt == attempts:
             raise exc
@@ -54,7 +59,6 @@ def search_dataset(term):
     result = api_get("package_search", {"q": term, "rows": 10})
     if not result.get("results"):
         return None
-    # Prefer an exact/near-exact title match and datasets with downloadable resources.
     terms = set(re.findall(r"[\wА-Яа-яІіЇїЄєҐґ]+", term.lower()))
     ranked = []
     for ds in result["results"]:
@@ -67,8 +71,20 @@ def search_dataset(term):
 
 
 def safe_name(value):
-    value = re.sub(r"[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ._-]+", "_", value)
-    return value[:180] or "resource"
+    """Return a filesystem-safe basename while respecting common 255-byte limits."""
+    value = re.sub(r"[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ._-]+", "_", value).strip("._")
+    if not value:
+        value = "resource"
+    encoded = value.encode("utf-8")
+    if len(encoded) <= 180:
+        return value
+    suffix = Path(value).suffix
+    stem = value[: -len(suffix)] if suffix else value
+    digest = hashlib.sha256(value.encode("utf-8")).hexdigest()[:12]
+    budget = max(16, 180 - len(suffix.encode("utf-8")) - len(digest) - 1)
+    while len(stem[:budget].encode("utf-8")) > budget:
+        budget -= 1
+    return f"{stem[:budget]}_{digest}{suffix}"
 
 
 def download(url, dest):
@@ -79,7 +95,7 @@ def download(url, dest):
                 if chunk:
                     f.write(chunk)
     except Exception:
-        dest.unlink(missing_ok=True)  # never leave a truncated file behind
+        dest.unlink(missing_ok=True)
         raise
 
 
@@ -129,6 +145,8 @@ def main():
         meta_path.write_text(json.dumps(dataset, ensure_ascii=False, indent=2), encoding="utf-8")
 
         uploaded = []
+        failed = []
+        used_names = set()
         for resource in dataset.get("resources", []):
             url = resource.get("url")
             if not url or not url.startswith(("http://", "https://")):
@@ -137,6 +155,12 @@ def main():
             if "." not in filename:
                 fmt = resource.get("format", "bin").lower()
                 filename += "." + safe_name(fmt)
+            if filename in used_names:
+                stem = Path(filename).stem
+                suffix = Path(filename).suffix
+                filename = f"{stem}_{resource.get('id', 'duplicate')}{suffix}"
+                filename = safe_name(filename)
+            used_names.add(filename)
             dest = ds_dir / filename
             try:
                 print(f"Downloading {url}")
@@ -146,6 +170,7 @@ def main():
                 uploaded.append(target)
                 print(f"Uploaded: {target}")
             except Exception as exc:
+                failed.append({"url": url, "filename": filename, "error": repr(exc)})
                 print(f"Resource failed, continuing: {exc}")
 
         manifest.append({
@@ -154,13 +179,15 @@ def main():
             "source_url": dataset.get("url"),
             "metadata_modified": dataset.get("metadata_modified"),
             "uploaded_files": uploaded,
+            "failed_resources": failed,
         })
         time.sleep(1)
 
     manifest_path = root / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     hf.upload_file(path_or_fileobj=str(manifest_path), path_in_repo="manifest.json", repo_id=repo, repo_type="dataset")
-    print(f"Published {len(manifest)} datasets to {repo}")
+    failed_count = sum(len(x.get("failed_resources", [])) for x in manifest)
+    print(f"Published {len(manifest)} datasets to {repo}; failed resources: {failed_count}")
 
 
 if __name__ == "__main__":
