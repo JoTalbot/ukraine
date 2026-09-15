@@ -60,7 +60,6 @@ jobs:
               print(f'Dispatching {name} at exact release SHA {ref} via {workflow}')
               subprocess.run(['gh', 'workflow', 'run', workflow, '--ref', ref], check=True)
 
-          # Find the newest successful quality run. Its head SHA is the release identity.
           quality_runs = api(
               f'repos/{repo}/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50'
           )
@@ -106,15 +105,14 @@ jobs:
 
               print(f'Candidate {release} ({quality.get("run_number")}) incomplete: {", ".join(missing)}')
 
-              # Create exact-SHA producer runs instead of waiting indefinitely for
-              # unrelated weekly/manual schedules. A run dispatched with --ref <SHA>
-              # records that exact SHA as head_sha, preserving the fail-closed contract.
+              # Dispatch missing producer workflows against the exact release ref.
+              # This makes their workflow_run.head_sha equal to the release identity,
+              # while retaining the existing fail-closed aggregation contract.
               for group in missing:
                   names = required[group]
                   if group == 'training':
-                      # Kaggle is the primary GPU training producer; Train Ukraine Models
-                      # is dispatched only if Kaggle cannot be dispatched.
                       names = ['Kaggle GPU Training', 'Train Ukraine Models']
+                  dispatched = False
                   for name in names:
                       if name not in dispatchable:
                           continue
@@ -125,9 +123,13 @@ jobs:
                       ]
                       if existing:
                           print(f'{name} already queued/running for {release}')
-                          continue
+                          dispatched = True
+                          break
                       dispatch(name, release)
-                      break if group == 'training' else None
+                      dispatched = True
+                      break
+                  if not dispatched:
+                      print(f'No dispatchable workflow found for required group {group}')
               raise SystemExit(0)
 
           print('No successful quality release candidate found; nothing to dispatch.')
