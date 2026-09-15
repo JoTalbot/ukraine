@@ -51,12 +51,15 @@ def test_patch_finetune_adds_runtime_and_artifact_guards(tmp_path):
     )
     patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
     assert "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)" in patched
-    assert "subprocess.run(['pip', '-q', 'uninstall', '-y', 'torchvision'], check=False)" in patched
     assert "torch==2.5.1" in patched
     assert "torchvision==0.20.1" not in patched
+    assert "torchaudio==2.5.1" not in patched
+    assert "--no-cache-dir" in patched
     assert "--index-url', 'https://download.pytorch.org/whl/cu118'" in patched
     assert "transformers==4.57.1" in patched
     assert "peft==0.17.1" in patched
+    assert "torch.cuda.is_available()" in patched
+    assert "torch.cuda.get_device_capability(0)" in patched
     assert "raise SystemExit(r.returncode)" in patched
     assert "model-ft/metrics.jsonl" in patched
     assert "fine-tuning produced incomplete artifacts" in patched
@@ -74,7 +77,9 @@ def test_patch_repairs_existing_pinned_p100_install(tmp_path):
         "subprocess.run(['pip', '-q', 'install', 'tokenizers', 'pyarrow', 'striprtf', 'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
     )
     patched = _patch(tmp_path, "legal_lm_finetune.ipynb", source)
+    assert "torch==2.5.1" in patched
     assert "torchvision==0.20.1" not in patched
+    assert "torchaudio==2.5.1" not in patched
     assert "uninstall', '-y', 'torchvision'" in patched
 
 
