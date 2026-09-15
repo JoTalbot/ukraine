@@ -282,22 +282,26 @@ jobs:
           echo 'Unable to persist bootstrap progress after 3 push attempts.'
           exit 1
       - name: Fail batch after persisting failure state
-        if: steps.batch.outputs.skip != 'true' && steps.assess.outputs.has_failures == 'true'
+        if: steps.batch.outputs.skip != 'true' && steps.assess.outputs.failed_count != '0'
         run: |
           echo "Batch is not clean: failed_resources=${{ steps.assess.outputs.failed_count }} blocked_resources=${{ steps.assess.outputs.blocked_count }} unreachable_hosts=${{ steps.assess.outputs.unreachable_hosts || 'none' }}"
-          echo 'Progress was persisted; failing the job so publication state stays RED (fail-closed).'
+          echo 'Progress was persisted; failing the job because real resource failures remain.'
           exit 1
       - name: Write publication status signal
         if: ${{ always() }}
         env:
           JOB_STATUS: ${{ job.status }}
+          FAILED_COUNT: ${{ steps.assess.outputs.failed_count || '0' }}
+          BLOCKED_COUNT: ${{ steps.assess.outputs.blocked_count || '0' }}
           SOURCE_COMMIT: ${{ github.sha }}
           WORKFLOW_NAME: ${{ github.workflow }}
           WORKFLOW_RUN_ID: ${{ github.run_id }}
         run: |
           state=red
-          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
-          detail="discovered open-data bootstrap completed with job status: $JOB_STATUS"
+          if [ "$JOB_STATUS" = "success" ] && [ "$FAILED_COUNT" = "0" ] && [ "$BLOCKED_COUNT" = "0" ]; then
+            state=green
+          fi
+          detail="discovered open-data bootstrap: job=$JOB_STATUS failed_resources=$FAILED_COUNT blocked_resources=$BLOCKED_COUNT"
           python scripts/write_status_signal.py \
             --signal publication --state "$state" --detail "$detail" \
             --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
