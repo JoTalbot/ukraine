@@ -1,0 +1,146 @@
+name: Production Promotion Authorization
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: 'Exact release commit SHA to authorize'
+        required: true
+        type: string
+      model_id:
+        description: 'Immutable model identifier'
+        required: true
+        type: string
+      artifact_sha256:
+        description: 'SHA-256 of the promoted model artifact'
+        required: true
+        type: string
+      evaluation_evidence_sha256:
+        description: 'SHA-256 of the evaluation evidence artifact'
+        required: true
+        type: string
+      approval_identity:
+        description: 'Human approval identity recorded for the promotion'
+        required: true
+        type: string
+      release_sequence:
+        description: 'Positive immutable production release sequence'
+        required: true
+        type: number
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  authorize:
+    name: Authorize production promotion
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate authorization inputs
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          MODEL_ID: ${{ inputs.model_id }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          EVALUATION_SHA256: ${{ inputs.evaluation_evidence_sha256 }}
+          APPROVAL_IDENTITY: ${{ inputs.approval_identity }}
+          RELEASE_SEQUENCE: ${{ inputs.release_sequence }}
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$ARTIFACT_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$EVALUATION_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          [[ -n "$MODEL_ID" && -n "$APPROVAL_IDENTITY" ]]
+          [[ "$RELEASE_SEQUENCE" =~ ^[1-9][0-9]*$ ]]
+
+      - name: Checkout exact release commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_commit }}
+          fetch-depth: 1
+
+      - name: Verify release commit exists
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+
+      - name: Verify authoritative release gates
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, urllib.request
+
+          repo = os.environ['REPOSITORY']
+          sha = os.environ['SOURCE_COMMIT']
+          req = urllib.request.Request(
+              f'https://api.github.com/repos/{repo}/actions/runs?per_page=100&branch=main',
+              headers={
+                  'Authorization': f"Bearer {os.environ['GH_TOKEN']}",
+                  'Accept': 'application/vnd.github+json',
+                  'X-GitHub-Api-Version': '2022-11-28',
+              },
+          )
+          with urllib.request.urlopen(req) as response:
+              runs = json.load(response)['workflow_runs']
+
+          required = {
+              'Ukraine data CI',
+              'Security scan',
+              'Release Control Plane',
+          }
+          matching = [r for r in runs if r.get('head_sha') == sha]
+          by_name = {r.get('name'): r for r in matching}
+          missing = sorted(required - by_name.keys())
+          failed = sorted(
+              name for name, run in by_name.items()
+              if name in required and run.get('conclusion') != 'success'
+          )
+          if missing or failed:
+              raise SystemExit(
+                  f'promotion blocked: missing={missing}, non_success={failed}'
+              )
+          PY
+
+      - name: Write authorization artifact
+        env:
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
+          MODEL_ID: ${{ inputs.model_id }}
+          ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+          EVALUATION_SHA256: ${{ inputs.evaluation_evidence_sha256 }}
+          APPROVAL_IDENTITY: ${{ inputs.approval_identity }}
+          RELEASE_SEQUENCE: ${{ inputs.release_sequence }}
+        run: |
+          set -euo pipefail
+          mkdir -p promotion-authorization
+          python - <<'PY'
+          import datetime, json, os
+          payload = {
+              'schema_version': 1,
+              'target': 'production',
+              'source_commit': os.environ['SOURCE_COMMIT'],
+              'model_id': os.environ['MODEL_ID'],
+              'artifact_sha256': os.environ['ARTIFACT_SHA256'],
+              'evaluation_evidence_sha256': os.environ['EVALUATION_SHA256'],
+              'approval_identity': os.environ['APPROVAL_IDENTITY'],
+              'release_sequence': int(os.environ['RELEASE_SEQUENCE']),
+              'approved_at': datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00', 'Z'),
+          }
+          with open('promotion-authorization/production-promotion-authorization.json', 'w', encoding='utf-8') as f:
+              json.dump(payload, f, indent=2, sort_keys=True)
+              f.write('\n')
+          PY
+
+      - name: Upload authorization artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-promotion-authorization
+          path: promotion-authorization/production-promotion-authorization.json
+          if-no-files-found: error
+          retention-days: 90
