@@ -1,156 +1,116 @@
-[{"stream_name":"stderr","time":6.436797967,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
-,{"stream_name":"stderr","time":6.436860035,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
-,{"stream_name":"stderr","time":6.436863943,"data":"0.00s - to python to disable frozen modules.\n"}
-,{"stream_name":"stderr","time":6.436866489,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
-,{"stream_name":"stderr","time":7.003535176,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
-,{"stream_name":"stderr","time":7.00356677,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
-,{"stream_name":"stderr","time":7.00357251,"data":"0.00s - to python to disable frozen modules.\n"}
-,{"stream_name":"stderr","time":7.003576351,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
-,{"stream_name":"stdout","time":8.030298847,"data":"config ok\n"}
-,{"stream_name":"stdout","time":10.51510768,"data":"Found existing installation: torch 2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":10.717279065,"data":"Found existing installation: torch 2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":11.406806057,"data":"Uninstalling torch-2.10.0+cu128:\n"}
-,{"stream_name":"stdout","time":11.609096708,"data":"Uninstalling torch-2.10.0+cu128:\n"}
-,{"stream_name":"stdout","time":25.405910406,"data":"  Successfully uninstalled torch-2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":25.60851172,"data":"  Successfully uninstalled torch-2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":26.197542104,"data":"Found existing installation: torchvision 0.25.0+cu128\n"}
-,{"stream_name":"stdout","time":26.233019747,"data":"Uninstalling torchvision-0.25.0+cu128:\n"}
-,{"stream_name":"stdout","time":26.400085146,"data":"Found existing installation: torchvision 0.25.0+cu128\n"}
-,{"stream_name":"stdout","time":26.400114908,"data":"Uninstalling torchvision-0.25.0+cu128:\n"}
-,{"stream_name":"stdout","time":26.461536109,"data":"  Successfully uninstalled torchvision-0.25.0+cu128\n"}
-,{"stream_name":"stdout","time":26.664166207,"data":"  Successfully uninstalled torchvision-0.25.0+cu128\n"}
-,{"stream_name":"stdout","time":26.703894187,"data":"Found existing installation: torchaudio 2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":26.720869993,"data":"Uninstalling torchaudio-2.10.0+cu128:\n"}
-,{"stream_name":"stdout","time":26.821767378,"data":"  Successfully uninstalled torchaudio-2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":26.906574678,"data":"Found existing installation: torchaudio 2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":26.906605452,"data":"Uninstalling torchaudio-2.10.0+cu128:\n"}
-,{"stream_name":"stdout","time":26.906609065,"data":"  Successfully uninstalled torchaudio-2.10.0+cu128\n"}
-,{"stream_name":"stdout","time":37.336615543,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 838.3/838.3 MB 2.0 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":37.53903148,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 838.3/838.3 MB 2.0 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.198072911,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 93.1 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.402380977,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 93.1 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.508116913,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 23.2/23.2 MB 77.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.649297975,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 875.6/875.6 kB 46.3 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.711100489,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 23.2/23.2 MB 77.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.711126945,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 875.6/875.6 kB 46.3 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":40.811713683,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.1/13.1 MB 108.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":41.014167279,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.1/13.1 MB 108.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":47.841837216,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 663.9/663.9 MB 2.4 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":48.043958145,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 663.9/663.9 MB 2.4 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":54.689664982,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 417.9/417.9 MB 4.1 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":54.891861241,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 417.9/417.9 MB 4.1 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":58.482315335,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 168.4/168.4 MB 11.1 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":58.684134139,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 168.4/168.4 MB 11.1 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":59.526431173,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 58.1/58.1 MB 33.9 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":59.728088272,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 58.1/58.1 MB 33.9 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":61.901681823,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 128.2/128.2 MB 6.3 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":62.103918507,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 128.2/128.2 MB 6.3 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":64.500267092,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 204.1/204.1 MB 9.2 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":64.702300812,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 204.1/204.1 MB 9.2 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":66.491506626,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 147.8/147.8 MB 12.8 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":66.693524235,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 147.8/147.8 MB 12.8 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":66.985187168,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 99.1/99.1 kB 8.3 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":67.187825018,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 99.1/99.1 kB 8.3 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":69.566126033,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 209.6/209.6 MB 6.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":69.76808326,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 209.6/209.6 MB 6.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":70.48462739,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 51.9 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":70.688909429,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 51.9 MB/s eta 0:00:00\n"}
-,{"stream_name":"stderr","time":151.839903097,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":151.839939386,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
-,{"stream_name":"stderr","time":151.839945944,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":151.839951071,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
-,{"stream_name":"stderr","time":152.045005833,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":152.045032182,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
-,{"stream_name":"stderr","time":152.045038245,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":152.045043044,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
-,{"stream_name":"stderr","time":152.045047792,"data":"\n"}
-,{"stream_name":"stderr","time":152.045052113,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":152.045056936,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
-,{"stream_name":"stderr","time":152.045061495,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":152.04506606,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
-,{"stream_name":"stderr","time":153.448842693,"data":"WARNING: Skipping torchvision as it is not installed.\n"}
-,{"stream_name":"stderr","time":153.650948125,"data":"WARNING: Skipping torchvision as it is not installed.\n"}
-,{"stream_name":"stderr","time":153.650980239,"data":"\n"}
-,{"stream_name":"stderr","time":153.650984603,"data":"WARNING: Skipping torchvision as it is not installed.\n"}
-,{"stream_name":"stdout","time":154.895164016,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.0/44.0 kB 1.4 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":155.097229959,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.0/44.0 kB 1.4 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":155.9024191,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 60.0 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":156.104072098,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 60.0 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":157.033907725,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 504.9/504.9 kB 444.2 kB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":157.093009419,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 566.4/566.4 kB 37.8 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":157.235764088,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 504.9/504.9 kB 444.2 kB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":157.235795489,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 566.4/566.4 kB 37.8 MB/s eta 0:00:00\n"}
-,{"stream_name":"stderr","time":170.501549866,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":170.501577598,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":171.399292159,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":171.399318853,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":171.399323994,"data":"\n"}
-,{"stream_name":"stderr","time":171.399327343,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":171.399331934,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stdout","time":172.748043104,"data":"torch 2.5.1+cu118 | cuda: True\n"}
-,{"stream_name":"stdout","time":172.748076243,"data":"GPU: Tesla P100-PCIE-16GB | capability: (6, 0)\n"}
-,{"stream_name":"stdout","time":186.712714951,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 905.2/905.2 MB 1.2 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":186.919956769,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 905.2/905.2 MB 1.2 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":188.673356163,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 155.7/155.7 MB 7.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":188.807954718,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 53.9 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":188.875207968,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 155.7/155.7 MB 7.5 MB/s eta 0:00:00\n"}
-,{"stream_name":"stdout","time":188.875227773,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 53.9 MB/s eta 0:00:00\n"}
-,{"stream_name":"stderr","time":228.716431123,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":228.716461,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.71646657,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.716471038,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.716475659,"data":"torchaudio 2.5.1+cu118 requires torch==2.5.1, but you have torch 2.7.1+cu118 which is incompatible.\n"}
-,{"stream_name":"stderr","time":228.924279741,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":228.924309051,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.924316125,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.924321743,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.924327246,"data":"torchaudio 2.5.1+cu118 requires torch==2.5.1, but you have torch 2.7.1+cu118 which is incompatible.\n"}
-,{"stream_name":"stderr","time":228.924332666,"data":"\n"}
-,{"stream_name":"stderr","time":228.924336896,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
-,{"stream_name":"stderr","time":228.924341624,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.924346351,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.924350631,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
-,{"stream_name":"stderr","time":228.924365367,"data":"torchaudio 2.5.1+cu118 requires torch==2.5.1, but you have torch 2.7.1+cu118 which is incompatible.\n"}
-,{"stream_name":"stdout","time":229.002165627,"data":"Pascal: torch 2.7.1+cu118 установлен (используется subprocess-обучением ниже)\n"}
-,{"stream_name":"stdout","time":255.254788857,"data":"метаданных: 12 | шардов текстов: 0\n"}
-,{"stream_name":"stdout","time":260.734415708,"data":" Traceback (most recent call last):\n"}
-,{"stream_name":"stdout","time":260.734453559,"data":"  File \"/kaggle/working/ukraine/scripts/build_lm_corpus.py\", line 222, in \u003cmodule\u003e\n"}
-,{"stream_name":"stdout","time":260.734460423,"data":"    main()\n"}
-,{"stream_name":"stdout","time":260.734476355,"data":"  File \"/kaggle/working/ukraine/scripts/build_lm_corpus.py\", line 140, in main\n"}
-,{"stream_name":"stdout","time":260.734480523,"data":"    pf = pq.ParquetFile(path)\n"}
-,{"stream_name":"stdout","time":260.734484067,"data":"         ^^^^^^^^^^^^^^^^^^^^\n"}
-,{"stream_name":"stdout","time":260.734487428,"data":"  File \"/usr/local/lib/python3.12/dist-packages/pyarrow/parquet/core.py\", line 328, in __init__\n"}
-,{"stream_name":"stdout","time":260.734491062,"data":"    self.reader.open(\n"}
-,{"stream_name":"stdout","time":260.734494458,"data":"  File \"pyarrow/_parquet.pyx\", line 1656, in pyarrow._parquet.ParquetReader.open\n"}
-,{"stream_name":"stdout","time":260.734498265,"data":"  File \"pyarrow/error.pxi\", line 92, in pyarrow.lib.check_status\n"}
-,{"stream_name":"stdout","time":260.734502382,"data":"pyarrow.lib.ArrowInvalid: Parquet magic bytes not found in footer. Either the file is corrupted or this is not a parquet file.\n"}
-,{"stream_name":"stdout","time":260.734506265,"data":"\n"}
-,{"stream_name":"stderr","time":261.565502094,"data":"Traceback (most recent call last):\n"}
-,{"stream_name":"stderr","time":261.565535854,"data":"  File \"\u003cstring\u003e\", line 1, in \u003cmodule\u003e\n"}
-,{"stream_name":"stderr","time":261.565540066,"data":"  File \"/usr/local/lib/python3.12/dist-packages/papermill/execute.py\", line 131, in execute_notebook\n"}
-,{"stream_name":"stderr","time":261.565644696,"data":"    raise_for_execution_errors(nb, output_path)\n"}
-,{"stream_name":"stderr","time":261.565707195,"data":"  File \"/usr/local/lib/python3.12/dist-packages/papermill/execute.py\", line 251, in raise_for_execution_errors\n"}
-,{"stream_name":"stderr","time":261.565892625,"data":"    raise error\n"}
-,{"stream_name":"stderr","time":261.56608171,"data":"papermill.exceptions.PapermillExecutionError: \n"}
-,{"stream_name":"stderr","time":261.566098645,"data":"---------------------------------------------------------------------------\n"}
-,{"stream_name":"stderr","time":261.566103225,"data":"Exception encountered at \"In [4]\":\n"}
-,{"stream_name":"stderr","time":261.566107445,"data":"---------------------------------------------------------------------------\n"}
-,{"stream_name":"stderr","time":261.566111533,"data":"FileNotFoundError                         Traceback (most recent call last)\n"}
-,{"stream_name":"stderr","time":261.566115911,"data":"/tmp/ipykernel_23/2739292158.py in \u003ccell line: 0\u003e()\n"}
-,{"stream_name":"stderr","time":261.566120403,"data":"      8 r = subprocess.run(cmd, capture_output=True, text=True)\n"}
-,{"stream_name":"stderr","time":261.566124348,"data":"      9 print(r.stdout[-2000:], r.stderr[-1000:])\n"}
-,{"stream_name":"stderr","time":261.566128351,"data":"---\u003e 10 print('corpus bytes:', os.path.getsize('data/corpus.txt'))\n"}
-,{"stream_name":"stderr","time":261.566132474,"data":"\n"}
-,{"stream_name":"stderr","time":261.566162683,"data":"/usr/lib/python3.12/genericpath.py in getsize(filename)\n"}
-,{"stream_name":"stderr","time":261.566168105,"data":"\n"}
-,{"stream_name":"stderr","time":261.56617202,"data":"FileNotFoundError: [Errno 2] No such file or directory: 'data/corpus.txt'\n"}
-,{"stream_name":"stderr","time":261.566176187,"data":"\n"}
-,{"stream_name":"stderr","time":263.627434535,"data":"/usr/local/lib/python3.12/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
-,{"stream_name":"stderr","time":263.627464179,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
-,{"stream_name":"stderr","time":263.836914478,"data":"/usr/local/lib/python3.12/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
-,{"stream_name":"stderr","time":263.836959666,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
-,{"stream_name":"stderr","time":265.38729035,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
-,{"stream_name":"stderr","time":265.694487779,"data":"[NbConvertApp] Writing 25864 bytes to __notebook__.ipynb\n"}
-,{"stream_name":"stderr","time":268.052870108,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
-,{"stream_name":"stderr","time":268.864865314,"data":"[NbConvertApp] Writing 327188 bytes to __results__.html\n"}
+[{"stream_name":"stderr","time":11.173674626,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":11.173734529,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":11.173756372,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":11.173760852,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":11.954119128,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":11.954175620000001,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":11.95418223,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":11.954186642,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stdout","time":13.353665773,"data":"config ok\n"}
+,{"stream_name":"stdout","time":17.691249757,"data":"Found existing installation: torch 2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":17.893691167,"data":"Found existing installation: torch 2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":19.308273048,"data":"Uninstalling torch-2.10.0+cu128:\n"}
+,{"stream_name":"stdout","time":19.510359565999998,"data":"Uninstalling torch-2.10.0+cu128:\n"}
+,{"stream_name":"stdout","time":57.471920226,"data":"  Successfully uninstalled torch-2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":57.676153388,"data":"  Successfully uninstalled torch-2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":58.315389763,"data":"Found existing installation: torchvision 0.25.0+cu128\n"}
+,{"stream_name":"stdout","time":58.354489149,"data":"Uninstalling torchvision-0.25.0+cu128:\n"}
+,{"stream_name":"stdout","time":58.517878376,"data":"Found existing installation: torchvision 0.25.0+cu128\n"}
+,{"stream_name":"stdout","time":58.517911454,"data":"Uninstalling torchvision-0.25.0+cu128:\n"}
+,{"stream_name":"stdout","time":58.856165611,"data":"  Successfully uninstalled torchvision-0.25.0+cu128\n"}
+,{"stream_name":"stdout","time":59.058538312,"data":"  Successfully uninstalled torchvision-0.25.0+cu128\n"}
+,{"stream_name":"stdout","time":59.117477758,"data":"Found existing installation: torchaudio 2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":59.151306139,"data":"Uninstalling torchaudio-2.10.0+cu128:\n"}
+,{"stream_name":"stdout","time":59.319604376,"data":"Found existing installation: torchaudio 2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":59.3196308,"data":"Uninstalling torchaudio-2.10.0+cu128:\n"}
+,{"stream_name":"stdout","time":59.356461695,"data":"  Successfully uninstalled torchaudio-2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":59.559065709,"data":"  Successfully uninstalled torchaudio-2.10.0+cu128\n"}
+,{"stream_name":"stdout","time":65.269510039,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 838.3/838.3 MB 222.6 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":65.471752447,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 838.3/838.3 MB 222.6 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":67.985466815,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 23.2/23.2 MB 323.5 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":68.102041941,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 875.6/875.6 kB 338.1 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":68.18119436,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.1/13.1 MB 352.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":68.187608323,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 23.2/23.2 MB 323.5 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":68.187631691,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 875.6/875.6 kB 338.1 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":68.18763798,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.1/13.1 MB 352.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":70.325885185,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 663.9/663.9 MB 352.4 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":70.527897897,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 663.9/663.9 MB 352.4 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":73.709035631,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 417.9/417.9 MB 347.5 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":73.909022054,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 417.9/417.9 MB 347.5 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":75.607653912,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 168.4/168.4 MB 345.6 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":75.810037867,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 168.4/168.4 MB 345.6 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":76.35206469,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 58.1/58.1 MB 353.3 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":76.553437998,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 58.1/58.1 MB 353.3 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":76.966422277,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 128.2/128.2 MB 346.9 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":77.168617965,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 128.2/128.2 MB 346.9 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":78.010571286,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 204.1/204.1 MB 349.3 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":78.212784414,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 204.1/204.1 MB 349.3 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":79.184540113,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 147.8/147.8 MB 319.5 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":79.386921002,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 147.8/147.8 MB 319.5 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":79.704059912,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 99.1/99.1 kB 284.3 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":79.904201255,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 99.1/99.1 kB 284.3 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":80.857450134,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 209.6/209.6 MB 198.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":81.059964795,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 209.6/209.6 MB 198.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":81.851895165,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 71.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":82.054089983,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 71.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stderr","time":199.513434559,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
+,{"stream_name":"stderr","time":199.513514566,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.513521851,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.513527184,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.723442564,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
+,{"stream_name":"stderr","time":199.723476519,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.723481115,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.723484471,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.723487867,"data":"\n"}
+,{"stream_name":"stderr","time":199.723490904,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
+,{"stream_name":"stderr","time":199.72349431,"data":"easyocr 1.7.2 requires torchvision\u003e=0.5, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.72349736,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
+,{"stream_name":"stderr","time":199.723500445,"data":"fastai 2.8.7 requires torchvision\u003e=0.11, which is not installed.\n"}
+,{"stream_name":"stderr","time":201.229980346,"data":"WARNING: Skipping torchvision as it is not installed.\n"}
+,{"stream_name":"stderr","time":201.432712543,"data":"WARNING: Skipping torchvision as it is not installed.\n"}
+,{"stream_name":"stderr","time":201.432764495,"data":"\n"}
+,{"stream_name":"stderr","time":201.432772219,"data":"WARNING: Skipping torchvision as it is not installed.\n"}
+,{"stream_name":"stdout","time":202.879243202,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.0/44.0 kB 3.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.081245123,"data":"     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.0/44.0 kB 3.0 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.780714416,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 233.4 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.800331733,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 504.9/504.9 kB 298.4 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.831016372,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 566.4/566.4 kB 339.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.983406539,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.0/12.0 MB 233.4 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.983448189,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 504.9/504.9 kB 298.4 MB/s eta 0:00:00\n"}
+,{"stream_name":"stdout","time":203.983470169,"data":"   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 566.4/566.4 kB 339.7 MB/s eta 0:00:00\n"}
+,{"stream_name":"stderr","time":222.127468062,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
+,{"stream_name":"stderr","time":222.127504164,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
+,{"stream_name":"stderr","time":223.515618656,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
+,{"stream_name":"stderr","time":223.515649628,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
+,{"stream_name":"stderr","time":223.515655064,"data":"\n"}
+,{"stream_name":"stderr","time":223.515659445,"data":"ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.\n"}
+,{"stream_name":"stderr","time":223.515664452,"data":"timm 1.0.26 requires torchvision, which is not installed.\n"}
+,{"stream_name":"stderr","time":225.857673062,"data":"Traceback (most recent call last):\n"}
+,{"stream_name":"stderr","time":225.85770536,"data":"  File \"\u003cstring\u003e\", line 1, in \u003cmodule\u003e\n"}
+,{"stream_name":"stderr","time":225.857711812,"data":"  File \"/usr/local/lib/python3.12/dist-packages/papermill/execute.py\", line 131, in execute_notebook\n"}
+,{"stream_name":"stderr","time":225.857726282,"data":"    raise_for_execution_errors(nb, output_path)\n"}
+,{"stream_name":"stderr","time":225.857805781,"data":"  File \"/usr/local/lib/python3.12/dist-packages/papermill/execute.py\", line 251, in raise_for_execution_errors\n"}
+,{"stream_name":"stderr","time":225.858055838,"data":"    raise error\n"}
+,{"stream_name":"stderr","time":225.858179732,"data":"papermill.exceptions.PapermillExecutionError: \n"}
+,{"stream_name":"stderr","time":225.858207283,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":225.858212447,"data":"Exception encountered at \"In [2]\":\n"}
+,{"stream_name":"stderr","time":225.858227973,"data":"---------------------------------------------------------------------------\n"}
+,{"stream_name":"stderr","time":225.858244428,"data":"AssertionError                            Traceback (most recent call last)\n"}
+,{"stream_name":"stderr","time":225.858248667,"data":"/tmp/ipykernel_22/1673591993.py in \u003ccell line: 0\u003e()\n"}
+,{"stream_name":"stderr","time":225.858252392,"data":"      8 import torch\n"}
+,{"stream_name":"stderr","time":225.858256073,"data":"      9 assert torch.cuda.is_available(), 'CUDA is unavailable after deterministic torch install'\n"}
+,{"stream_name":"stderr","time":225.85825973,"data":"---\u003e 10 assert torch.cuda.get_device_capability(0)[0] \u003c 7, 'Unexpected non-Pascal GPU for this FT runtime'\n"}
+,{"stream_name":"stderr","time":225.858263957,"data":"     11 print('FT runtime:', torch.__version__, '| GPU:', torch.cuda.get_device_name(0), '| capability:', torch.cuda.get_device_capability(0))\n"}
+,{"stream_name":"stderr","time":225.858267993,"data":"     12 import os, glob, json, subprocess, urllib.request, pathlib\n"}
+,{"stream_name":"stderr","time":225.858271505,"data":"\n"}
+,{"stream_name":"stderr","time":225.858274997,"data":"AssertionError: Unexpected non-Pascal GPU for this FT runtime\n"}
+,{"stream_name":"stderr","time":225.858278226,"data":"\n"}
+,{"stream_name":"stderr","time":228.345295396,"data":"/usr/local/lib/python3.12/dist-packages/mistune.py:435: SyntaxWarning: invalid escape sequence '\\|'\n"}
+,{"stream_name":"stderr","time":228.345334859,"data":"  cells[i][c] = re.sub('\\\\\\\\\\|', '|', cell)\n"}
+,{"stream_name":"stderr","time":228.536316549,"data":"/usr/local/lib/python3.12/dist-packages/nbconvert/filters/filter_links.py:36: SyntaxWarning: invalid escape sequence '\\_'\n"}
+,{"stream_name":"stderr","time":228.536344319,"data":"  text = re.sub(r'_', '\\_', text) # Escape underscores in display text\n"}
+,{"stream_name":"stderr","time":229.24620481,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to notebook\n"}
+,{"stream_name":"stderr","time":229.590750029,"data":"[NbConvertApp] Writing 23959 bytes to __notebook__.ipynb\n"}
+,{"stream_name":"stderr","time":232.27559841,"data":"[NbConvertApp] Converting notebook __notebook__.ipynb to html\n"}
+,{"stream_name":"stderr","time":233.203462313,"data":"[NbConvertApp] Writing 326962 bytes to __results__.html\n"}
 ]
