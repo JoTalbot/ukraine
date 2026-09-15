@@ -98,10 +98,34 @@ jobs:
                   print(f'Created immutable release ref {branch} -> {release}')
                   return branch
               actual = existing.get('object', {}).get('sha') if existing else None
-              if actual != release:
-                  raise RuntimeError(f'release ref {branch} already exists at {actual}, expected {release}')
-              print(f'Reusing verified release ref {branch} -> {release}')
-              return branch
+              if actual == release:
+                  print(f'Reusing verified release ref {branch} -> {release}')
+                  return branch
+              repair_branch = f'release-candidate/{release}-repair'
+              repair_path = f'/git/ref/heads/{repair_branch}'
+              try:
+                  _, repair_existing = request(repair_path)
+                  repair_actual = repair_existing.get('object', {}).get('sha') if repair_existing else None
+                  if repair_actual != release:
+                      raise RuntimeError(
+                          f'release ref {branch} is stale at {actual}; repair ref {repair_branch} already exists at {repair_actual}'
+                      )
+                  print(f'Reusing verified repair release ref {repair_branch} -> {release}')
+                  return repair_branch
+              except RuntimeError as repair_exc:
+                  if 'HTTP 404' not in str(repair_exc):
+                      raise
+              _, created = request('/git/refs', method='POST', payload={
+                  'ref': f'refs/heads/{repair_branch}',
+                  'sha': release,
+              })
+              created_actual = created.get('object', {}).get('sha') if created else None
+              if created_actual != release:
+                  raise RuntimeError(
+                      f'created repair release ref {repair_branch} points to {created_actual}, expected {release}'
+                  )
+              print(f'Stale release ref {branch} remains untouched at {actual}; created immutable repair ref {repair_branch} -> {release}')
+              return repair_branch
 
           def dispatch(name, ref):
               workflow = dispatchable[name]
