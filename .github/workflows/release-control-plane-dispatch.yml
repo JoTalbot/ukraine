@@ -15,6 +15,8 @@ jobs:
   dispatch-when-release-is-complete:
     runs-on: ubuntu-24.04
     steps:
+      - name: Checkout repository for gh workflow dispatch
+        uses: actions/checkout@v5
       - name: Select release and dispatch missing producers or control plane
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,10 +106,6 @@ jobs:
                   raise SystemExit(0)
 
               print(f'Candidate {release} ({quality.get("run_number")}) incomplete: {", ".join(missing)}')
-
-              # Dispatch missing producer workflows against the exact release ref.
-              # This makes their workflow_run.head_sha equal to the release identity,
-              # while retaining the existing fail-closed aggregation contract.
               for group in missing:
                   names = required[group]
                   if group == 'training':
