@@ -14,7 +14,6 @@ on:
       - Discovered Ukraine Open Data -> Hugging Face
       - EDRSR Hugging Face Upload
       - EDRSR Full Texts
-      - Pages Dashboard
       - Security scan
       - Production Promotion Authorization
     types: [completed]
@@ -111,7 +110,7 @@ groups = {
     'quality': ['Ukraine data CI'],
     'graph': ['Entity Graph Build'],
     'training': ['Train Ukraine Models', 'Kaggle GPU Training'],
-    'publication': ['Ukraine Open Data -> Hugging Face', 'Discovered Ukraine Open Data -> Hugging Face', 'EDRSR Hugging Face Upload', 'EDRSR Full Texts', 'Pages Dashboard'],
+    'publication': ['Ukraine Open Data -> Hugging Face', 'Discovered Ukraine Open Data -> Hugging Face', 'EDRSR Hugging Face Upload', 'EDRSR Full Texts'],
     'security': ['Security scan'],
 }
 runs = json.loads(subprocess.check_output(['gh', 'api', f'repos/{repo}/actions/runs?head_sha={release}&per_page=100'], text=True))['workflow_runs']
