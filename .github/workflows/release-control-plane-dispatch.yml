@@ -31,6 +31,7 @@ jobs:
 
           repo = os.environ['REPOSITORY']
           token = os.environ['GH_TOKEN']
+          current_sha = os.environ.get('GITHUB_SHA')
           api_base = f'https://api.github.com/repos/{repo}'
           required = {
               'ingestion': ['Ukraine Open Data Discovery'],
@@ -136,7 +137,16 @@ jobs:
           quality_runs = api('/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')['workflow_runs']
           control_runs = api('/actions/workflows/release-control-plane.yml/runs?per_page=100')['workflow_runs']
 
-          for quality in quality_runs:
+          def candidate_priority(run):
+              release = run.get('head_sha')
+              return (
+                  0 if release and release == current_sha else 1,
+                  run.get('created_at') or '',
+              )
+
+          # Prefer the successful quality run for the current main revision.  Falling back
+          # to older candidates is useful for recovery, but must never starve the current release.
+          for quality in sorted(quality_runs, key=candidate_priority):
               release = quality.get('head_sha')
               if not release:
                   continue
