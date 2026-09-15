@@ -109,7 +109,7 @@ groups = {
     'security': ['Security scan'],
 }
 runs = json.loads(subprocess.check_output([
-    'gh', 'api', f'repos/{repo}/actions/runs?per_page=100&branch=main'
+    'gh', 'api', f'repos/{repo}/actions/runs?head_sha={release}&per_page=100'
 ], text=True))['workflow_runs']
 runs = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
 
