@@ -26,6 +26,7 @@ import os
 import re
 import socket
 import time
+import urllib.error
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
@@ -143,7 +144,7 @@ def probe_host(host, timeout: float | None = None) -> dict:
     opendata.gov.ua с 14.09.2026: TCP открывается, а TLS-хендшейк молчит.
     """
     timeout = HOST_PROBE_TIMEOUT if timeout is None else timeout
-    result = {"host": host, "reachable": False, "latency_ms": None, "detail": ""}
+    result = {"host": host, "reachable": False, "latency_ms": None, "detail": "", "throttled": False}
     if not host:
         result["detail"] = "empty host"
         return result
@@ -158,6 +159,11 @@ def probe_host(host, timeout: float | None = None) -> dict:
         response = requests.head(f"https://{host}/", timeout=(timeout, timeout), headers=HEADERS, allow_redirects=True)
         result["reachable"] = True
         result["detail"] = f"http {response.status_code}"
+        if response.status_code == 429 or 500 <= response.status_code <= 599:
+            # хост жив, но режет нас по частоте: качать из него в этом прогоне бессмысленно
+            result["throttled"] = True
+            result["throttle_hits"] = 1
+            result["detail"] = f"http {response.status_code} (rate limited)"
     except requests.exceptions.RequestException as exc:
         result["detail"] = f"https: {type(exc).__name__}: {exc}"
     except Exception as exc:
@@ -171,7 +177,12 @@ def probe_hosts(hosts, timeout: float | None = None) -> dict:
     health = {}
     for host in sorted({h for h in hosts if h}):
         health[host] = probe_host(host, timeout)
-        status = "доступен" if health[host]["reachable"] else "НЕДОСТУПЕН"
+        if not health[host]["reachable"]:
+            status = "НЕДОСТУПЕН"
+        elif health[host].get("throttled"):
+            status = "ТРОТТЛИТ"
+        else:
+            status = "доступен"
         print(f"host pre-flight {host}: {status} ({health[host]['detail']}, {health[host]['latency_ms']} ms)")
     return health
 
@@ -186,6 +197,8 @@ def classify_exception(exc) -> str:
             return SOURCE_THROTTLED
         if 500 <= status <= 599:
             return SOURCE_THROTTLED
+    if isinstance(exc, urllib.error.HTTPError) and (exc.code == 429 or 500 <= exc.code <= 599):
+        return SOURCE_THROTTLED
     return RESOURCE_ERROR
 
 
@@ -227,6 +240,18 @@ def sync_dataset(ds, ctx) -> dict:
                 "reason": f"source host unreachable: {health[host]['detail']}",
             })
             continue
+        if host and health.get(host, {}).get("throttled"):
+            entry["blocked"].append({
+                "url": url,
+                "host": host,
+                "kind": SOURCE_THROTTLED,
+                "reason": (
+                    "source host is throttling this runner "
+                    f"({health[host].get('throttle_hits', 0)} rate-limit response(s) already): "
+                    f"{health[host].get('detail', '')}"
+                ),
+            })
+            continue
         try:
             if args.incremental and prior and same_resource(prior, r):
                 entry["files"].append(prior)
@@ -263,6 +288,17 @@ def sync_dataset(ds, ctx) -> dict:
                     # хост упал уже после предпроверки — фиксируем как блокер источника
                     health.setdefault(host, {"host": host, "reachable": False, "latency_ms": None, "detail": "failed during download"})
                     health[host]["reachable"] = False
+                if kind == SOURCE_THROTTLED and host:
+                    record = health.setdefault(host, {"host": host, "reachable": True, "latency_ms": None, "detail": ""})
+                    record["throttle_hits"] = int(record.get("throttle_hits", 0)) + 1
+                    record["detail"] = f"rate limited {record['throttle_hits']}x in this run: {exc}"
+                    limit = int(ctx.get("throttle_halt_after", 0))
+                    if limit and record["throttle_hits"] >= limit:
+                        record["throttled"] = True
+                        print(
+                            f"Source host {host} is throttling this runner ({record['throttle_hits']} hits); "
+                            "remaining resources on this host are marked blocked instead of retried"
+                        )
                 entry["blocked"].append({"url": url, "host": host, "kind": kind, "reason": str(exc)})
                 print(f"Source blocked during download ({kind}): {url}: {exc}")
             else:
@@ -323,6 +359,8 @@ def main():
                     help="скачать и проверить, но ничего не загружать в Hugging Face (не нужен HF_TOKEN)")
     ap.add_argument("--health-output", default="artifacts/discovery/source-health.json",
                     help="куда записать отчёт о доступности хостов-источников")
+    ap.add_argument("--throttle-halt-after", type=int, default=int(os.environ.get("DATA_GOV_THROTTLE_HALT_AFTER", "2")),
+                    help="сколько rate-limit (429/5xx) ответов от хоста достаточно, чтобы перестать его дёргать (0 = выключено)")
     args = ap.parse_args()
     if args.dataset_offset < 0 or args.dataset_limit < 0:
         raise SystemExit("dataset offset/limit must be >= 0")
@@ -342,12 +380,21 @@ def main():
     hosts = {host_of(r["url"]) for ds in datasets for r in ds.get("resources", []) if r.get("url")}
     health = {} if args.no_host_probe else probe_hosts(hosts, timeout=args.probe_timeout)
 
-    ctx = {"root": root, "hf": hf, "repo": repo, "args": args, "previous": previous, "health": health}
+    ctx = {
+        "root": root,
+        "hf": hf,
+        "repo": repo,
+        "args": args,
+        "previous": previous,
+        "health": health,
+        "throttle_halt_after": args.throttle_halt_after,
+    }
     decisions = [sync_dataset(ds, ctx) for ds in datasets]
 
     failures = [{"dataset": x["id"], **f} for x in decisions for f in x.get("failed", [])]
     blocked = [{"dataset": x["id"], **b} for x in decisions for b in x.get("blocked", [])]
     unreachable = sorted(h for h in health if not health[h]["reachable"])
+    throttled = sorted(h for h in health if health[h].get("throttled"))
     if health:
         print(f"Source health written: {write_source_health(health, args.health_output)}")
 
@@ -366,20 +413,22 @@ def main():
         "resource_failures": len(failures),
         "blocked_resources": len(blocked),
         "unreachable_hosts": unreachable,
+        "throttled_hosts": throttled,
     }
     print("BATCH SUMMARY " + json.dumps(summary, ensure_ascii=False))
     if failures:
         print(f"Batch has {len(failures)} real resource failure(s); the pipeline must not advance")
     if blocked:
         print(
-            f"Batch blocked by unreachable source host(s) {unreachable or 'unknown'}: "
+            f"Batch blocked by source host(s) {unreachable or throttled or 'unknown'}: "
             f"{len(blocked)} resource(s) not fetched. This is an external blocker, not a pipeline error."
         )
     if (failures or blocked) and not args.allow_failures:
         if failures:
             raise SystemExit(f"Batch incomplete: {len(failures)} resource(s) failed; progress must not advance")
         raise SystemExit(
-            f"Batch blocked: {len(blocked)} resource(s) on unreachable host(s) {unreachable}; progress must not advance"
+            f"Batch blocked: {len(blocked)} resource(s) on unavailable/throttled host(s) "
+            f"{unreachable or throttled}; progress must not advance"
         )
     if failures or blocked:
         print("Batch recorded with failures/blockers; caller may schedule a retry pass")

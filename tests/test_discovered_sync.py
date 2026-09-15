@@ -131,3 +131,115 @@ def test_source_health_reports_unreachable_hosts(tmp_path):
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert payload["unreachable_hosts"] == ["opendata.gov.ua"]
     assert payload["schema_version"] == 1
+
+
+def test_throttled_host_is_not_hammered_with_retries(monkeypatch, tmp_path):
+    """429 от источника: после порога остальные ресурсы хоста блокируются без скачивания."""
+    calls = []
+
+    def always_429(url, dest):
+        calls.append(url)
+        raise m.urllib.error.HTTPError(url, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(m, "download_with_retries", always_429)
+    resources = [
+        {"url": f"https://data.gov.ua/dataset/ds-2/resource/r{i}/download/f{i}.csv", "format": "CSV"}
+        for i in range(4)
+    ]
+    dataset = {"id": "ds-2", "name": "троттлинг", "url": "https://data.gov.ua/dataset/ds-2", "resources": resources}
+    health = {"data.gov.ua": {"host": "data.gov.ua", "reachable": True, "latency_ms": 500, "detail": "http 200"}}
+    ctx = {
+        "root": tmp_path,
+        "hf": None,
+        "repo": "test/repo",
+        "args": SimpleNamespace(max_dataset_files=0, max_file_mb=0, incremental=False),
+        "previous": {},
+        "health": health,
+        "throttle_halt_after": 2,
+    }
+    entry = m.sync_dataset(dataset, ctx)
+    assert len(calls) == 2, "после порога источник перестаём дёргать"
+    assert entry["failed"] == []
+    assert len(entry["blocked"]) == 4
+    assert {b["kind"] for b in entry["blocked"]} == {m.SOURCE_THROTTLED}
+    assert health["data.gov.ua"]["throttled"] is True
+    assert health["data.gov.ua"]["throttle_hits"] == 2
+
+
+def test_throttle_halt_can_be_disabled(monkeypatch, tmp_path):
+    """При --throttle-halt-after 0 поведение прежнее: каждый ресурс пробуется сам."""
+    calls = []
+
+    def always_429(url, dest):
+        calls.append(url)
+        raise m.urllib.error.HTTPError(url, 429, "Too Many Requests", {}, None)
+
+    monkeypatch.setattr(m, "download_with_retries", always_429)
+    dataset = {
+        "id": "ds-3",
+        "name": "без ограничений",
+        "url": "https://data.gov.ua/dataset/ds-3",
+        "resources": [
+            {"url": f"https://data.gov.ua/dataset/ds-3/resource/r{i}/download/f{i}.csv", "format": "CSV"}
+            for i in range(3)
+        ],
+    }
+    ctx = {
+        "root": tmp_path,
+        "hf": None,
+        "repo": "test/repo",
+        "args": SimpleNamespace(max_dataset_files=0, max_file_mb=0, incremental=False),
+        "previous": {},
+        "health": {"data.gov.ua": {"host": "data.gov.ua", "reachable": True}},
+        "throttle_halt_after": 0,
+    }
+    entry = m.sync_dataset(dataset, ctx)
+    assert len(calls) == 3
+    assert len(entry["blocked"]) == 3
+
+
+def test_probe_host_flags_rate_limited_source(monkeypatch):
+    """Хост отвечает 429 — он жив, но качать из него в этом прогоне нельзя."""
+    class _Resp:
+        status_code = 429
+
+    class _Sock:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(m.socket, "create_connection", lambda *a, **k: _Sock())
+    monkeypatch.setattr(m.requests, "head", lambda *a, **k: _Resp())
+    result = m.probe_host("data.gov.ua", timeout=1)
+    assert result["reachable"] is True
+    assert result["throttled"] is True
+    assert "rate limited" in result["detail"]
+
+
+def test_rate_limited_host_blocks_resources_without_download(monkeypatch, tmp_path):
+    """Если предпроверка увидела троттлинг, ресурсы хоста сразу идут в blocked."""
+    def never(*a, **k):
+        raise AssertionError("download must not be attempted on a throttled host")
+
+    monkeypatch.setattr(m, "download_with_retries", never)
+    dataset = {
+        "id": "ds-4",
+        "name": "rate limited",
+        "url": "https://data.gov.ua/dataset/ds-4",
+        "resources": [{"url": "https://data.gov.ua/dataset/ds-4/resource/r1/download/a.csv", "format": "CSV"}],
+    }
+    ctx = {
+        "root": tmp_path,
+        "hf": None,
+        "repo": "test/repo",
+        "args": SimpleNamespace(max_dataset_files=0, max_file_mb=0, incremental=False),
+        "previous": {},
+        "health": {"data.gov.ua": {"host": "data.gov.ua", "reachable": True, "throttled": True, "detail": "http 429 (rate limited)"}},
+        "throttle_halt_after": 2,
+    }
+    entry = m.sync_dataset(dataset, ctx)
+    assert entry["failed"] == []
+    assert len(entry["blocked"]) == 1
+    assert entry["blocked"][0]["kind"] == m.SOURCE_THROTTLED

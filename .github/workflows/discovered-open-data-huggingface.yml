@@ -28,6 +28,7 @@ env:
   HF_DATASET_REPO: JoTalbot/ua-open-data
   DISCOVERY_BATCH_SIZE: 10
   DATA_GOV_HOST_PROBE_TIMEOUT: '15'
+  DATA_GOV_THROTTLE_HALT_AFTER: '2'
   PROGRESS_FILE: .github/state/discovered-open-data-progress.json
 
 jobs:
@@ -52,7 +53,14 @@ jobs:
           api.create_repo(repo_id=os.environ['HF_DATASET_REPO'], repo_type='dataset', exist_ok=True, private=False)
           PY
       - name: Discover datasets
-        run: python scripts/data_gov_ua_discovery.py --output artifacts/discovery/data_gov_ua_catalog.json --limit 0
+        run: |
+          # data.gov.ua регулярно отвечает 429/502 на CKAN API: свежий каталог — желателен,
+          # но зеркалирование уже известных датасетов не должно из-за этого останавливаться.
+          python scripts/data_gov_ua_discovery.py \
+            --output artifacts/discovery/data_gov_ua_catalog.json \
+            --status-output artifacts/discovery/catalog-status.json \
+            --fallback-on-error \
+            --limit 0
       - name: Select next bootstrap batch
         id: batch
         env:
@@ -159,14 +167,20 @@ jobs:
           unreachable="$(sed -n 's/^unreachable_hosts=//p' <<< "$metrics" | tail -1)"
           echo "$metrics"
           echo "failed=$failed_count blocked=$blocked_count unreachable_hosts=${unreachable:-none}"
+          catalog_status='unknown'
+          if [ -f artifacts/discovery/catalog-status.json ]; then
+            catalog_status="$(sed -n 's/.*"refreshed": *\(true\|false\).*/\1/p' artifacts/discovery/catalog-status.json | head -1)"
+          fi
           {
             echo '### Discovery batch result'
             echo ''
             echo '| metric | value |'
             echo '| --- | --- |'
+            echo "| catalog refreshed from data.gov.ua | ${catalog_status:-unknown} |"
             echo "| real resource failures | ${failed_count:-0} |"
-            echo "| blocked by unreachable source | ${blocked_count:-0} |"
-            echo "| unreachable source hosts | ${unreachable:-none} |"
+            echo "| blocked by unavailable source | ${blocked_count:-0} |"
+            echo "| affected source hosts | ${unreachable:-none} |"
+            echo "| blocked reasons | $(sed -n 's/^blocked_kinds=//p' <<< "$metrics" | tail -1 | sed 's/^$/none/') |"
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "${blocked_count:-0}" -gt 0 ] && [ "${failed_count:-0}" -eq 0 ]; then
             echo "Batch blocked: source host(s) ${unreachable:-unknown} unreachable. This is an external blocker; the batch stays RED until the source returns."

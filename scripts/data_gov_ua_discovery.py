@@ -10,11 +10,24 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 API = "https://data.gov.ua/api/3/action/package_search"
 PAGE_SIZE = 100
 FETCH_ATTEMPTS = 5
+# Ошибки, которые означают «источник недоступен/деградировал», а не «наш баг».
+SOURCE_ERRORS = (
+    http.client.HTTPException,
+    urllib.error.HTTPError,
+    urllib.error.URLError,
+    TimeoutError,
+    ConnectionError,
+    json.JSONDecodeError,
+    ValueError,
+    RuntimeError,
+    OSError,
+)
 
 
 def fetch(q: str, rows: int = PAGE_SIZE, start: int = 0) -> dict:
@@ -82,15 +95,57 @@ def discover(queries: list[str], limit: int) -> list[dict]:
     return datasets if limit <= 0 else datasets[:limit]
 
 
+def existing_datasets(path: Path) -> int:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return -1
+    items = data.get("datasets", data) if isinstance(data, dict) else data
+    return len(items) if isinstance(items, list) else -1
+
+
+def write_catalog_status(path: Path, *, refreshed: bool, datasets: int, detail: str) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": 1,
+        "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+        "source": "data.gov.ua",
+        "refreshed": refreshed,
+        "datasets": datasets,
+        "detail": detail,
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--output", default="artifacts/discovery/data_gov_ua_catalog.json")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument(
+        "--fallback-on-error",
+        action="store_true",
+        help="если CKAN API недоступен, не падать, а работать с уже существующим каталогом",
+    )
+    ap.add_argument("--status-output", default="artifacts/discovery/catalog-status.json")
     args = ap.parse_args()
-    datasets = discover(["Україна", "Ukraine", "відкриті дані", "державний реєстр"], args.limit)
     out = Path(args.output)
+    try:
+        datasets = discover(["Україна", "Ukraine", "відкриті дані", "державний реєстр"], args.limit)
+    except SOURCE_ERRORS as exc:
+        kept = existing_datasets(out)
+        if not args.fallback_on_error or kept < 0:
+            raise
+        print(
+            f"CATALOG DEGRADED: data.gov.ua API unavailable ({exc!r}); "
+            f"keeping existing catalog with {kept} datasets"
+        )
+        print(f"Catalog status written: {write_catalog_status(Path(args.status_output), refreshed=False, datasets=kept, detail=str(exc))}")
+        return
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps({"source": "data.gov.ua", "datasets": datasets}, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_catalog_status(Path(args.status_output), refreshed=True, datasets=len(datasets), detail="CKAN package_search OK")
     print(f"Discovered {len(datasets)} datasets")
 
 
