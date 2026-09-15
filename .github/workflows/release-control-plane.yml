@@ -22,7 +22,7 @@ permissions:
   contents: read
 jobs:
   aggregate:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion != 'cancelled' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout triggering source
@@ -82,7 +82,7 @@ PY
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          RELEASE_COMMIT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' && 'promotion' || github.event.workflow_run.head_sha }}
+          RELEASE_COMMIT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/status/signals
@@ -97,7 +97,7 @@ release = os.environ['RELEASE_COMMIT']
 auth = Path('artifacts/status/production-promotion-authorization.json')
 if auth.is_file():
     release = json.loads(auth.read_text())['source_commit']
-if not release or release == 'promotion':
+if not release:
     raise SystemExit('unable to determine release commit')
 
 groups = {
