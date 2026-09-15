@@ -158,10 +158,13 @@ PY
           if-no-files-found: warn
           retention-days: 30
       - name: Verify authoritative promotion authorization
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
         run: python scripts/verify_promotion_authorization.py --output artifacts/status/promotion-authorization-verification.json
       - name: Verify cryptographic artifact chain
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
         run: python scripts/verify_artifact_chain.py --output artifacts/status/artifact-chain.json
       - name: Evaluate production readiness
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
         run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Upload canonical control-plane snapshot
         if: always()
