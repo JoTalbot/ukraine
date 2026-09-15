@@ -82,52 +82,55 @@ jobs:
           def api(path):
               return request(path)[1]
 
-          def ensure_release_ref(release):
-              branch = f'release-candidate/{release}'
-              ref_path = f'/git/ref/heads/{branch}'
+          def get_ref_sha(branch):
               try:
-                  _, existing = request(ref_path)
+                  _, payload = request(f'/git/ref/heads/{branch}')
               except RuntimeError as exc:
                   if 'HTTP 404' not in str(exc):
                       raise
+                  return None
+              return payload.get('object', {}).get('sha') if payload else None
+
+          def create_ref(branch, release):
+              try:
                   _, created = request('/git/refs', method='POST', payload={
                       'ref': f'refs/heads/{branch}',
                       'sha': release,
                   })
-                  actual = created.get('object', {}).get('sha') if created else None
-                  if actual != release:
-                      raise RuntimeError(f'created release ref {branch} points to {actual}, expected {release}')
-                  print(f'Created immutable release ref {branch} -> {release}')
-                  return branch
-              actual = existing.get('object', {}).get('sha') if existing else None
+              except RuntimeError as exc:
+                  if 'HTTP 422' not in str(exc) or 'Reference already exists' not in str(exc):
+                      raise
+                  actual = get_ref_sha(branch)
+                  if actual == release:
+                      print(f'Concurrent creation won for immutable release ref {branch} -> {release}; reusing it.')
+                      return branch
+                  raise RuntimeError(
+                      f'concurrent creation left {branch} at {actual}, expected {release}'
+                  ) from exc
+              actual = created.get('object', {}).get('sha') if created else None
+              if actual != release:
+                  raise RuntimeError(f'created release ref {branch} points to {actual}, expected {release}')
+              print(f'Created immutable release ref {branch} -> {release}')
+              return branch
+
+          def ensure_release_ref(release):
+              branch = f'release-candidate/{release}'
+              actual = get_ref_sha(branch)
               if actual == release:
                   print(f'Reusing verified release ref {branch} -> {release}')
                   return branch
+              if actual is None:
+                  return create_ref(branch, release)
               repair_branch = f'release-candidate/{release}-repair'
-              repair_path = f'/git/ref/heads/{repair_branch}'
-              try:
-                  _, repair_existing = request(repair_path)
-                  repair_actual = repair_existing.get('object', {}).get('sha') if repair_existing else None
-                  if repair_actual != release:
-                      raise RuntimeError(
-                          f'release ref {branch} is stale at {actual}; repair ref {repair_branch} already exists at {repair_actual}'
-                      )
+              repair_actual = get_ref_sha(repair_branch)
+              if repair_actual == release:
                   print(f'Reusing verified repair release ref {repair_branch} -> {release}')
                   return repair_branch
-              except RuntimeError as repair_exc:
-                  if 'HTTP 404' not in str(repair_exc):
-                      raise
-              _, created = request('/git/refs', method='POST', payload={
-                  'ref': f'refs/heads/{repair_branch}',
-                  'sha': release,
-              })
-              created_actual = created.get('object', {}).get('sha') if created else None
-              if created_actual != release:
+              if repair_actual is not None:
                   raise RuntimeError(
-                      f'created repair release ref {repair_branch} points to {created_actual}, expected {release}'
+                      f'release ref {branch} is stale at {actual}; repair ref {repair_branch} already exists at {repair_actual}'
                   )
-              print(f'Stale release ref {branch} remains untouched at {actual}; created immutable repair ref {repair_branch} -> {release}')
-              return repair_branch
+              return create_ref(repair_branch, release)
 
           def dispatch(name, ref):
               workflow = dispatchable[name]
