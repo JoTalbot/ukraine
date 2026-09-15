@@ -84,7 +84,6 @@ jobs:
           failed = {int(x) for x in state.get('failed_batches', [])}
           successful = {int(x) for x in state.get('successful_batches', [])}
           blocked = {int(x) for x in state.get('blocked_batches', [])}
-          failed = failed | blocked  # блокеры источника ретраятся так же, как ошибки
           if requested and requested != 'auto':
               batch = int(requested)
               if batch < 0 or batch >= count:
@@ -96,16 +95,23 @@ jobs:
                   fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
               raise SystemExit(0)
           else:
-              candidates = [i for i in range(count) if i not in successful and i not in failed]
+              # Never let a blocked upstream host stall the whole bootstrap forever.
+              # New batches are attempted first; failed/blocked batches form a retry
+              # queue that is revisited after all previously unseen batches have had
+              # an opportunity to run.
+              candidates = [i for i in range(count) if i not in successful and i not in failed and i not in blocked]
               if candidates:
                   batch, mode = candidates[0], 'bootstrap'
               elif failed:
                   batch, mode = min(failed), 'retry'
+              elif blocked:
+                  batch, mode = min(blocked), 'retry-blocked'
               else:
                   state['next_batch'] = count
                   state['completed_batches'] = len(successful)
                   state['successful_batches'] = sorted(successful)
                   state['failed_batches'] = []
+                  state['blocked_batches'] = []
                   state['batch_count'] = count
                   state['bootstrap_complete'] = len(successful) == count
                   p.parent.mkdir(parents=True, exist_ok=True)
