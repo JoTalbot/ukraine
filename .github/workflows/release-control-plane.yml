@@ -17,6 +17,11 @@ on:
       - Production Promotion Authorization
     types: [completed]
   workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Exact release commit SHA to aggregate
+        required: true
+        type: string
 permissions:
   actions: read
   contents: read
@@ -28,7 +33,7 @@ jobs:
       - name: Checkout triggering source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.event.inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 1
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -77,12 +82,14 @@ head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
 if source != head:
     raise SystemExit('promotion authorization source_commit does not match checked out release')
 PY
+          else
+            test "${{ github.event.inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}" = "$(git rev-parse HEAD)"
           fi
       - name: Collect all producer signals for exact release
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          RELEASE_COMMIT: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          RELEASE_COMMIT: ${{ github.event.inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           mkdir -p artifacts/status/signals
