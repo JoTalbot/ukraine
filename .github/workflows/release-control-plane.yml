@@ -3,6 +3,8 @@ name: Release Control Plane
 run-name: Release Control Plane • ${{ inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}
 
 on:
+  push:
+    branches: [main]
   workflow_run:
     workflows:
       - Entity Graph Build
@@ -27,6 +29,13 @@ permissions:
   actions: read
   contents: read
 jobs:
+  push-compat:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Confirm push compatibility path
+        run: echo "Release Control Plane push compatibility run; canonical aggregation is performed from workflow_run or workflow_dispatch events."
+
   aggregate:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-24.04
