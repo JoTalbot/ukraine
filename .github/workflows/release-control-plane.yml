@@ -43,6 +43,7 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
+          mkdir -p artifacts/status
           tmp_dir="$(mktemp -d)"
           gh run download "$RUN_ID" --name production-promotion-authorization --dir "$tmp_dir"
           test -s "$tmp_dir/promotion-authorization/production-promotion-authorization.json"
@@ -67,10 +68,10 @@ jobs:
           if [ "$PROMOTION_SOURCE" = "true" ]; then
             test -s artifacts/status/production-promotion-authorization.json
             python - <<'PY'
-            import json
+            import json, subprocess
             from pathlib import Path
             source = json.loads(Path('artifacts/status/production-promotion-authorization.json').read_text())['source_commit']
-            if source != __import__('subprocess').check_output(['git','rev-parse','HEAD'], text=True).strip():
+            if source != subprocess.check_output(['git','rev-parse','HEAD'], text=True).strip():
                 raise SystemExit('promotion authorization source_commit does not match checked out release')
             PY
           fi
