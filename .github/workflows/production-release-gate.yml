@@ -1,8 +1,6 @@
 name: Production Release Gate
 
 on:
-  push:
-    branches: [main]
   workflow_run:
     workflows:
       - Release Control Plane
@@ -14,13 +12,6 @@ permissions:
   contents: read
 
 jobs:
-  push-compat:
-    if: ${{ github.event_name == 'push' }}
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Confirm push compatibility path
-        run: echo "Production Release Gate push compatibility run; release gating is performed from Release Control Plane workflow_run events."
-
   gate:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion != 'cancelled') }}
     runs-on: ubuntu-24.04
