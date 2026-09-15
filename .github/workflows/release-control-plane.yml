@@ -14,6 +14,7 @@ on:
       - EDRSR Full Texts
       - Pages Dashboard
       - Security scan
+      - Production Promotion Authorization
     types: [completed]
   workflow_dispatch:
 permissions:
@@ -38,7 +39,7 @@ jobs:
       - name: Generate release manifest
         run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
       - name: Resolve producer identity
-        if: ${{ github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Production Promotion Authorization' }}
         env:
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
         run: |
@@ -53,7 +54,7 @@ jobs:
             *) echo "Unsupported workflow: $WORKFLOW_NAME" >&2; exit 1 ;;
           esac
       - name: Download producer signal
-        if: ${{ github.event_name == 'workflow_run' }}
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Production Promotion Authorization' }}
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.event.workflow_run.id }}
@@ -68,11 +69,27 @@ jobs:
           fi
           test -s "artifacts/status/signals/$SIGNAL.json"
           echo "Using producer signal artifact for $SIGNAL"
+      - name: Download authoritative promotion authorization
+        if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name == 'Production Promotion Authorization' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/status
+          if ! gh run download "$RUN_ID" --name production-promotion-authorization --dir artifacts/status/promotion-authorization >/dev/null 2>&1; then
+            echo "Authoritative promotion authorization artifact is missing" >&2
+            exit 1
+          fi
+          test -s artifacts/status/promotion-authorization/production-promotion-authorization.json
+          cp artifacts/status/promotion-authorization/production-promotion-authorization.json artifacts/status/production-promotion-authorization.json
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Aggregate canonical status index
+        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Production Promotion Authorization' }}
         run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --sbom artifacts/status/sbom.cdx.json --output artifacts/status/status-index.json
       - name: Validate canonical control plane
+        if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.name != 'Production Promotion Authorization' }}
         run: python scripts/validate_release.py
       - name: Execute runtime hardening evidence self-test
         run: |
