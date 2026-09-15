@@ -27,6 +27,7 @@ env:
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   HF_DATASET_REPO: JoTalbot/ua-open-data
   DISCOVERY_BATCH_SIZE: 10
+  DATA_GOV_HOST_PROBE_TIMEOUT: '15'
   PROGRESS_FILE: .github/state/discovered-open-data-progress.json
 
 jobs:
@@ -74,6 +75,8 @@ jobs:
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
           failed = {int(x) for x in state.get('failed_batches', [])}
           successful = {int(x) for x in state.get('successful_batches', [])}
+          blocked = {int(x) for x in state.get('blocked_batches', [])}
+          failed = failed | blocked  # блокеры источника ретраятся так же, как ошибки
           if requested and requested != 'auto':
               batch = int(requested)
               if batch < 0 or batch >= count:
@@ -106,7 +109,7 @@ jobs:
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
               fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
           print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {size}')
-          print(f'Successful batches: {sorted(successful)}; failed batches: {sorted(failed)}')
+          print(f'Successful batches: {sorted(successful)}; failed batches: {sorted(failed)}; blocked batches: {sorted(blocked)}')
           PY
       - name: Mirror discovered datasets
         id: mirror
@@ -126,27 +129,59 @@ jobs:
         id: assess
         if: steps.batch.outputs.skip != 'true'
         run: |
-          failed=0
-          if [ ! -f artifacts/discovered-open-data/discovered-manifest.json ]; then
-            echo 'Batch manifest missing, treating batch as failed.'
-            failed=1
-          else
-            failed="$(python - <<'PY'
+          metrics="$(python - <<'PY'
           import json
+          from collections import Counter
           from pathlib import Path
-          data = json.loads(Path('artifacts/discovered-open-data/discovered-manifest.json').read_text(encoding='utf-8'))
-          print(sum(len(x.get('failed', [])) for x in data if isinstance(x, dict)))
+          path = Path('artifacts/discovered-open-data/discovered-manifest.json')
+          if not path.is_file():
+              print('failed_count=1')
+              print('blocked_count=0')
+              print('unreachable_hosts=')
+              print('missing=True')
+              raise SystemExit(0)
+          data = json.loads(path.read_text(encoding='utf-8'))
+          entries = [x for x in data if isinstance(x, dict)]
+          failed = sum(len(x.get('failed', [])) for x in entries)
+          blocked = [b for x in entries for b in x.get('blocked', [])]
+          hosts = sorted({b.get('host') for b in blocked if b.get('host')})
+          kinds = Counter(b.get('kind') for b in blocked)
+          print(f'failed_count={failed}')
+          print(f'blocked_count={len(blocked)}')
+          print('unreachable_hosts=' + ','.join(hosts))
+          print('missing=False')
+          if kinds:
+              print(f'blocked_kinds={json.dumps(dict(kinds), ensure_ascii=False)}')
           PY
           )"
+          failed_count="$(sed -n 's/^failed_count=//p' <<< "$metrics" | tail -1)"
+          blocked_count="$(sed -n 's/^blocked_count=//p' <<< "$metrics" | tail -1)"
+          unreachable="$(sed -n 's/^unreachable_hosts=//p' <<< "$metrics" | tail -1)"
+          echo "$metrics"
+          echo "failed=$failed_count blocked=$blocked_count unreachable_hosts=${unreachable:-none}"
+          {
+            echo '### Discovery batch result'
+            echo ''
+            echo '| metric | value |'
+            echo '| --- | --- |'
+            echo "| real resource failures | ${failed_count:-0} |"
+            echo "| blocked by unreachable source | ${blocked_count:-0} |"
+            echo "| unreachable source hosts | ${unreachable:-none} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${blocked_count:-0}" -gt 0 ] && [ "${failed_count:-0}" -eq 0 ]; then
+            echo "Batch blocked: source host(s) ${unreachable:-unknown} unreachable. This is an external blocker; the batch stays RED until the source returns."
           fi
-          echo "failed=$failed"
-          if [ "$failed" -gt 0 ]; then
+          if [ "${failed_count:-0}" -gt 0 ]; then
             echo 'Batch contains failed resources; it will be retried.'
+          fi
+          if [ "${failed_count:-0}" -gt 0 ] || [ "${blocked_count:-0}" -gt 0 ]; then
             echo 'has_failures=true' >> "$GITHUB_OUTPUT"
           else
-            echo 'Batch has no failed resources.'
             echo 'has_failures=false' >> "$GITHUB_OUTPUT"
           fi
+          echo "failed_count=${failed_count:-0}" >> "$GITHUB_OUTPUT"
+          echo "blocked_count=${blocked_count:-0}" >> "$GITHUB_OUTPUT"
+          echo "unreachable_hosts=${unreachable:-}" >> "$GITHUB_OUTPUT"
       - name: Persist bootstrap progress
         if: steps.batch.outputs.skip != 'true'
         env:
@@ -155,6 +190,9 @@ jobs:
           BATCH: ${{ steps.batch.outputs.batch }}
           BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
           HAS_FAILURES: ${{ steps.assess.outputs.has_failures }}
+          FAILED_COUNT: ${{ steps.assess.outputs.failed_count }}
+          BLOCKED_COUNT: ${{ steps.assess.outputs.blocked_count }}
+          UNREACHABLE_HOSTS: ${{ steps.assess.outputs.unreachable_hosts }}
         run: |
           mkdir -p "$(dirname "$PROGRESS_FILE")"
           python - <<'PY'
@@ -167,18 +205,34 @@ jobs:
           count = int(os.environ['BATCH_COUNT'])
           failed = {int(x) for x in state.get('failed_batches', [])}
           successful = {int(x) for x in state.get('successful_batches', [])}
-          if os.environ['HAS_FAILURES'] == 'true':
+          blocked = {int(x) for x in state.get('blocked_batches', [])}
+          failed_count = int(os.environ.get('FAILED_COUNT') or 0)
+          blocked_count = int(os.environ.get('BLOCKED_COUNT') or 0)
+          if failed_count > 0:
+              # реальная ошибка пайплайна
               failed.add(batch)
+              successful.discard(batch)
+              blocked.discard(batch)
+          elif blocked_count > 0:
+              # внешний блокер источника: не наша ошибка, но и не успех
+              blocked.add(batch)
+              failed.discard(batch)
               successful.discard(batch)
           else:
               failed.discard(batch)
+              blocked.discard(batch)
               successful.add(batch)
           state['successful_batches'] = sorted(successful)
           state['failed_batches'] = sorted(failed)
+          state['blocked_batches'] = sorted(blocked)
           state['next_batch'] = max(int(state.get('next_batch', 0)), batch + 1)
           state['completed_batches'] = len(successful)
           state['batch_count'] = count
-          state['bootstrap_complete'] = len(successful) == count and not failed
+          state['blocked_batch_count'] = len(blocked)
+          state['unreachable_hosts'] = [h for h in (os.environ.get('UNREACHABLE_HOSTS') or '').split(',') if h]
+          state['last_batch'] = {'batch': batch, 'mode': os.environ.get('MODE', ''),
+                                 'failed_resources': failed_count, 'blocked_resources': blocked_count}
+          state['bootstrap_complete'] = len(successful) == count and not failed and not blocked
           state['updated_at_utc'] = datetime.now(timezone.utc).isoformat()
           p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
           print(json.dumps(state, ensure_ascii=False, indent=2))
@@ -210,7 +264,8 @@ jobs:
       - name: Fail batch after persisting failure state
         if: steps.batch.outputs.skip != 'true' && steps.assess.outputs.has_failures == 'true'
         run: |
-          echo 'Batch contains failed resources. Progress was persisted; failing the job so publication state is RED.'
+          echo "Batch is not clean: failed_resources=${{ steps.assess.outputs.failed_count }} blocked_resources=${{ steps.assess.outputs.blocked_count }} unreachable_hosts=${{ steps.assess.outputs.unreachable_hosts || 'none' }}"
+          echo 'Progress was persisted; failing the job so publication state stays RED (fail-closed).'
           exit 1
       - name: Write publication status signal
         if: ${{ always() }}
