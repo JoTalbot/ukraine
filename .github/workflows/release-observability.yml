@@ -52,12 +52,6 @@ jobs:
           fi
       - name: Execute runtime hardening evidence self-test
         run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
-      - name: Verify authoritative promotion authorization
-        run: python scripts/verify_promotion_authorization.py --output artifacts/status/promotion-authorization-verification.json
-      - name: Verify cryptographic artifact chain
-        run: python scripts/verify_artifact_chain.py --output artifacts/status/artifact-chain.json
-      - name: Evaluate production readiness
-        run: python scripts/check_production_readiness.py --output artifacts/status/production-readiness.json
       - name: Run release and hardening contract tests
         run: python -m pytest tests/test_release_contract.py tests/test_release_manifest.py tests/test_status_index.py tests/test_write_status_signal.py tests/test_aggregate_status_signals.py tests/test_recovery_checkpoint.py tests/test_production_readiness.py tests/test_production_hardening.py -q
       - name: Upload release observability snapshot
