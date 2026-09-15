@@ -1,0 +1,65 @@
+name: Release Control Plane Kick
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  kick:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch release control plane for newest successful quality release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+import json
+import os
+import subprocess
+
+repo = os.environ['REPOSITORY']
+api = lambda path: json.loads(subprocess.check_output(['gh', 'api', path], text=True))
+
+runs = api(f'repos/{repo}/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')['workflow_runs']
+if not runs:
+    print('No successful Ukraine data CI run found.')
+    raise SystemExit(0)
+
+release = runs[0]['head_sha']
+print(f'Quality release candidate: {release}')
+
+all_runs = api(f'repos/{repo}/actions/runs?head_sha={release}&per_page=100')['workflow_runs']
+successful = {r['name'] for r in all_runs if r.get('head_sha') == release and r.get('conclusion') == 'success'}
+required = {
+    'ingestion': ['Ukraine Open Data Discovery'],
+    'quality': ['Ukraine data CI'],
+    'graph': ['Entity Graph Build'],
+    'training': ['Train Ukraine Models', 'Kaggle GPU Training'],
+    'publication': ['Ukraine Open Data -> Hugging Face', 'Discovered Ukraine Open Data -> Hugging Face', 'EDRSR Hugging Face Upload', 'EDRSR Full Texts'],
+    'security': ['Security scan'],
+}
+missing = [group for group, names in required.items() if not any(name in successful for name in names)]
+if missing:
+    print(f'Producer groups still missing for {release}: {", ".join(missing)}')
+    raise SystemExit(0)
+
+existing = api(f'repos/{repo}/actions/workflows/release-control-plane.yml/runs?per_page=100')['workflow_runs']
+marker = f'Release Control Plane • {release}'
+for run in existing:
+    if run.get('display_title') == marker and run.get('status') in {'queued', 'in_progress'}:
+        print(f'Control plane already running: {run["id"]}')
+        raise SystemExit(0)
+
+print(f'Dispatching Release Control Plane for {release}')
+subprocess.run([
+    'gh', 'workflow', 'run', '.github/workflows/release-control-plane.yml',
+    '--ref', 'main', '-f', f'source_commit={release}'
+], check=True)
+PY
