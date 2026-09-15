@@ -24,7 +24,6 @@ SUPPORT_WORKFLOWS = {
     ".github/workflows/recovery-checkpoints.yml",
     ".github/workflows/release-control-plane.yml",
     ".github/workflows/release-control-plane-dispatch.yml",
-    ".github/workflows/release-control-plane-kick.yml",
     ".github/workflows/release-observability.yml",
     ".github/workflows/security-scan.yml",
 }
