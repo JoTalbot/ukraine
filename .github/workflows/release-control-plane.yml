@@ -25,7 +25,7 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled' }}
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout source release
+      - name: Checkout triggering source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -36,8 +36,6 @@ jobs:
           python-version: '3.12'
       - name: Install control-plane dependencies from deterministic lock
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.lock
-      - name: Generate release manifest
-        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
       - name: Resolve producer identity
         if: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.name != 'Production Promotion Authorization' }}
         env:
@@ -76,13 +74,20 @@ jobs:
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
-          mkdir -p artifacts/status
+          mkdir -p artifacts/status/promotion-authorization
           if ! gh run download "$RUN_ID" --name production-promotion-authorization --dir artifacts/status/promotion-authorization >/dev/null 2>&1; then
             echo "Authoritative promotion authorization artifact is missing" >&2
             exit 1
           fi
           test -s artifacts/status/promotion-authorization/production-promotion-authorization.json
           cp artifacts/status/promotion-authorization/production-promotion-authorization.json artifacts/status/production-promotion-authorization.json
+          SOURCE_COMMIT="$(python -c 'import json; print(json.load(open("artifacts/status/production-promotion-authorization.json"))["source_commit"])')"
+          [[ "$SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          git fetch --no-tags --depth=1 origin "$SOURCE_COMMIT"
+          git checkout --detach "$SOURCE_COMMIT"
+          test "$(git rev-parse HEAD)" = "$SOURCE_COMMIT"
+      - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
       - name: Generate SBOM
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Aggregate canonical status index
