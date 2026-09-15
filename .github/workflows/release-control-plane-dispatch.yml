@@ -32,6 +32,7 @@ jobs:
           repo = os.environ['REPOSITORY']
           token = os.environ['GH_TOKEN']
           current_sha = os.environ.get('GITHUB_SHA')
+          event_name = os.environ.get('GITHUB_EVENT_NAME')
           api_base = f'https://api.github.com/repos/{repo}'
           required = {
               'ingestion': ['Ukraine Open Data Discovery'],
@@ -144,9 +145,14 @@ jobs:
                   run.get('created_at') or '',
               )
 
-          # Prefer the successful quality run for the current main revision.  Falling back
-          # to older candidates is useful for recovery, but must never starve the current release.
-          for quality in sorted(quality_runs, key=candidate_priority):
+          # A push/workflow_dispatch must never fall back to an older candidate: that can
+          # starve the just-created main revision. Scheduled recovery may process older
+          # successful candidates when no current candidate exists.
+          candidates = sorted(quality_runs, key=candidate_priority)
+          if event_name in {'push', 'workflow_dispatch'}:
+              candidates = [r for r in candidates if r.get('head_sha') == current_sha]
+
+          for quality in candidates:
               release = quality.get('head_sha')
               if not release:
                   continue
@@ -179,5 +185,5 @@ jobs:
                       break
               raise SystemExit(0)
 
-          print('No successful quality release candidate found; nothing to dispatch.')
+          print(f'No successful quality release candidate for current revision {current_sha}; nothing to dispatch.')
           PY
