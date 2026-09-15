@@ -15,11 +15,10 @@ jobs:
   dispatch-when-release-is-complete:
     runs-on: ubuntu-24.04
     steps:
-      - name: Check producer completion and dispatch control plane
+      - name: Select latest complete release and dispatch control plane
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          RELEASE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -28,7 +27,6 @@ import os
 import subprocess
 
 repo = os.environ['REPOSITORY']
-release = os.environ['RELEASE_COMMIT']
 required = {
     'ingestion': ['Ukraine Open Data Discovery'],
     'quality': ['Ukraine data CI'],
@@ -44,26 +42,39 @@ required = {
     'security': ['Security scan'],
 }
 
-runs = json.loads(subprocess.check_output([
-    'gh', 'api', f'repos/{repo}/actions/runs?head_sha={release}&per_page=100'
-], text=True))['workflow_runs']
-successful = [
-    r for r in runs
-    if r.get('head_sha') == release and r.get('conclusion') == 'success'
-]
+def api(path):
+    return json.loads(subprocess.check_output(['gh', 'api', path], text=True))
 
-missing = []
-for group, names in required.items():
-    if not any(r.get('name') in names for r in successful):
-        missing.append(group)
+# Find the newest successful quality run. Its head SHA is the release identity.
+quality_runs = api(f'repos/{repo}/actions/workflows/ukraine-data-ci.yml/runs?status=success&branch=main&per_page=50')['workflow_runs']
+for quality in quality_runs:
+    release = quality.get('head_sha')
+    if not release:
+        continue
+    runs = api(f'repos/{repo}/actions/runs?head_sha={release}&per_page=100')['workflow_runs']
+    successful = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
+    missing = [
+        group for group, names in required.items()
+        if not any(r.get('name') in names for r in successful)
+    ]
+    if missing:
+        print(f'Candidate {release} ({quality.get("run_number")}) incomplete: {", ".join(missing)}')
+        continue
 
-if missing:
-    print(f'Release {release} is not complete yet; missing successful groups: {", ".join(missing)}')
+    control_runs = api(f'repos/{repo}/actions/workflows/release-control-plane.yml/runs?per_page=100')['workflow_runs']
+    already = [
+        r for r in control_runs
+        if r.get('event') == 'workflow_dispatch'
+        and r.get('head_sha') == release
+        and r.get('conclusion') in {'success', 'failure', 'cancelled'}
+    ]
+    if already:
+        print(f'Control Plane already processed release {release}; nothing to dispatch.')
+        raise SystemExit(0)
+
+    print(f'Release {release} is complete; dispatching Release Control Plane.')
+    subprocess.run(['gh', 'workflow', 'run', 'release-control-plane.yml', '--ref', 'main'], check=True)
     raise SystemExit(0)
 
-print(f'Release {release} has all producer signals. Dispatching Release Control Plane.')
-subprocess.run([
-    'gh', 'workflow', 'run', 'release-control-plane.yml',
-    '--ref', 'main',
-], check=True)
+print('No complete release candidate found; nothing to dispatch.')
 PY
