@@ -10,13 +10,18 @@ INSTALL_MARKERS = {
     "legal_lm_finetune.ipynb": "!pip -q install tokenizers pyarrow peft striprtf\n",
 }
 
+# Kaggle P100 is Pascal (sm_60). Keep the runtime deterministic and avoid
+# installing unnecessary audio/vision wheels that consume hundreds of MB and
+# can destabilize the preconfigured notebook environment.
 FT_INSTALL = (
     "import subprocess\n"
     "subprocess.run(['pip', 'uninstall', '-y', 'torch', 'torchvision', 'torchaudio'], check=True)\n"
-    "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
-    "subprocess.run(['pip', '-q', 'uninstall', '-y', 'torchvision'], check=False)\n"
-    "subprocess.run(['pip', '-q', 'install', 'tokenizers', 'pyarrow', 'striprtf', "
-    "'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
+    "subprocess.run(['pip', '-q', 'install', '--no-cache-dir', 'torch==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
+    "subprocess.run(['pip', '-q', 'install', '--no-cache-dir', 'tokenizers', 'pyarrow', 'striprtf', 'transformers==4.57.1', 'peft==0.17.1'], check=True)\n"
+    "import torch\n"
+    "assert torch.cuda.is_available(), 'CUDA is unavailable after deterministic torch install'\n"
+    "assert torch.cuda.get_device_capability(0)[0] < 7, 'Unexpected non-Pascal GPU for this FT runtime'\n"
+    "print('FT runtime:', torch.__version__, '| GPU:', torch.cuda.get_device_name(0), '| capability:', torch.cuda.get_device_capability(0))\n"
 )
 
 
@@ -27,14 +32,8 @@ def _lines(text: str) -> list[str]:
 def _ensure_ft_dependencies(text: str, marker: str, name: str) -> str:
     if name != "legal_lm_finetune.ipynb" or marker not in text:
         return text
-    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1" in text and "uninstall', '-y', 'torchvision'" in text:
+    if "torch==2.5.1" in text and "transformers==4.57.1" in text and "peft==0.17.1" in text and "--no-cache-dir" in text and "torchaudio" in text:
         return text
-    if "torch==2.5.1" in text and "torchvision==0.20.1" in text:
-        return text.replace(
-            "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchvision==0.20.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n",
-            "subprocess.run(['pip', '-q', 'install', 'torch==2.5.1', 'torchaudio==2.5.1', '--index-url', 'https://download.pytorch.org/whl/cu118'], check=True)\n"
-            "subprocess.run(['pip', '-q', 'uninstall', '-y', 'torchvision'], check=False)\n",
-        )
     return text.replace(marker, FT_INSTALL, 1)
 
 
