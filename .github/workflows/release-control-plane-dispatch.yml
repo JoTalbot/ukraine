@@ -53,7 +53,7 @@ jobs:
               'Ukraine Open Data -> Hugging Face': 'open-data-huggingface.yml',
               'Discovered Ukraine Open Data -> Hugging Face': 'discovered-open-data-huggingface.yml',
               'EDRSR Hugging Face Upload': 'edrsr-huggingface.yml',
-              'EDRSR Full Texts': 'edrsr-full-texts.yml',
+              'EDRSR Full Texts': 'edrsr-texts.yml',
               'Security scan': 'security-scan.yml',
           }
 
