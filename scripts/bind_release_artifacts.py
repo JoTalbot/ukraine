@@ -11,8 +11,8 @@ REQUIRED_ARTIFACTS = (
     Path("artifacts/status/sbom.cdx.json"),
     Path("artifacts/status/status-index.json"),
     Path("artifacts/status/production-hardening-evidence.json"),
-    Path("artifacts/status/production-promotion-authorization.json"),
 )
+OPTIONAL_ARTIFACTS = (Path("artifacts/status/production-promotion-authorization.json"),)
 
 
 def sha256(path: Path) -> str:
@@ -25,6 +25,7 @@ def sha256(path: Path) -> str:
 
 def discover_artifacts(root: Path) -> list[Path]:
     artifacts = list(REQUIRED_ARTIFACTS)
+    artifacts.extend(path for path in OPTIONAL_ARTIFACTS if (root / path).is_file())
     signal_dir = root / "artifacts/status/signals"
     if signal_dir.is_dir():
         artifacts.extend(sorted(p.relative_to(root) for p in signal_dir.glob("*.json") if p.is_file()))
