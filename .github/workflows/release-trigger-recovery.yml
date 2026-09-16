@@ -85,23 +85,32 @@ jobs:
                   for r in payload.get('workflow_runs', [])
               )
 
-          # Any successful producer completion can safely wake the dispatcher once
-          # the quality anchor for the current main revision is green. This avoids
-          # relying on a particular workflow_run name arriving last.
+          def recover_quality_for_current_main():
+              if successful_quality_for_current_main():
+                  return True
+              if active_runs('ukraine-data-ci.yml'):
+                  print('Ukraine data CI is already queued/running; no duplicate trigger.')
+                  return False
+              print(f'Quality anchor is missing for {current_sha}; triggering Ukraine data CI.')
+              request('/actions/workflows/ukraine-data-ci.yml/dispatches', method='POST', payload={'ref': 'main'})
+              return False
+
           if event_name == 'workflow_run':
               if workflow_conclusion != 'success':
                   print(f'Workflow {workflow_name} completed with {workflow_conclusion}; no release progression.')
                   raise SystemExit(0)
-              if successful_quality_for_current_main():
-                  if active_runs('release-control-plane-dispatch.yml'):
-                      print('Release Control Plane Dispatch is already active; no duplicate trigger.')
-                  else:
-                      print(f'{workflow_name} completed successfully and quality is green for {current_sha}; triggering Release Control Plane Dispatch.')
-                      request('/actions/workflows/release-control-plane-dispatch.yml/dispatches', method='POST', payload={'ref': 'main'})
+              if not recover_quality_for_current_main():
                   raise SystemExit(0)
-              print(f'{workflow_name} completed successfully, but quality is not yet green for {current_sha}; no progression needed.')
+              if active_runs('release-control-plane-dispatch.yml'):
+                  print('Release Control Plane Dispatch is already active; no duplicate trigger.')
+              else:
+                  print(f'{workflow_name} completed successfully and quality is green for {current_sha}; triggering Release Control Plane Dispatch.')
+                  request('/actions/workflows/release-control-plane-dispatch.yml/dispatches', method='POST', payload={'ref': 'main'})
               raise SystemExit(0)
 
+          if successful_quality_for_current_main():
+              print(f'Quality is already green for {current_sha}; no recovery dispatch needed.')
+              raise SystemExit(0)
           if active_runs('ukraine-data-ci.yml'):
               print('Ukraine data CI is already queued/running; no duplicate trigger.')
               raise SystemExit(0)
