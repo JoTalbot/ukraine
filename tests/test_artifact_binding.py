@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -7,7 +8,14 @@ from scripts.bind_release_artifacts import bind
 from scripts.verify_artifact_chain import verify
 
 
+def _sha(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def _manifest(path: Path) -> None:
+    root = path.parents[2]
+    readme = root / "README.md"
+    readme.write_text("fixture", encoding="utf-8")
     path.write_text(
         json.dumps(
             {
@@ -25,7 +33,7 @@ def _manifest(path: Path) -> None:
                     "source_sha": "a" * 40,
                     "dependency_lock": {"path": "requirements.lock", "sha256": "b" * 64},
                 },
-                "files": [{"path": "README.md", "sha256": "c" * 64, "bytes": 1}],
+                "files": [{"path": "README.md", "sha256": _sha(readme), "bytes": readme.stat().st_size}],
             }
         )
         + "\n",
@@ -37,8 +45,37 @@ def _artifacts(root: Path) -> None:
     status = root / "artifacts/status"
     signals = status / "signals"
     signals.mkdir(parents=True)
-    for name in ("sbom.cdx.json", "status-index.json", "production-hardening-evidence.json", "production-promotion-authorization.json"):
-        (status / name).write_text(name, encoding="utf-8")
+    (status / "sbom.cdx.json").write_text("sbom", encoding="utf-8")
+    (status / "status-index.json").write_text("status", encoding="utf-8")
+    (status / "production-hardening-evidence.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "source_commit": "a" * 40,
+                "contracts": {
+                    name: {"state": "green"}
+                    for name in ("DRIFT-01", "QUAR-01", "REG-01", "COMPAT-01", "PROM-01", "ROLL-01")
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (status / "production-promotion-authorization.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "target": "production",
+                "source_commit": "a" * 40,
+                "model_id": "model-1",
+                "artifact_sha256": "b" * 64,
+                "evaluation_evidence_sha256": "c" * 64,
+                "approval_identity": "test",
+                "release_sequence": 1,
+                "approved_at": "2026-09-16T12:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
     for name in ("ingestion.json", "quality.json", "graph.json", "training.json", "publication.json", "security.json"):
         (signals / name).write_text(name, encoding="utf-8")
 
