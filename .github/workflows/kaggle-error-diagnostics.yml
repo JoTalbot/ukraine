@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 # This is a polling/diagnostics workflow. Never queue an obsolete poll behind
@@ -118,3 +119,13 @@ jobs:
             git commit -m "chore: persist ${{ matrix.slug }} Kaggle diagnostics"
           done
           if [ "$pushed" != true ]; then echo 'Unable to push diagnostics after retries' >&2; exit 1; fi
+
+      - name: Trigger Ukraine data CI after diagnostic push
+        if: ${{ success() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          gh workflow run ukraine-data-ci.yml --ref main --repo "$REPOSITORY"
+          echo 'Ukraine data CI dispatched after Kaggle diagnostics.'
