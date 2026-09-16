@@ -2,13 +2,14 @@ import hashlib
 import json
 from pathlib import Path
 
-from scripts.verify_promotion_authorization import verify
+from scripts.verify_promotion_authorization import authorization_id, verify
 
 
 def _auth(tmp_path: Path, artifact_path: str = "artifacts/model.bin", evaluation_path: str = "artifacts/evaluation.json") -> None:
     status = tmp_path / "artifacts/status"
     status.mkdir(parents=True)
-    (status / "release-manifest.json").write_text(json.dumps({"schema_version": 1, "git_commit": "abc"}), encoding="utf-8")
+    commit = "a" * 40
+    (status / "release-manifest.json").write_text(json.dumps({"schema_version": 1, "git_commit": commit}), encoding="utf-8")
     artifact = tmp_path / artifact_path
     evaluation = tmp_path / evaluation_path
     artifact.parent.mkdir(parents=True, exist_ok=True)
@@ -18,7 +19,7 @@ def _auth(tmp_path: Path, artifact_path: str = "artifacts/model.bin", evaluation
     auth = {
         "schema_version": 1,
         "target": "production",
-        "source_commit": "abc",
+        "source_commit": commit,
         "model_id": "m1",
         "artifact_path": artifact_path,
         "artifact_sha256": hashlib.sha256(b"model").hexdigest(),
@@ -26,8 +27,9 @@ def _auth(tmp_path: Path, artifact_path: str = "artifacts/model.bin", evaluation
         "evaluation_evidence_sha256": hashlib.sha256(evaluation.read_bytes()).hexdigest(),
         "approval_identity": "approver",
         "release_sequence": 1,
-        "approved_at": "2026-09-14T00:00:00+00:00",
+        "approved_at": "2026-09-14T00:00:00Z",
     }
+    auth["authorization_id"] = authorization_id(auth)
     (status / "production-promotion-authorization.json").write_text(json.dumps(auth), encoding="utf-8")
 
 
@@ -65,3 +67,28 @@ def test_unsafe_paths_fail_closed(tmp_path: Path) -> None:
     auth_path.write_text(json.dumps(auth), encoding="utf-8")
     ok, issues = verify(tmp_path)
     assert not ok and "unsafe evaluation_evidence_path" in issues
+
+
+def test_tampered_authorization_payload_fails_closed(tmp_path: Path) -> None:
+    _auth(tmp_path)
+    auth_path = tmp_path / "artifacts/status/production-promotion-authorization.json"
+    auth = json.loads(auth_path.read_text(encoding="utf-8"))
+    auth["model_id"] = "tampered"
+    auth_path.write_text(json.dumps(auth), encoding="utf-8")
+    ok, issues = verify(tmp_path)
+    assert not ok
+    assert "authorization_id does not match canonical authorization payload" in issues
+
+
+def test_non_utc_or_invalid_commit_fails_closed(tmp_path: Path) -> None:
+    _auth(tmp_path)
+    auth_path = tmp_path / "artifacts/status/production-promotion-authorization.json"
+    auth = json.loads(auth_path.read_text(encoding="utf-8"))
+    auth["source_commit"] = "abc"
+    auth["approved_at"] = "2026-09-14T00:00:00+00:00"
+    auth["authorization_id"] = authorization_id(auth)
+    auth_path.write_text(json.dumps(auth), encoding="utf-8")
+    ok, issues = verify(tmp_path)
+    assert not ok
+    assert "invalid source_commit" in issues
+    assert "approved_at must be UTC ISO-8601" in issues
