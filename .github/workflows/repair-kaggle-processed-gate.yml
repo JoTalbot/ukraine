@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   repair:
-    if: ${{ github.actor != 'github-actions[bot]' }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,8 +54,25 @@ jobs:
 
           tests = Path('tests/test_production_readiness.py')
           test_content = tests.read_text(encoding='utf-8')
-          addition = '''\n\ndef test_kaggle_processed_version_requires_successful_publication_gate() -> None:\n    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "kaggle-results.yml"\n    content = workflow.read_text(encoding="utf-8")\n    mark = content.index("- name: Mark processed Kaggle kernel version")\n    processed = content[mark:]\n    write = processed.index("printf '%s\\\\n' \\\"$VERSION\\\" > \\\".training-manifests/${{ matrix.slug }}/processed-version.txt\\\"")\n    gate = processed[:write]\n    assert "artifacts/${{ matrix.slug }}/regression.txt" in gate\n    assert "Publication quality gate blocked" in gate\n    assert "model-ft/final" in gate and "*.safetensors" in gate\n    assert "model/model.pt" in gate\n    assert gate.index("regression.txt") < write\n    assert gate.index("model-ft/final") < write\n    assert gate.index("model/model.pt") < write\n'''
           if 'def test_kaggle_processed_version_requires_successful_publication_gate' not in test_content:
+              addition = '''
+
+
+def test_kaggle_processed_version_requires_successful_publication_gate() -> None:
+    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "kaggle-results.yml"
+    content = workflow.read_text(encoding="utf-8")
+    mark = content.index("- name: Mark processed Kaggle kernel version")
+    processed = content[mark:]
+    write = processed.index("printf '%s\\n' \"$VERSION\" > \".training-manifests/${{ matrix.slug }}/processed-version.txt\"")
+    gate = processed[:write]
+    assert "artifacts/${{ matrix.slug }}/regression.txt" in gate
+    assert "Publication quality gate blocked" in gate
+    assert "model-ft/final" in gate and "*.safetensors" in gate
+    assert "model/model.pt" in gate
+    assert gate.index("regression.txt") < write
+    assert gate.index("model-ft/final") < write
+    assert gate.index("model/model.pt") < write
+'''
               tests.write_text(test_content.rstrip() + addition + '\n', encoding='utf-8')
           PY
           python -m pytest tests/test_production_readiness.py -q
