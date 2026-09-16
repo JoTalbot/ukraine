@@ -143,13 +143,15 @@ PY
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Aggregate canonical status index
         run: python scripts/aggregate_status_signals.py --manifest artifacts/status/release-manifest.json --signals-dir artifacts/status/signals --sbom artifacts/status/sbom.cdx.json --output artifacts/status/status-index.json
-      - name: Validate canonical control plane
-        run: python scripts/validate_release.py
       - name: Execute runtime hardening evidence self-test
         run: |
           set -euo pipefail
           SOURCE_COMMIT="$(git rev-parse HEAD)"
           python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$SOURCE_COMMIT" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
+      - name: Bind generated artifacts to release manifest
+        run: python scripts/bind_release_artifacts.py --manifest artifacts/status/release-manifest.json
+      - name: Validate canonical control plane
+        run: python scripts/validate_release.py
       - name: Upload pre-gate diagnostic snapshot
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
