@@ -20,6 +20,16 @@ def test_discovered_open_data_workflow_fails_after_persisting_batch_failures() -
     assert "exit 1" in content[fail:publication]
 
 
+def test_discovered_open_data_scheduler_processes_unattempted_batches_before_retries() -> None:
+    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "discovered-open-data-huggingface.yml"
+    content = workflow.read_text(encoding="utf-8")
+    candidates = "candidates = [i for i in range(count) if i not in successful and i not in failed and i not in blocked]"
+    assert candidates in content
+    selection = content[content.index("else:", content.index("elif state.get('bootstrap_complete'")):content.index("offset = batch * size")]
+    assert selection.index(candidates) < selection.index("elif failed:")
+    assert "batch, mode = min(failed), 'retry'" in selection
+
+
 def test_kaggle_processed_version_requires_successful_publication_gate() -> None:
     workflow = Path(__file__).parents[1] / ".github" / "workflows" / "kaggle-results.yml"
     content = workflow.read_text(encoding="utf-8")
