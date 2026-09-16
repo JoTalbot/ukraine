@@ -34,7 +34,7 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           WORKFLOW_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-          CURRENT_SHA: ${{ github.sha }}
+          CURRENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           python - <<'PY'
