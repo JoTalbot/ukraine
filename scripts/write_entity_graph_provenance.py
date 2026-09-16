@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Create a deterministic provenance manifest for an entity-graph build.
 
 The manifest binds local graph inputs to their source URLs, byte sizes and
@@ -10,9 +9,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 SCHEMA_VERSION = 1
 
