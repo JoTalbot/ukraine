@@ -4,10 +4,20 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 
 V = 1
 AUTH = "artifacts/status/production-promotion-authorization.json"
+UTC = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+SHA = re.compile(r"^[0-9a-f]{64}$")
+COMMIT = re.compile(r"^[0-9a-f]{40}$")
+AUTHENTICATED_FIELDS = (
+    "schema_version", "target", "source_commit", "model_id", "artifact_path",
+    "artifact_sha256", "evaluation_evidence_path", "evaluation_evidence_sha256",
+    "approval_identity", "release_sequence", "approved_at",
+)
 
 
 def sha256(path: Path) -> str:
@@ -19,7 +29,7 @@ def sha256(path: Path) -> str:
 
 
 def valid_sha(value: object) -> bool:
-    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
+    return isinstance(value, str) and bool(SHA.fullmatch(value.lower()))
 
 
 def safe_artifact_path(root: Path, value: object) -> Path | None:
@@ -39,6 +49,15 @@ def safe_artifact_path(root: Path, value: object) -> Path | None:
     return resolved
 
 
+def canonical_authorization_payload(auth: dict) -> bytes:
+    payload = {key: auth.get(key) for key in AUTHENTICATED_FIELDS}
+    return (json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+
+
+def authorization_id(auth: dict) -> str:
+    return hashlib.sha256(canonical_authorization_payload(auth)).hexdigest()
+
+
 def verify(root: Path) -> tuple[bool, list[str]]:
     issues: list[str] = []
     root = Path(root)
@@ -56,17 +75,21 @@ def verify(root: Path) -> tuple[bool, list[str]]:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.is_file() else {}
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         manifest = {}
+
     if auth.get("schema_version") != V:
         issues.append("unsupported authorization schema")
     if auth.get("target") != "production":
         issues.append("authorization target is not production")
-    if not auth.get("source_commit") or auth.get("source_commit") != manifest.get("git_commit"):
+    if not isinstance(auth.get("source_commit"), str) or not COMMIT.fullmatch(auth.get("source_commit", "")):
+        issues.append("invalid source_commit")
+    if auth.get("source_commit") != manifest.get("git_commit"):
         issues.append("authorization commit does not match release manifest")
-    if not auth.get("model_id"):
+    if not isinstance(auth.get("model_id"), str) or not auth.get("model_id"):
         issues.append("missing model_id")
     for key in ("artifact_sha256", "evaluation_evidence_sha256"):
         if not valid_sha(auth.get(key)):
             issues.append(f"invalid {key}")
+
     paths: dict[str, Path | None] = {}
     for key in ("artifact_path", "evaluation_evidence_path"):
         value = auth.get(key)
@@ -75,6 +98,7 @@ def verify(root: Path) -> tuple[bool, list[str]]:
         elif safe_artifact_path(root, value) is None:
             issues.append(f"unsafe {key}")
         paths[key] = safe_artifact_path(root, value)
+
     artifact = paths["artifact_path"]
     evaluation = paths["evaluation_evidence_path"]
     if artifact is not None and artifact.is_file() and valid_sha(auth.get("artifact_sha256")):
@@ -87,12 +111,25 @@ def verify(root: Path) -> tuple[bool, list[str]]:
             issues.append("evaluation evidence checksum mismatch")
     elif evaluation is None or not evaluation.is_file():
         issues.append("evaluation evidence is missing")
-    if not auth.get("approval_identity"):
+
+    if not isinstance(auth.get("approval_identity"), str) or not auth.get("approval_identity"):
         issues.append("missing approval_identity")
     if not isinstance(auth.get("release_sequence"), int) or isinstance(auth.get("release_sequence"), bool) or auth.get("release_sequence") <= 0:
         issues.append("invalid release_sequence")
-    if not isinstance(auth.get("approved_at"), str) or not auth.get("approved_at"):
-        issues.append("missing approved_at")
+    approved_at = auth.get("approved_at")
+    if not isinstance(approved_at, str) or not UTC.fullmatch(approved_at):
+        issues.append("approved_at must be UTC ISO-8601")
+    else:
+        try:
+            datetime.strptime(approved_at, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            issues.append("approved_at is not a valid UTC timestamp")
+
+    expected_id = authorization_id(auth)
+    if not isinstance(auth.get("authorization_id"), str) or not SHA.fullmatch(auth.get("authorization_id", "")):
+        issues.append("missing or invalid authorization_id")
+    elif auth["authorization_id"] != expected_id:
+        issues.append("authorization_id does not match canonical authorization payload")
     return not issues, issues
 
 
