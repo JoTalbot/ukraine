@@ -1,0 +1,71 @@
+name: Repair Kaggle processed-version gate
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - name: Patch publication gate and regression test
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/kaggle-results.yml')
+          content = workflow.read_text(encoding='utf-8')
+          old = '''          [ "$STATUS" = complete ] || exit 0
+          VERSION=$(tr -d '\\r\\n ' < ".training-manifests/${{ matrix.slug }}/kernel-version.txt" 2>/dev/null || true)
+          [ -n "$VERSION" ] || exit 0
+          printf '%s\\n' "$VERSION" > ".training-manifests/${{ matrix.slug }}/processed-version.txt"
+'''
+          new = '''          [ "$STATUS" = complete ] || exit 0
+          if [ -f "artifacts/${{ matrix.slug }}/regression.txt" ]; then
+            echo 'Publication quality gate blocked; processed-version remains unchanged.'
+            exit 0
+          fi
+          if [ "${{ matrix.slug }}" = "ua-legal-lm-ft" ]; then
+            test -n "$(find "artifacts/${{ matrix.slug }}/model-ft/final" -maxdepth 1 -type f -name '*.safetensors' -print -quit 2>/dev/null)" || {
+              echo 'Fine-tune final safetensors artifact missing; processed-version remains unchanged.'
+              exit 0
+            }
+          else
+            test -f "artifacts/${{ matrix.slug }}/model/model.pt" || {
+              echo 'GPU model.pt artifact missing; processed-version remains unchanged.'
+              exit 0
+            }
+          fi
+          VERSION=$(tr -d '\\r\\n ' < ".training-manifests/${{ matrix.slug }}/kernel-version.txt" 2>/dev/null || true)
+          [ -n "$VERSION" ] || exit 0
+          printf '%s\\n' "$VERSION" > ".training-manifests/${{ matrix.slug }}/processed-version.txt"
+'''
+          if old not in content:
+              raise SystemExit('Expected Mark processed gate block was not found')
+          workflow.write_text(content.replace(old, new, 1), encoding='utf-8')
+
+          tests = Path('tests/test_production_readiness.py')
+          test_content = tests.read_text(encoding='utf-8')
+          addition = '''\n\ndef test_kaggle_processed_version_requires_successful_publication_gate() -> None:\n    workflow = Path(__file__).parents[1] / ".github" / "workflows" / "kaggle-results.yml"\n    content = workflow.read_text(encoding="utf-8")\n    mark = content.index("- name: Mark processed Kaggle kernel version")\n    processed = content[mark:]\n    write = processed.index("printf '%s\\\\n' \\\"$VERSION\\\" > \\\".training-manifests/${{ matrix.slug }}/processed-version.txt\\\"")\n    gate = processed[:write]\n    assert "artifacts/${{ matrix.slug }}/regression.txt" in gate\n    assert "Publication quality gate blocked" in gate\n    assert "model-ft/final" in gate and "*.safetensors" in gate\n    assert "model/model.pt" in gate\n    assert gate.index("regression.txt") < write\n    assert gate.index("model-ft/final") < write\n    assert gate.index("model/model.pt") < write\n'''
+          if 'def test_kaggle_processed_version_requires_successful_publication_gate' not in test_content:
+              tests.write_text(test_content.rstrip() + addition + '\n', encoding='utf-8')
+          PY
+          python -m pytest tests/test_production_readiness.py -q
+      - name: Commit repair and remove one-shot workflow
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/repair-kaggle-processed-gate.yml
+          git add .github/workflows/kaggle-results.yml tests/test_production_readiness.py
+          git commit -m 'fix(ci): enforce Kaggle publication gate before processed state'
+          git push
