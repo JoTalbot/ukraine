@@ -165,9 +165,9 @@ jobs:
               if not missing:
                   marker = f'Release Control Plane • {release}'
                   already = [r for r in control_runs if r.get('event') == 'workflow_dispatch' and r.get('display_title') == marker and r.get('status') in {'queued', 'in_progress'}]
-                  completed = [r for r in control_runs if r.get('event') == 'workflow_dispatch' and r.get('display_title') == marker and r.get('conclusion') in {'success', 'failure', 'cancelled'}]
-                  if already or completed:
-                      print(f'Control Plane already scheduled/processed release {release}; nothing to dispatch.')
+                  completed_success = [r for r in control_runs if r.get('event') == 'workflow_dispatch' and r.get('display_title') == marker and r.get('conclusion') == 'success']
+                  if already or completed_success:
+                      print(f'Control Plane already scheduled/successfully processed release {release}; nothing to dispatch.')
                       raise SystemExit(0)
                   print(f'Release {release} is complete; dispatching Release Control Plane.')
                   request('/actions/workflows/release-control-plane.yml/dispatches', method='POST', payload={'ref': 'main', 'inputs': {'source_commit': release}})
