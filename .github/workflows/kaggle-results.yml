@@ -177,7 +177,7 @@ jobs:
               print(msg)
               raise SystemExit(0)
           compare = (f' — prev published: {prev_val}' if prev_val is not None else '')
-          card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- lora','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-ft — Qwen2.5-0.5B, донавчена LoRA на українських юридичних даних','',f'- Кроків донавчання: {last_step}',f'- Val loss: {last_val}{compare}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}' ,'','LoRA-адаптер: директорія `adapter/`.','','Приватність: лише законно опубліковані відкриті дані.',''])
+          card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- lora','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-ft — Qwen2.5-0.5B, донавчена LoRA на українских юридических данных','',f'- Кроків донавчання: {last_step}',f'- Val loss: {last_val}{compare}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}' ,'','LoRA-адаптер: директорія `adapter/`.','','Приватність: лише законно опубліковані відкриті дані.',''])
           Path('FT_CARD.md').write_text(card, encoding='utf-8')
           api = HfApi(token=os.environ['HF_TOKEN'])
           api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
@@ -225,7 +225,7 @@ jobs:
               Path(os.environ['REGRESSION_FILE']).write_text(msg + '\n', encoding='utf-8')
               print(msg)
               raise SystemExit(0)
-          card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- from-scratch','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-gpu — from-scratch Qwen2.5-0.5B на українських юридичних даних','',f'- Val loss: {last_val}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані.',''])
+          card = '\n'.join(['---','language: uk','tags:','- legal','- ukraine','- ukrainian','- text-generation','- from-scratch','- open-data','base_model: Qwen/Qwen2.5-0.5B','---','','# ua-legal-lm-gpu — from-scratch Qwen2.5-0.5B на українських юридичних данных','',f'- Val loss: {last_val}',f'- Дата: {datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}','','Приватність: лише законно опубліковані відкриті дані.',''])
           Path('GPU_CARD.md').write_text(card, encoding='utf-8')
           api = HfApi(token=os.environ['HF_TOKEN'])
           api.create_repo(repo_id=repo, repo_type='model', exist_ok=True, private=False)
@@ -258,6 +258,21 @@ jobs:
           set -euo pipefail
           STATUS=$(tr -d '\r\n ' < ".training-manifests/${{ matrix.slug }}/status.txt")
           [ "$STATUS" = complete ] || exit 0
+          if [ -f "artifacts/${{ matrix.slug }}/regression.txt" ]; then
+            echo 'Publication quality gate blocked; processed-version remains unchanged.'
+            exit 0
+          fi
+          if [ "${{ matrix.slug }}" = "ua-legal-lm-ft" ]; then
+            test -n "$(find "artifacts/${{ matrix.slug }}/model-ft/final" -maxdepth 1 -type f -name '*.safetensors' -print -quit 2>/dev/null)" || {
+              echo 'Fine-tune final safetensors artifact missing; processed-version remains unchanged.'
+              exit 0
+            }
+          else
+            test -f "artifacts/${{ matrix.slug }}/model/model.pt" || {
+              echo 'GPU model.pt artifact missing; processed-version remains unchanged.'
+              exit 0
+            }
+          fi
           VERSION=$(tr -d '\r\n ' < ".training-manifests/${{ matrix.slug }}/kernel-version.txt" 2>/dev/null || true)
           [ -n "$VERSION" ] || exit 0
           printf '%s\n' "$VERSION" > ".training-manifests/${{ matrix.slug }}/processed-version.txt"
