@@ -86,7 +86,10 @@ def validate_release_manifest(path: Path) -> list[str]:
         for field in ("workflow_name", "workflow_run_id", "workflow_run_attempt", "event_name", "source_sha"):
             if not isinstance(execution.get(field), str) or not execution[field]:
                 errors.append(f"release manifest execution {field} is missing")
-        if execution.get("source_sha") not in {manifest.get("git_commit"), "unknown"}:
+        source_sha = execution.get("source_sha")
+        if source_sha == "unknown":
+            errors.append("release manifest execution source_sha must be a concrete git commit")
+        elif source_sha != manifest.get("git_commit"):
             errors.append("release manifest execution source_sha does not match git_commit")
         lock = execution.get("dependency_lock")
         if not isinstance(lock, dict):
