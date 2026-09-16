@@ -80,6 +80,7 @@ The repository is considered production-ready when every automated data/model re
 - **READY-02 — Evidence-to-release identity binding:** readiness rejects hardening evidence generated for a different release manifest commit and rejects empty or malformed freshness policies. **Implemented with regression tests.**
 - **KAG-01 — Kaggle finetune runtime correctness:** non-fatal Hugging Face publication must be wrapped with valid Python indentation so publication errors do not convert successful training into `KernelWorkerStatus.ERROR`. **Fix committed; producer rerun remains to be checked after scheduled execution.**
 - **CI-01 — Lint-safe hardening self-test:** replace runtime `assert` statements in production hardening self-tests with explicit failure handling so optimized Python execution and Ruff policy cannot silently disable or reject safety checks. **Implemented in commit `84012e4`.**
+- **CI-02 — Repository lint integrity:** keep production validators and readiness tests clean under the repository's Ruff configuration, including required imports and explicit exception-handling constructs. **Backlog item added after runtime CI exposed four concrete Ruff violations; implementation follows immediately.**
 
 ## Next production hardening priorities
 
