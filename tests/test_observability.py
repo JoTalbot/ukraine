@@ -17,6 +17,7 @@ SUPPORT_WORKFLOWS = {
     ".github/workflows/failure-alerts.yml",
     ".github/workflows/kaggle-error-diagnostics.yml",
     ".github/workflows/kaggle-results-trigger.yml",
+    ".github/workflows/kaggle-results-workflow-run.yml",
     ".github/workflows/kaggle-results.yml",
     ".github/workflows/pages-dashboard.yml",
     ".github/workflows/production-promotion.yml",
