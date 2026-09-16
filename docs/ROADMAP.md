@@ -62,6 +62,7 @@ The repository is considered production-ready when every automated data/model re
 - **PROM-01 — Release promotion:** formalize dev → validated → candidate → production promotion states with explicit gates. **Fail-closed state transitions implemented; authoritative promotion event with artifact/evaluation checksums remains required for production certification.**
 - **ROLL-01 — Automatic rollback:** retain the last known-good release and provide a safe, idempotent rollback path. **Rollback contract exists; production certification still requires immutable release sequence/timestamp and an actual atomic artifact switch.**
 - **READY-01 — Production readiness gate:** aggregate all hardening checks into one deterministic machine-readable readiness decision. **Implemented in `check_production_readiness.py`, exercised by CI, and published with release/control-plane snapshots.**
+- **CHAIN-01 — Cryptographic artifact binding:** bind every generated status signal, SBOM, hardening evidence, and canonical status snapshot to the release manifest with SHA-256 and byte-size records; fail closed on tampering or missing bound artifacts. **Implemented in `scripts/bind_release_artifacts.py`, enforced by `validate_release.py` and `verify_artifact_chain.py`, and covered by positive/tamper regression tests. Runtime verification is pending the next control-plane execution.**
 
 ## Implementation improvements discovered during hardening
 
