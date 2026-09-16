@@ -113,7 +113,17 @@ def test_status_index_validates_sbom_checksum(tmp_path: Path) -> None:
     status = tmp_path / "status-index.json"
     sbom = tmp_path / "sbom.cdx.json"
     sbom.write_text('{"bomFormat":"CycloneDX"}\n', encoding="utf-8")
-    manifest.write_text(json.dumps(manifest_payload()), encoding="utf-8")
+    manifest_data = manifest_payload()
+    manifest_data["artifact_bindings"] = {
+        "schema_version": 1,
+        "artifacts": {
+            "artifacts/status/sbom.cdx.json": {
+                "sha256": hashlib.sha256(sbom.read_bytes()).hexdigest(),
+                "bytes": sbom.stat().st_size,
+            }
+        },
+    }
+    manifest.write_text(json.dumps(manifest_data), encoding="utf-8")
     status.write_text(
         json.dumps(
             {
