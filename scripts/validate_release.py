@@ -30,6 +30,38 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def validate_artifact_bindings(manifest: dict, root: Path) -> list[str]:
+    bindings = manifest.get("artifact_bindings")
+    if not isinstance(bindings, dict):
+        return ["release manifest artifact_bindings are missing"]
+    if bindings.get("schema_version") != 1:
+        return ["release manifest artifact_bindings schema_version must be 1"]
+    artifacts = bindings.get("artifacts")
+    if not isinstance(artifacts, dict) or not artifacts:
+        return ["release manifest artifact_bindings artifacts must be a non-empty object"]
+    errors: list[str] = []
+    for rel, binding in artifacts.items():
+        if not isinstance(rel, str) or not rel.startswith("artifacts/status/"):
+            errors.append(f"invalid bound artifact path: {rel!r}")
+            continue
+        if not isinstance(binding, dict) or not validate_sha256(binding.get("sha256", "")):
+            errors.append(f"invalid SHA-256 binding for {rel}")
+            continue
+        size = binding.get("bytes")
+        if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+            errors.append(f"invalid byte-size binding for {rel}")
+            continue
+        path = root / rel
+        if not path.is_file():
+            errors.append(f"bound artifact is missing: {rel}")
+            continue
+        if file_sha256(path) != binding["sha256"]:
+            errors.append(f"bound artifact checksum mismatch: {rel}")
+        if path.stat().st_size != size:
+            errors.append(f"bound artifact byte-size mismatch: {rel}")
+    return errors
+
+
 def validate_release_manifest(path: Path) -> list[str]:
     if not path.is_file():
         return [f"missing release manifest: {path}"]
@@ -131,6 +163,7 @@ def validate_status_index(path: Path, manifest_path: Path) -> list[str]:
                     errors.append("status index SBOM file is missing")
                 elif supply_chain.get("sha256") != file_sha256(sbom):
                     errors.append("status index SBOM SHA-256 does not match file")
+    errors.extend(validate_artifact_bindings(manifest, manifest_path.parent.parent.parent))
     return errors
 
 
@@ -140,7 +173,12 @@ def validate_repository_contract(root: Path = Path(".")) -> list[str]:
     if status_dir.exists() and not status_dir.is_dir(): errors.append("artifacts/status exists but is not a directory")
     manifest = root / "artifacts/status/release-manifest.json"
     status = root / "artifacts/status/status-index.json"
-    if manifest.is_file(): errors.extend(validate_release_manifest(manifest))
+    if manifest.is_file():
+        errors.extend(validate_release_manifest(manifest))
+        try:
+            errors.extend(validate_artifact_bindings(json.loads(manifest.read_text(encoding="utf-8")), root))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            pass
     if status.is_file() and manifest.is_file(): errors.extend(validate_status_index(status, manifest))
     return errors
 
