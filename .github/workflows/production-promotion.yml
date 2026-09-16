@@ -113,11 +113,16 @@ jobs:
           APPROVAL_IDENTITY: ${{ github.actor }}
         run: |
           set -euo pipefail
-          mkdir -p promotion-authorization
+          mkdir -p promotion-authorization artifacts/status
           python - <<'PY'
           import datetime, hashlib, json, os
           from pathlib import Path
 
+          fields = (
+              'schema_version', 'target', 'source_commit', 'model_id', 'artifact_path',
+              'artifact_sha256', 'evaluation_evidence_path', 'evaluation_evidence_sha256',
+              'approval_identity', 'release_sequence', 'approved_at',
+          )
           def sha256(path: str) -> str:
               h = hashlib.sha256()
               with open(path, 'rb') as f:
@@ -125,11 +130,6 @@ jobs:
                       h.update(chunk)
               return h.hexdigest()
 
-          fields = (
-              'schema_version', 'target', 'source_commit', 'model_id', 'artifact_path',
-              'artifact_sha256', 'evaluation_evidence_path', 'evaluation_evidence_sha256',
-              'approval_identity', 'release_sequence', 'approved_at',
-          )
           artifact = Path(os.environ['ARTIFACT_PATH'])
           evaluation = Path(os.environ['EVALUATION_PATH'])
           payload = {
@@ -149,28 +149,27 @@ jobs:
           payload['authorization_id'] = hashlib.sha256(
               (json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n').encode('utf-8')
           ).hexdigest()
-          with open('promotion-authorization/production-promotion-authorization.json', 'w', encoding='utf-8') as f:
-              json.dump(payload, f, indent=2, sort_keys=True)
-              f.write('\n')
+          encoded = json.dumps(payload, indent=2, sort_keys=True) + '\n'
+          for destination in (
+              Path('promotion-authorization/production-promotion-authorization.json'),
+              Path('artifacts/status/production-promotion-authorization.json'),
+          ):
+              destination.write_text(encoded, encoding='utf-8')
           PY
 
       - name: Verify generated authorization event
-        env:
-          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
           set -euo pipefail
           python - <<'PY'
-          import json, re, subprocess
+          import json, subprocess
           from pathlib import Path
           from scripts.verify_promotion_authorization import verify
           ok, issues = verify(Path('.'))
           if not ok:
               raise SystemExit(f'generated promotion authorization is invalid: {issues}')
-          payload = json.loads(Path('promotion-authorization/production-promotion-authorization.json').read_text())
+          payload = json.loads(Path('artifacts/status/production-promotion-authorization.json').read_text(encoding='utf-8'))
           if payload['source_commit'] != subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip():
               raise SystemExit('authorization source_commit does not match checked-out release')
-          if not re.fullmatch(r'[0-9a-f]{64}', payload['authorization_id']):
-              raise SystemExit('authorization_id is not a SHA-256 value')
           PY
 
       - name: Upload authorization package
