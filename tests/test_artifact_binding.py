@@ -6,6 +6,7 @@ from pathlib import Path
 
 from scripts.bind_release_artifacts import bind
 from scripts.verify_artifact_chain import verify
+from scripts.verify_promotion_authorization import authorization_id
 
 
 def _sha(path: Path) -> str:
@@ -60,21 +61,20 @@ def _artifacts(root: Path) -> None:
         ),
         encoding="utf-8",
     )
+    authorization = {
+        "schema_version": 1,
+        "target": "production",
+        "source_commit": "a" * 40,
+        "model_id": "model-1",
+        "artifact_sha256": "b" * 64,
+        "evaluation_evidence_sha256": "c" * 64,
+        "approval_identity": "test",
+        "release_sequence": 1,
+        "approved_at": "2026-09-16T12:00:00Z",
+    }
+    authorization["authorization_id"] = authorization_id(authorization)
     (status / "production-promotion-authorization.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "target": "production",
-                "source_commit": "a" * 40,
-                "model_id": "model-1",
-                "artifact_sha256": "b" * 64,
-                "evaluation_evidence_sha256": "c" * 64,
-                "approval_identity": "test",
-                "release_sequence": 1,
-                "approved_at": "2026-09-16T12:00:00Z",
-            }
-        ),
-        encoding="utf-8",
+        json.dumps(authorization), encoding="utf-8"
     )
     for name in ("ingestion.json", "quality.json", "graph.json", "training.json", "publication.json", "security.json"):
         (signals / name).write_text(name, encoding="utf-8")
