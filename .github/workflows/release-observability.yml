@@ -32,6 +32,10 @@ jobs:
         run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
       - name: Generate canonical status index
         run: python scripts/generate_status_index.py --root . --output artifacts/status/status-index.json --sbom artifacts/status/sbom.cdx.json
+      - name: Execute runtime hardening evidence self-test
+        run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
+      - name: Bind release artifacts
+        run: python scripts/bind_release_artifacts.py --manifest artifacts/status/release-manifest.json
       - name: Validate release and status contract
         run: python scripts/validate_release.py
       - name: Verify reproducibility against previous snapshot
@@ -50,8 +54,6 @@ jobs:
             test -n "$previous" && test -f "$previous"
             python scripts/validate_release.py --compare-manifests "$previous" artifacts/status/release-manifest.json
           fi
-      - name: Execute runtime hardening evidence self-test
-        run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
       - name: Run release and hardening contract tests
         run: python -m pytest tests/test_release_contract.py tests/test_release_manifest.py tests/test_status_index.py tests/test_write_status_signal.py tests/test_aggregate_status_signals.py tests/test_recovery_checkpoint.py tests/test_production_readiness.py tests/test_production_hardening.py -q
       - name: Upload release observability snapshot
