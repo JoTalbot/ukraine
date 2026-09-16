@@ -109,9 +109,11 @@ def test_reproducibility_comparison_rejects_same_timestamp(tmp_path: Path) -> No
 
 
 def test_status_index_validates_sbom_checksum(tmp_path: Path) -> None:
-    manifest = tmp_path / "release-manifest.json"
-    status = tmp_path / "status-index.json"
-    sbom = tmp_path / "sbom.cdx.json"
+    status_dir = tmp_path / "artifacts" / "status"
+    status_dir.mkdir(parents=True)
+    manifest = status_dir / "release-manifest.json"
+    status = status_dir / "status-index.json"
+    sbom = status_dir / "sbom.cdx.json"
     sbom.write_text('{"bomFormat":"CycloneDX"}\n', encoding="utf-8")
     manifest_data = manifest_payload()
     manifest_data["artifact_bindings"] = {
