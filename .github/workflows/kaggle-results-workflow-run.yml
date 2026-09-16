@@ -1,0 +1,32 @@
+name: Kaggle Results Workflow Run Trigger
+
+# The training workflow records kernel versions with GITHUB_TOKEN. GitHub does not
+# recursively trigger push-based workflows from those commits, so use workflow_run
+# as the authoritative hand-off to the results collector.
+on:
+  workflow_run:
+    workflows:
+      - Kaggle GPU Training
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+concurrency:
+  group: kaggle-results-workflow-run-trigger
+  cancel-in-progress: false
+
+jobs:
+  dispatch-results:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion != 'cancelled' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch Kaggle Results collector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run kaggle-results.yml --ref main --repo "${GITHUB_REPOSITORY}"
+          echo 'Kaggle Results collector dispatched.'
