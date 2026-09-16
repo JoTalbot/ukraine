@@ -51,6 +51,19 @@ def verify_manifest_bindings(root: Path, manifest: dict, issues: list[str]) -> N
             issues.append(f"bound artifact byte-size mismatch: {relative}")
 
 
+def verify_authorization_identity(root: Path, auth: dict, issues: list[str]) -> None:
+    try:
+        from scripts.verify_promotion_authorization import authorization_id
+        expected = authorization_id(auth)
+    except (ImportError, TypeError, ValueError):
+        issues.append("unable to compute promotion authorization identity")
+        return
+    if not isinstance(auth.get("authorization_id"), str) or len(auth["authorization_id"]) != 64:
+        issues.append("promotion authorization identity is missing or invalid")
+    elif auth["authorization_id"] != expected:
+        issues.append("promotion authorization identity checksum mismatch")
+
+
 def verify(root: Path, output: Path) -> int:
     root = Path(root)
     issues: list[str] = []
@@ -123,6 +136,7 @@ def verify(root: Path, output: Path) -> int:
                 issues.append("promotion authorization requires positive release_sequence")
             if not auth.get("approved_at"):
                 issues.append("promotion authorization missing approved_at")
+            verify_authorization_identity(root, auth, issues)
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             issues.append("promotion authorization is invalid JSON")
 
