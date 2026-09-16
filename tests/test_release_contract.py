@@ -60,6 +60,15 @@ def test_release_manifest_contract_rejects_missing_execution(tmp_path: Path) -> 
     assert any("execution metadata is missing" in error for error in errors)
 
 
+def test_release_manifest_contract_rejects_unknown_source_sha(tmp_path: Path) -> None:
+    manifest = manifest_payload()
+    manifest["execution"]["source_sha"] = "unknown"
+    path = tmp_path / "release-manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+    errors = validate_release_manifest(path)
+    assert any("source_sha" in error and "unknown" in error for error in errors)
+
+
 def test_release_manifest_contract_rejects_duplicate_bad_entries(tmp_path: Path) -> None:
     manifest = manifest_payload()
     manifest["files"] = [
