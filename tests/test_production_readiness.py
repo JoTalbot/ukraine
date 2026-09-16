@@ -1,3 +1,5 @@
+from pathlib import Path
+
 
 def test_every_readiness_workflow_has_runtime_evidence_and_chain_before_gate() -> None:
     workflows = Path(__file__).parents[1] / ".github" / "workflows"; readiness_call = "python scripts/check_production_readiness.py"; evidence_call = "python scripts/production_hardening.py evidence"; chain_call = "python scripts/verify_artifact_chain.py"
