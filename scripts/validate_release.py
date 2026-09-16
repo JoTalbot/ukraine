@@ -5,6 +5,7 @@ import argparse
 import hashlib
 import json
 import re
+from contextlib import suppress
 from pathlib import Path
 
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -175,10 +176,8 @@ def validate_repository_contract(root: Path = Path(".")) -> list[str]:
     status = root / "artifacts/status/status-index.json"
     if manifest.is_file():
         errors.extend(validate_release_manifest(manifest))
-        try:
+        with suppress(OSError, UnicodeDecodeError, json.JSONDecodeError):
             errors.extend(validate_artifact_bindings(json.loads(manifest.read_text(encoding="utf-8")), root))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-            pass
     if status.is_file() and manifest.is_file(): errors.extend(validate_status_index(status, manifest))
     return errors
 
