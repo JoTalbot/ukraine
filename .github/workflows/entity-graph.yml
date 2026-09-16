@@ -33,73 +33,66 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p data/edrsr
-          curl -fsSL --retry 5 --retry-all-errors -o data/UO.zip \
-            "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/edr/UO.zip"
-          curl -fsSL --retry 5 --retry-all-errors -o data/pdv.csv \
-            "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/vat_payers/pdv_actual.csv"
+          : > data/provenance-sources.tsv
+          curl -fsSL --retry 5 --retry-all-errors -o data/UO.zip "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/edr/UO.zip"
+          printf '%s\n' "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/edr/UO.zip=data/UO.zip" >> data/provenance-sources.tsv
+          curl -fsSL --retry 5 --retry-all-errors -o data/pdv.csv "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/vat_payers/pdv_actual.csv"
+          printf '%s\n' "https://huggingface.co/datasets/${HF_OPEN}/resolve/main/vat_payers/pdv_actual.csv=data/pdv.csv" >> data/provenance-sources.tsv
           python - <<'PY'
           import json, subprocess, urllib.request
           YEARS, PARTS = ['2024', '2025', '2026'], 4
-          for year in YEARS:
-              url = f'https://huggingface.co/api/datasets/JoTalbot/ua-edrsr/tree/main/{year}'
-              req = urllib.request.Request(url, headers={'User-Agent': 'ukraine-entity-graph'})
-              try:
-                  with urllib.request.urlopen(req, timeout=60) as r:
-                      entries = json.load(r)
-              except Exception as e:
-                  print(f'no parts for {year}: {e}')
-                  continue
-              for entry in sorted(entries, key=lambda e: e['path'])[:PARTS]:
-                  dest = 'data/edrsr/' + entry['path'].replace('/', '_')
-                  print('download', entry['path'])
-                  subprocess.run(['curl', '-fsSL', '--retry', '5', '--retry-all-errors', '-o', dest,
-                                  f'https://huggingface.co/datasets/JoTalbot/ua-edrsr/resolve/main/{entry["path"]}'], check=True)
+          with open('data/provenance-sources.tsv', 'a', encoding='utf-8') as provenance:
+              for year in YEARS:
+                  url = f'https://huggingface.co/api/datasets/JoTalbot/ua-edrsr/tree/main/{year}'
+                  req = urllib.request.Request(url, headers={'User-Agent': 'ukraine-entity-graph'})
+                  try:
+                      with urllib.request.urlopen(req, timeout=60) as r:
+                          entries = json.load(r)
+                  except Exception as e:
+                      print(f'no parts for {year}: {e}')
+                      continue
+                  for entry in sorted(entries, key=lambda e: e['path'])[:PARTS]:
+                      dest = 'data/edrsr/' + entry['path'].replace('/', '_')
+                      source = f'https://huggingface.co/datasets/JoTalbot/ua-edrsr/resolve/main/{entry["path"]}'
+                      print('download', entry['path'])
+                      subprocess.run(['curl', '-fsSL', '--retry', '5', '--retry-all-errors', '-o', dest, source], check=True)
+                      provenance.write(f'{source}={dest}\n')
           PY
           du -sh data data/edrsr
 
-      - name: Build entity graph
-        run: |
-          set -euo pipefail
-          python scripts/entity_links.py build --db links.db \
-            --edr data/UO.zip --vat data/pdv.csv \
-            --edrsr-parquet 'data/edrsr/*.parquet'
-
       - name: Download person registers from Hugging Face
         run: |
-          # Machine-readable person-register mirrors that scripts/entity_links.py
-          # can stream (JSON array, CSV/CSV-in-zip, RECORD-XML, or xlsx). Each
-          # download is best-effort: a missing/changed file is logged and skipped
-          # so it never blocks publishing the core graph.
-          #
-          # NOT wired here (see config/person_register_map.json, enabled=false):
-          #   - sanctions     : HF mirror folder holds ship-registry files (ДСРУ),
-          #                     not the Державний реєстр санкцій (mislabeled).
-          #   - declarations  : mirror is per-person HTML, not a flat dataset.
+          set -euo pipefail
           mkdir -p data/person
-          download() { # $1=dataset subdir  $2=file  $3=dest name
+          download() {
             local url="https://huggingface.co/datasets/${HF_OPEN}/resolve/main/$1/$2"
             echo "download $1/$2"
-            curl -fsSL --retry 3 --retry-all-errors -o "data/person/$3" "$url" \
-              || { echo "skip $1/$2 (недоступен/изменился)"; rm -f "data/person/$3"; }
+            if curl -fsSL --retry 3 --retry-all-errors -o "data/person/$3" "$url"; then
+              printf '%s\n' "$url=data/person/$3" >> data/provenance-sources.tsv
+            else
+              echo "skip $1/$2 (недоступен/изменился)"
+              rm -f "data/person/$3"
+            fi
           }
-          download wanted_fugitives MVSWantedPerson_1.json        wanted_fugitives.json
-          download missing_persons  BezvistiWanted.json           missing_persons.json
-          download advocates        registerOfLawyers.json         advocates.json
-          download advocates        structureRegisterOfLawyers.csv advocates.csv
-          download notaries         17-ex_xml_wern.zip            notaries.zip
-          download court_experts    19-ex_xml_EXPERT.zip          court_experts.zip
-          download arbitration_managers 24-ex_xml_arbker.zip      arbitration_managers.zip
-          download audit_register  auditors_2026-09-03.json       auditors.json
-          download debtors          29-ex_csv_erb.zip             debtors.zip   # ~0.7 GB
+          download wanted_fugitives MVSWantedPerson_1.json wanted_fugitives.json
+          download missing_persons BezvistiWanted.json missing_persons.json
+          download advocates registerOfLawyers.json advocates.json
+          download advocates structureRegisterOfLawyers.csv advocates.csv
+          download notaries 17-ex_xml_wern.zip notaries.zip
+          download court_experts 19-ex_xml_EXPERT.zip court_experts.zip
+          download arbitration_managers 24-ex_xml_arbker.zip arbitration_managers.zip
+          download audit_register auditors_2026-09-03.json auditors.json
+          download debtors 29-ex_csv_erb.zip debtors.zip
           ls -la data/person || true
+
+      - name: Write entity graph provenance
+        run: |
+          set -euo pipefail
+          python scripts/write_entity_graph_provenance.py --sources-file data/provenance-sources.tsv --output graph_provenance.json --years 2024,2025,2026 --parts-per-year 4
 
       - name: Ingest person registers (best-effort, adds to core graph)
         run: |
-          # Extends links.db built above with people from person-subject bases,
-          # resolved to a shared РНОКПП/ІПН identity (config/person_register_map.json).
-          # Per-file isolation: a broken register is skipped, core graph survives.
           set +e
-          # 1) fast, compact registers (JSON/XML/CSV)
           python scripts/entity_links.py add-people --db links.db \
             --json-register wanted_fugitives=data/person/wanted_fugitives.json \
             --json-register missing_persons=data/person/missing_persons.json \
@@ -110,8 +103,6 @@ jobs:
             --xml-register arbitration_managers=data/person/arbitration_managers.zip \
             --json-register audit_register=data/person/auditors.json
           rc1=$?
-          # 2) debtors (Єдиний реєстр боржників) — ~0.7 GB zip / ~4 GB CSV; give
-          #    it its own wall-clock budget so a slow parse can't stall the rest.
           if [ -f data/person/debtors.zip ]; then
             timeout --signal=TERM --kill-after=30s 40m python scripts/entity_links.py add-people --db links.db \
               --zipcsv-register debtors=data/person/debtors.zip
@@ -125,9 +116,6 @@ jobs:
 
       - name: Resolve name-only people to РНОКПП identities (heuristic)
         run: |
-          # Best-effort, high-confidence link of name-only people (wanted/missing/
-          # prof) to ipn identities (debtors/ФОП) by full name. Conservative and
-          # idempotent; edges carry dataset='name_resolve' and can be removed.
           set +e
           python scripts/entity_links.py link-names --db links.db --min-score 0.98 --limit 0
           rc=$?
@@ -165,16 +153,14 @@ jobs:
           stats = json.load(open('graph_stats.json', encoding='utf-8'))
           repo = os.environ.get('HF_DATASET_GRAPH', 'JoTalbot/ua-entity-graph')
           card = '\n'.join([
-              '---', 'language: uk', 'tags:', '- entity-linkage', '- ukraine', '- open-data',
-              '- graph', '---', '',
+              '---', 'language: uk', 'tags:', '- entity-linkage', '- ukraine', '- open-data', '- graph', '---', '',
               '# ua-entity-graph — граф связей сущностей украинских открытых данных', '',
-              f"- Сущностей: **{stats['entities']:,}**",
-              f"- Упоминаний: **{stats['mentions']:,}**",
-              f"- Рёбер: **{stats['edges']:,}**",
+              f"- Сущностей: **{stats['entities']:,}**", f"- Упоминаний: **{stats['mentions']:,}**", f"- Рёбер: **{stats['edges']:,}**",
               f"- Сборка: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", '',
               'Файл `links.db` — SQLite: таблицы `entities`, `mentions`, `edges`.',
               'Запросы: `python scripts/entity_links.py search --db links.db --id <ЄДРПОУ>`.', '',
               'Источники: ЄДР, ПДВ, ЄДРСР, а також person-реестры (wanted, missing,', 'notaries, court_experts, arbitration_managers, advocates, auditors, debtors).',
+              'Точная входная provenance: `graph_provenance.json` содержит URL, локальный путь, размер и SHA-256 каждого успешно скачанного файла.',
               'Рёбра identity/name_resolve — консервативное разрешение по ФИО.', 'Только законно опубликованные открытые данные;', 'обезличивание источника сохраняется (no_deanonymization).', ''])
           with open('GRAPH_CARD.md', 'w', encoding='utf-8') as fh:
               fh.write(card)
@@ -184,6 +170,7 @@ jobs:
           api.upload_file(path_or_fileobj='GRAPH_CARD.md', path_in_repo='README.md', repo_id=repo, repo_type='dataset')
           api.upload_file(path_or_fileobj='links.db', path_in_repo='links.db', repo_id=repo, repo_type='dataset')
           api.upload_file(path_or_fileobj='graph_stats.json', path_in_repo='graph_stats.json', repo_id=repo, repo_type='dataset')
+          api.upload_file(path_or_fileobj='graph_provenance.json', path_in_repo='graph_provenance.json', repo_id=repo, repo_type='dataset')
           print('published entity graph to', repo, stats)
           PY
 
@@ -237,10 +224,7 @@ jobs:
           state=red
           if [ "$JOB_STATUS" = "success" ]; then state=green; fi
           detail="entity graph workflow completed with job status: $JOB_STATUS"
-          python scripts/write_status_signal.py \
-            --signal graph --state "$state" --detail "$detail" \
-            --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" \
-            --workflow-run-id "$WORKFLOW_RUN_ID" --artifact graph_stats.json
+          python scripts/write_status_signal.py --signal graph --state "$state" --detail "$detail" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$WORKFLOW_RUN_ID" --artifact graph_stats.json
 
       - name: Upload graph status signal
         if: ${{ always() }}
