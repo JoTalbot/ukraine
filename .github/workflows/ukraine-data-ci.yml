@@ -39,7 +39,7 @@ jobs:
       - name: Execute runtime hardening evidence self-test
         run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
       - name: Bind release artifacts
-        run: python scripts/bind_release_artifacts.py artifacts/status/release-manifest.json
+        run: python scripts/bind_release_artifacts.py --manifest artifacts/status/release-manifest.json
       - name: Validate release and status contract
         run: python scripts/validate_release.py
       - name: Upload release validation evidence
