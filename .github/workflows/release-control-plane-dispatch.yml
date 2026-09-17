@@ -161,7 +161,12 @@ jobs:
                   continue
               runs = api(f'/actions/runs?head_sha={release}&per_page=100')['workflow_runs']
               successful = [r for r in runs if r.get('head_sha') == release and r.get('conclusion') == 'success']
-              missing = [group for group, names in required.items() if not any(r.get('name') in names for r in successful)]
+              missing = [
+                  name
+                  for names in required.values()
+                  for name in names
+                  if not any(r.get('name') == name for r in successful)
+              ]
               if not missing:
                   marker = f'Release Control Plane • {release}'
                   already = [r for r in control_runs if r.get('event') == 'workflow_dispatch' and r.get('display_title') == marker and r.get('status') in {'queued', 'in_progress'}]
@@ -175,17 +180,14 @@ jobs:
 
               print(f'Candidate {release} ({quality.get("run_number")}) incomplete: {", ".join(missing)}')
               release_ref = ensure_release_ref(release)
-              for group in missing:
-                  names = ['Kaggle GPU Training', 'Train Ukraine Models'] if group == 'training' else required[group]
-                  for name in names:
-                      if name not in dispatchable:
-                          continue
-                      existing = [r for r in runs if r.get('head_sha') == release and r.get('name') == name and r.get('status') in {'queued', 'in_progress'}]
-                      if existing:
-                          print(f'{name} already queued/running for {release}')
-                          break
-                      dispatch(name, release_ref)
-                      break
+              for name in missing:
+                  if name not in dispatchable:
+                      raise RuntimeError(f'missing producer {name} is not dispatchable')
+                  existing = [r for r in runs if r.get('head_sha') == release and r.get('name') == name and r.get('status') in {'queued', 'in_progress'}]
+                  if existing:
+                      print(f'{name} already queued/running for {release}')
+                      continue
+                  dispatch(name, release_ref)
               raise SystemExit(0)
 
           print(f'No successful quality release candidate for current revision {current_sha}; nothing to dispatch.')
