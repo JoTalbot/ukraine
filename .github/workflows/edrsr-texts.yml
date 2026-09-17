@@ -18,7 +18,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: edrsr-texts
+  # Keep independent immutable release candidates from blocking each other.
+  # A scheduled/main run may legitimately take hours while a release candidate
+  # must still be able to publish its exact SHA.
+  group: edrsr-texts-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
