@@ -9,7 +9,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: entity-graph
+  # Release candidates are immutable and must not wait behind a long-running
+  # legacy/main graph build. Scheduled/main runs remain isolated by ref too.
+  group: entity-graph-${{ github.ref }}
   cancel-in-progress: false
 
 env:
