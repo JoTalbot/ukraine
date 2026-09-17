@@ -35,3 +35,45 @@ jobs:
       - name: Verify entity graph provenance contract
         run: python -m pytest tests/test_entity_graph_provenance.py -q
       - name: Generate release manifest
+        run: python scripts/generate_release_manifest.py --output artifacts/status/release-manifest.json
+      - name: Generate SBOM
+        run: python scripts/generate_sbom.py --output artifacts/status/sbom.cdx.json
+      - name: Generate platform status index
+        run: python scripts/generate_status_index.py --output artifacts/status/status-index.json --sbom artifacts/status/sbom.cdx.json
+      - name: Execute runtime hardening evidence self-test
+        run: python scripts/production_hardening.py evidence artifacts/status/production-hardening-evidence.json "$GITHUB_SHA" "$GITHUB_WORKFLOW" "$GITHUB_RUN_ID"
+      - name: Bind release artifacts
+        run: python scripts/bind_release_artifacts.py --manifest artifacts/status/release-manifest.json
+      - name: Validate release and status contract
+        run: python scripts/validate_release.py
+      - name: Upload release validation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: release-status
+          path: |
+            artifacts/status/release-manifest.json
+            artifacts/status/sbom.cdx.json
+            artifacts/status/status-index.json
+            artifacts/status/production-hardening-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Write quality status signal
+        if: ${{ always() }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          SOURCE_COMMIT: ${{ github.sha }}
+          WORKFLOW_NAME: ${{ github.workflow }}
+          WORKFLOW_RUN_ID: ${{ github.run_id }}
+        run: |
+          state=red
+          if [ "$JOB_STATUS" = "success" ]; then state=green; fi
+          detail="repository data quality/release validation completed with job status: $JOB_STATUS"
+          python scripts/write_status_signal.py --signal quality --state "$state" --detail "$detail" --source-commit "$SOURCE_COMMIT" --workflow-name "$WORKFLOW_NAME" --workflow-run-id "$WORKFLOW_RUN_ID" --artifact artifacts/status/release-manifest.json
+      - name: Upload quality status signal
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: status-signal-quality
+          path: artifacts/status/signals/quality.json
+          if-no-files-found: error
+          retention-days: 30
