@@ -1,3 +1,4 @@
+# temporary repair workflow
 name: Repair Kaggle Results Persistence
 
 on:
@@ -22,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import base64, json, os, subprocess, urllib.request
+          import base64, json, os, urllib.request
           owner = 'JoTalbot'; repo = 'ukraine'; path = '.github/workflows/kaggle-results.yml'
           api = f'https://api.github.com/repos/{owner}/{repo}/contents/{path}'
           req = urllib.request.Request(api, headers={'Authorization': f"Bearer {os.environ['GH_TOKEN']}", 'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28'})
@@ -30,8 +31,7 @@ jobs:
           text = base64.b64decode(data['content']).decode()
           old = '''          mkdir -p ".training-manifests/$SLUG"\n          cp "artifacts/$SLUG/model-ft/metrics.jsonl" ".training-manifests/$SLUG/metrics.jsonl"\n          [ ! -f "artifacts/$SLUG/model-ft/samples.txt" ] || cp "artifacts/$SLUG/model-ft/samples.txt" ".training-manifests/$SLUG/samples.txt"\n          git config user.name 'github-actions[bot]'\n          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'\n          git add ".training-manifests/$SLUG/metrics.jsonl" ".training-manifests/$SLUG/samples.txt"\n          git diff --cached --quiet || git commit -m 'chore: persist ${{ matrix.slug }} metrics'\n          git push'''
           new = '''          mkdir -p ".training-manifests/$SLUG"\n          cp "artifacts/$SLUG/model-ft/metrics.jsonl" ".training-manifests/$SLUG/metrics.jsonl"\n          [ ! -f "artifacts/$SLUG/model-ft/samples.txt" ] || cp "artifacts/$SLUG/model-ft/samples.txt" ".training-manifests/$SLUG/samples.txt"\n          git config user.name 'github-actions[bot]'\n          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'\n          persisted=false\n          for attempt in 1 2 3 4 5; do\n            git add ".training-manifests/$SLUG/metrics.jsonl" ".training-manifests/$SLUG/samples.txt"\n            if git diff --cached --quiet; then persisted=true; break; fi\n            git commit -m 'chore: persist ${{ matrix.slug }} metrics'\n            if git push; then persisted=true; break; fi\n            echo "metrics persistence attempt $attempt hit a concurrent main update; rebasing and retrying"\n            git fetch origin main\n            git reset --hard origin/main\n            mkdir -p ".training-manifests/$SLUG"\n            cp "artifacts/$SLUG/model-ft/metrics.jsonl" ".training-manifests/$SLUG/metrics.jsonl"\n            [ ! -f "artifacts/$SLUG/model-ft/samples.txt" ] || cp "artifacts/$SLUG/model-ft/samples.txt" ".training-manifests/$SLUG/samples.txt"\n          done\n          if [ "$persisted" != true ]; then echo 'Failed to persist metrics after retries' >&2; exit 1; fi'''
-          if old not in text:
-              raise SystemExit('target metrics persistence block not found; refusing to modify workflow')
+          if old not in text: raise SystemExit('target metrics persistence block not found; refusing to modify workflow')
           patched = text.replace(old, new, 1)
           payload = json.dumps({'message':'fix: make Kaggle metrics persistence race-safe','content':base64.b64encode(patched.encode()).decode(),'sha':data['sha'],'branch':'main'}).encode()
           put = urllib.request.Request(api, data=payload, method='PUT', headers={'Authorization': f"Bearer {os.environ['GH_TOKEN']}", 'Accept': 'application/vnd.github+json', 'Content-Type':'application/json', 'X-GitHub-Api-Version':'2022-11-28'})
