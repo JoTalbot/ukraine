@@ -4,7 +4,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import sys
 from pathlib import Path
+
+# Support both `python -m scripts.verify_artifact_chain` and the CI's
+# direct-file invocation (`python scripts/verify_artifact_chain.py`), where
+# sys.path[0] is `scripts/` rather than the repository root. Without this the
+# `scripts.verify_promotion_authorization` import below would silently degrade
+# into "unable to compute promotion authorization identity".
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 V = 1
 REQUIRED = (

@@ -2,7 +2,9 @@
 """Patch Kaggle training notebooks for known runtime conflicts and fail-fast checks."""
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import re
 from pathlib import Path
 
@@ -177,11 +179,28 @@ def patch_notebook(path: Path) -> bool:
     return True
 
 
-if __name__ == "__main__":
-    for name in INSTALL_MARKERS:
-        path = Path("training/kaggle") / name
+def main() -> None:
+    """Patch the Kaggle notebooks in place.
+
+    Argument parsing must happen before any notebook is touched: the previous
+    bare `__main__` loop had no argparse, so even `--help` rewrote the
+    notebooks in the working tree before Python rejected the unknown argument.
+    """
+    parser = argparse.ArgumentParser(
+        description="Patch Kaggle training notebooks for known runtime conflicts and fail-fast checks.",
+    )
+    parser.parse_args()
+    # Resolved at call time (not import time) so the env override takes effect
+    # for this invocation; CI relies on the default cwd-relative location.
+    notebook_dir = Path(os.environ.get("KAGGLE_NOTEBOOK_DIR", "training/kaggle"))
+    for name in sorted(INSTALL_MARKERS):
+        path = notebook_dir / name
         if path.is_file():
             patch_notebook(path)
             print("patched", path)
+
+
+if __name__ == "__main__":
+    main()
 
 # Trigger Kaggle training after patch changes are committed.
