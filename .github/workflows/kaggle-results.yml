@@ -4,8 +4,6 @@ on:
   push:
     paths:
       - '.github/workflows/kaggle-results.yml'
-      - '.training-manifests/ua-legal-lm-gpu/kernel-version.txt'
-      - '.training-manifests/ua-legal-lm-ft/kernel-version.txt'
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
