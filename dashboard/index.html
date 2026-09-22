@@ -48,6 +48,35 @@ footer { color: #9da7b3; font-size: 13px; text-align: center; padding: 30px 0; }
     <tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>edrsr</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>edr</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>declarations</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>sanctions</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>prozorro</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>court_cases</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>debtors</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>enforcement_proceedings</a></td><td></td><td>1</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>notaries</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>court_experts</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>arbitration_managers</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>missing_persons</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>audit_register</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>vat_payers</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>wanted_weapons</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>wanted_fugitives</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>bank_ownership</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>financial_institutions</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>medicines</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>advocates</a></td><td></td><td>2</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>lost_phones</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>rro</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>universities</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>vocational_schools</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>ships_small</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>insurance_brokers</a></td><td></td><td>3</td></tr><tr><td><a href='https://huggingface.co/datasets/JoTalbot/ua-open-data'>notary_blank_forms</a></td><td></td><td>3</td></tr>
   </table>
 
+  <h2>Поиск человека и связей</h2>
+  <p class="muted">Поиск работает по опубликованному read-only индексу <code>data/entity-index.json</code>, если он включён в сборку.</p>
+  <form id="entity-search" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0">
+    <input id="entity-query" type="search" placeholder="ФИО, ИНН, ЄДРПОУ" aria-label="Поиск по ФИО, ИНН или ЄДРПОУ" style="flex:1;min-width:260px;padding:10px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#e6edf3">
+    <button style="padding:10px 16px;border:0;border-radius:6px;background:#f0b429;color:#111;cursor:pointer">Найти</button>
+  </form>
+  <div id="entity-status" class="muted">Индекс не загружен.</div>
+  <div id="entity-results"></div>
+  <script>
+  (() => {
+    const status = document.getElementById('entity-status');
+    const results = document.getElementById('entity-results');
+    const input = document.getElementById('entity-query');
+    let index = [];
+    const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    fetch('data/entity-index.json').then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+      index = Array.isArray(data) ? data : (data.entities || []);
+      status.textContent = `Индекс загружен: ${index.length} сущностей.`;
+    }).catch(() => { status.textContent = 'Индекс пока не опубликован; поиск доступен после сборки entity-index.json.'; });
+    document.getElementById('entity-search').addEventListener('submit', event => {
+      event.preventDefault();
+      const q = input.value.trim().toLocaleUpperCase('uk-UA');
+      if (!q) return;
+      const found = index.filter(e => JSON.stringify(e).toLocaleUpperCase('uk-UA').includes(q)).slice(0, 50);
+      results.innerHTML = found.length ? found.map(e => `<table><tr><th colspan="2">${esc(e.name || e.id || 'Сущность')}</th></tr><tr><td>Тип</td><td>${esc(e.type || '—')}</td></tr><tr><td>Базы</td><td>${esc((e.datasets || e.mentions || []).join(', ') || '—')}</td></tr><tr><td>Связи</td><td>${esc((e.edges || []).map(x => `${x.kind || 'link'}: ${x.target || x.to || ''}`).join('; ') || '—')}</td></tr></table>`).join('') : '<p class="muted">Совпадений не найдено.</p>';
+    });
+  })();
+  </script>
+
   <h2>Ссылки</h2>
   <p>
     <a href="https://github.com/JoTalbot/ukraine">Репозиторий</a> ·
