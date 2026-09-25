@@ -1,5 +1,5 @@
 {
-  "next_batch": 98,
+  "next_batch": 101,
   "successful_batches": [],
   "failed_batches": [
     2,
@@ -46,12 +46,14 @@
     94,
     95,
     96,
-    97
+    97,
+    98,
+    99
   ],
   "completed_batches": 0,
   "batch_count": 359,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-25T06:36:57.948598+00:00",
+  "updated_at_utc": "2026-09-25T07:27:29.519383+00:00",
   "blocked_batches": [
     0,
     1,
@@ -105,16 +107,17 @@
     73,
     74,
     75,
-    76
+    76,
+    100
   ],
-  "blocked_batch_count": 53,
+  "blocked_batch_count": 54,
   "unreachable_hosts": [
-    "kolomyya.danimist.org.ua"
+    "opendata.gov.ua"
   ],
   "last_batch": {
-    "batch": 97,
+    "batch": 100,
     "mode": "bootstrap",
-    "failed_resources": 3,
-    "blocked_resources": 1
+    "failed_resources": 0,
+    "blocked_resources": 8
   }
 }
