@@ -1,5 +1,5 @@
 {
-  "next_batch": 103,
+  "next_batch": 104,
   "successful_batches": [],
   "failed_batches": [
     2,
@@ -49,12 +49,13 @@
     97,
     98,
     99,
-    102
+    102,
+    103
   ],
   "completed_batches": 0,
   "batch_count": 359,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-25T17:08:58.145133+00:00",
+  "updated_at_utc": "2026-09-25T19:05:26.373031+00:00",
   "blocked_batches": [
     0,
     1,
@@ -113,13 +114,11 @@
     101
   ],
   "blocked_batch_count": 55,
-  "unreachable_hosts": [
-    "opendata.gov.ua"
-  ],
+  "unreachable_hosts": [],
   "last_batch": {
-    "batch": 102,
+    "batch": 103,
     "mode": "bootstrap",
-    "failed_resources": 2,
-    "blocked_resources": 6
+    "failed_resources": 8,
+    "blocked_resources": 0
   }
 }
