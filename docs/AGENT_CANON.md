@@ -233,6 +233,7 @@ rm -rf artifacts/status
 17. `artifacts/status/` не в .gitignore: P5 оставляет untracked; `rm -rf artifacts/status` — часть P5, а не «после».
 18. Токен владельца, вставленный в чат 2026-09-22, считать СТОЛЬЗЫМ: ротация — только владелец (решение (а)); использовать токен только для clone/push origin, нигде не печатать.
 19. Discovery state живёт в `.github/state/discovered-open-data-progress.json` и ПЕРЕЗАПИСЫВАЕТСЯ CI-ранами: не редактировать руками; «failed batches не маскируются под успешные» — правило проекта.
+20. ВТОРОЙ ОТЧЁТ ДНЯ — СУФФИКС (измерено 2026-09-25): прецедент репо `docs/STATUS_REPORT_2026-09-14-BATCH2.md`; второй и далее отчёты того же дня — `STATUS_REPORT_<дата>-BATCH2.md`/`-BATCH3.md`, новый файл, а не перезапись утреннего.
 
 ## КРИТЕРИИ ПРИЁМКИ ШАГА (без них слово «готово» не произносить)
 
@@ -252,23 +253,23 @@ rm -rf artifacts/status
 - (в) Discovery bootstrap (next_batch=80, failed=27, blocked=53, bootstrap_complete=false): продолжать в песочнице или только в расписании GitHub Actions?
 - (г) Kaggle GPU-креденшелы в песочнице — давать или нет (сейчас ключей нет; GPU-пути не прогоняются).
 - (д) HuggingFace-токен пабликера — не требуется локально (workflows используют секреты GH Actions); подтвердить, что имитация публикаций запрещена.
-- (е) Обновить устаревшие статусы CI-02/CHAIN-02 в `docs/ROADMAP.md` (фиксы уже в HEAD: `9477672`, `edd6516`).
+- (е) Обновить устаревшие статусы CI-02/CHAIN-02 в `docs/ROADMAP.md` (фиксы уже в HEAD: `9477672`, `edd6516`) — **реализовано 2026-09-25 (шаг 2)**: статусы приведены к HEAD на доказательствах git (коммиты в истории, порядок workflow сверён, P1 зелёный).
 - (ж) Язык отчётов — русский (указано владельцем 2026-09-22; действует как standing-правило).
 - (з) Репозиторий остаётся публичным: секрет-скан чист (2026-09-22); не публиковать в репо ничего чувствительного.
 - (и) Git-идентичность коммитов (сейчас: `Arena Agent <arena-agent@users.noreply.github.com>`): владелец может указать свою identity или бот-аккаунт.
 
 ## ТОЧКА ВОЗОБНОВЛЕНИЯ
 
-Снимок: 2026-09-25. Этап 0 завершён (свежий клон, ситуация (б)); при следующем старте — ПЕРЕСЧИТАТЬ каждую строку командами раздела «ЭТАП 0.6», не копировать вслепую.
+Снимок: 2026-09-25 (шаг 2). Этап 0 завершён (ситуация (в): origin восстановлен по стартеру); при следующем старте — ПЕРЕСЧИТАТЬ каждую строку командами раздела «ЭТАП 0.6», не копировать вслепую.
 
-- HEAD на момент пересчёта: `d56e1e559c5aeeca9a321b27548ec790cab2cbcd` (main); после завершения шага — см. `git -C /home/user/ukraine rev-parse HEAD`.
-- История шага: HEAD на старте = `d56e1e5 chore(data): persist discovered open-data progress` (CI); шаг 1 — docs-коммит (пересчитать: `git --no-pager log --oneline -5`).
-- Тесты (2026-09-25): P3 = 170 passed, 1 skipped; P1 = RC=0; P2 = RC=0; P4 = 6 passed; P5 = RC=0 ×6, «Release contract OK».
-- Доки: `docs/ROADMAP.md` = 98 строк; `docs/AGENT_CANON.md` — строки/md5 пересчитать (`wc -l`, `md5sum`); последний по имени STATUS_REPORT = `docs/STATUS_REPORT_2026-09-25.md` (до него — два файла от 2026-09-14).
+- HEAD на момент пересчёта: `fcc02eccbad6d90672952d7489948909df297b6e` (main, конец шага 1); после завершения шага 2 — см. `git -C /home/user/ukraine rev-parse HEAD`.
+- История шага: шаг 1 = `fcc02ec docs: add 2026-09-25 status report and recompute resume point`; шаг 2 — docs-коммит (пересчитать: `git --no-pager log --oneline -5`).
+- Тесты (2026-09-25, оба батча): P3 = 170 passed, 1 skipped; P1 = RC=0; P2 = RC=0; P4 = 6 passed; P5 = RC=0 ×6, «Release contract OK».
+- Доки: `docs/ROADMAP.md` = 98 строк (статусы CI-02/CHAIN-02 приведены к HEAD в шаге 2); `docs/AGENT_CANON.md` — строки/md5 пересчитать (`wc -l`, `md5sum`); отчёты дня: `docs/STATUS_REPORT_2026-09-25.md` + `docs/STATUS_REPORT_2026-09-25-BATCH2.md` (суффикс — урок 20).
 - Тень: `/home/user/work/ukraine-CANON.shadow.md` (md5-паритет с копией в репо — обязательна).
-- Discovery (пересчёт 2026-09-25): batch_count=359, next_batch=95, failed=42, blocked=53, successful=0, completed_batches=0, bootstrap_complete=false (state перезаписывается CI-ранами — урок 19).
-- Чужая активность: GitHub Actions персистит discovery-state непрерывно (цепочка `chore(data)`-коммитов; HEAD на старте `d56e1e5`); read-only, без вмешательства.
-- Следующий NNN: 2. Кандидаты: (1) обновить устаревшие статусы CI-02/CHAIN-02 в ROADMAP (решение владельца (е); коммиты фиксов `9477672`, `edd6516` в истории — статус только через `git log --oneline -- docs/ROADMAP.md`); (2) discovery bootstrap (решение владельца (в)); (3) следующий статус-отчёт/CI-эквивалент.
+- Discovery (пересчёт 2026-09-25): batch_count=359, next_batch=95, failed=42, blocked=53, successful=0, completed_batches=0, bootstrap_complete=false; state персистит CI (updated_at_utc=2026-09-24T23:20:13+00:00) — урок 19.
+- Чужая активность: GitHub Actions персистит discovery-state (цепочка `chore(data)`-коммитов); read-only, без вмешательства. Локальный прогон discovery в песочнице НЕ выполняется (гонка с CI) до явного решения владельца (в).
+- Следующий NNN: 3. Кандидаты: (1) discovery bootstrap — только решение владельца (в) (песочница vs расписание Actions; CI уже работает по расписанию); (2) ротация origin-токена — решение владельца (а); (3) следующий статус-отчёт/CI-эквивалент при новом событии CI.
 
 ## ПРАВИЛА ВЛАДЕЛЬЦА (standing)
 
