@@ -1,5 +1,5 @@
 {
-  "next_batch": 97,
+  "next_batch": 98,
   "successful_batches": [],
   "failed_batches": [
     2,
@@ -45,12 +45,13 @@
     93,
     94,
     95,
-    96
+    96,
+    97
   ],
   "completed_batches": 0,
   "batch_count": 359,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-25T03:00:39.257626+00:00",
+  "updated_at_utc": "2026-09-25T06:36:57.948598+00:00",
   "blocked_batches": [
     0,
     1,
@@ -107,11 +108,13 @@
     76
   ],
   "blocked_batch_count": 53,
-  "unreachable_hosts": [],
+  "unreachable_hosts": [
+    "kolomyya.danimist.org.ua"
+  ],
   "last_batch": {
-    "batch": 96,
+    "batch": 97,
     "mode": "bootstrap",
-    "failed_resources": 2,
-    "blocked_resources": 0
+    "failed_resources": 3,
+    "blocked_resources": 1
   }
 }
