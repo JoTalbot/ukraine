@@ -235,6 +235,7 @@ rm -rf artifacts/status
 19. Discovery state живёт в `.github/state/discovered-open-data-progress.json` и ПЕРЕЗАПИСЫВАЕТСЯ CI-ранами: не редактировать руками; «failed batches не маскируются под успешные» — правило проекта.
 20. ВТОРОЙ ОТЧЁТ ДНЯ — СУФФИКС (измерено 2026-09-25): прецедент репо `docs/STATUS_REPORT_2026-09-14-BATCH2.md`; второй и далее отчёты того же дня — `STATUS_REPORT_<дата>-BATCH2.md`/`-BATCH3.md`, новый файл, а не перезапись утреннего.
 21. SANDBOX DRY-RUN BOOTSTRAP (измерено 2026-09-25): в песочнице нет HF_TOKEN — sync только с `--dry-run` (скачать + SHA-256, без загрузки в HF). «Чистый» dry-run батч НЕ помечать `successful` (имитация публикаций запрещена); failed/blocked персистить как обычно — это реальные факты источника, валидные и для CI. Свежий каталог discovery НЕ коммитится (CI делает то же; копия в репо — fallback из 500 датасетов): после прогона восстановить HEAD-состояние, свежую копию держать в /home/user/work/.
+22. SANDBOX: SYNC НА СВЕЖЕМ КАТАЛОГЕ (измерено 2026-09-25): после восстановления трекенного каталога до HEAD (fallback из 500 датасетов) `data_gov_ua_discovered_sync.py --catalog artifacts/discovery/data_gov_ua_catalog.json` обрабатывает 0 датасетов для батчей за пределами 50 («чистый» summary на 0 датасетах — state не персистится благодаря dry-run-стражу, но прогон впустую). В workspace CI свежий каталог всегда на месте (discovery идёт перед sync в одном ране). В песочнице: `--catalog /home/user/work/catalog-fresh-stepN.json` (свежая копия вне репо).
 
 ## КРИТЕРИИ ПРИЁМКИ ШАГА (без них слово «готово» не произносить)
 
@@ -261,17 +262,19 @@ rm -rf artifacts/status
 
 ## ТОЧКА ВОЗОБНОВЛЕНИЯ
 
-Снимок: 2026-09-25 (шаг 3). Этап 0 завершён (ситуация (в) + дрейф окружения: пакеты переустановлены по lock); при следующем старте — ПЕРЕСЧИТАТЬ каждую строку командами раздела «ЭТАП 0.6», не копировать вслепую.
+Снимок: 2026-09-25 (шаг 4). Этап 0 завершён (ситуация (в) + дрейф пакетов: переустановка по lock); при следующем старте — ПЕРЕСЧИТАТЬ каждую строку командами раздела «ЭТАП 0.6», не копировать вслепую.
 
-- HEAD на момент пересчёта: `ba9371bb216beade8607ac5869e6b5ddae879209` (main, CI-коммит после шага 2); после завершения шага 3 — см. `git -C /home/user/ukraine rev-parse HEAD`.
-- История шага: шаг 2 = `72cd505 docs: sync ROADMAP CI-02/CHAIN-02 status to HEAD (git-verified)`; шаг 3 — state-коммит (сообщение CI) + docs-коммит (пересчитать: `git --no-pager log --oneline -5`).
+- HEAD на момент пересчёта: `2fbb5c742a4caa77ef5cdccdfe621ce614318a90` (main, CI-коммит после шага 3: батч 97); после завершения шага 4 — см. `git -C /home/user/ukraine rev-parse HEAD`.
+- История шага: шаг 3 = `47677cd docs: step 3 — sandbox bootstrap report (batch 96 dry-run) and resume point`; шаг 4 — state-коммит (батчи 98–100) + docs-коммит (пересчитать: `git --no-pager log --oneline -5`).
 - Тесты (2026-09-25): P3 = 170 passed, 1 skipped; P1 = RC=0; P2 = RC=0; P4 = 6 passed; P5 = RC=0 ×6, «Release contract OK».
-- Доки: `docs/ROADMAP.md` = 98 строк; `docs/AGENT_CANON.md` — строки/md5 пересчитать (`wc -l`, `md5sum`); отчёты дня: `STATUS_REPORT_2026-09-25.md`, `-BATCH2.md`, `-BATCH3.md` (суффиксы — урок 20).
+- Доки: `docs/ROADMAP.md` = 98 строк; `docs/AGENT_CANON.md` — строки/md5 пересчитать (`wc -l`, `md5sum`); отчёты дня: `STATUS_REPORT_2026-09-25.md`, `-BATCH2…BATCH4.md` (суффиксы — урок 20).
 - Тень: `/home/user/work/ukraine-CANON.shadow.md` (md5-паритет с копией в репо — обязательна).
-- Discovery (пересчёт 2026-09-25, шаг 3): batch_count=359 (свежий каталог 3585 датасетов), next_batch=97, failed=44, blocked=53, successful=0, completed_batches=0, bootstrap_complete=false; батч 96 прогнан в песочнице (dry-run): 98/169 ресурсов OK, 2 реальных отказа (rada-uzhgorod, slavuta-mvk 403) → retry-очередь.
-- Bootstrap в песочнице (решение владельца (в), с 2026-09-25): только `--dry-run` (нет HF_TOKEN); «чистый» dry-run батч НЕ помечается successful (урок 21); свежий каталог НЕ коммитится (после прогона — HEAD-состояние, копия в /home/user/work/).
-- Чужая активность: GitHub Actions персистит discovery-state (на старте шага 3: last_batch=95, updated_at 2026-09-25T01:42Z); read-only, без вмешательства.
-- Следующий NNN: 4. Кандидаты: (1) продолжить bootstrap в песочнице: батчи 97+ (dry-run) и/или retry-очередь failed (44); (2) целевое зеркалирование батча 96 с публикацией — CI/владелец (workflow_dispatch `batch_index=96`); (3) ротация origin-токена — решение владельца (а).
+- Discovery (пересчёт 2026-09-25, шаг 4): batch_count=359 (свежий каталог 3585 датасетов — стабильно), next_batch=101, failed=47, blocked=54, successful=0, completed_batches=0, bootstrap_complete=false.
+- Bootstrap в песочнице (шаг 4): батчи 98 (failed: 5 ресурсов — 404/403 + битый file:/// URL), 99 (failed: 2 + blocked 83: opendata.gov.ua недоступен, data.gov.ua троттлинг), 100 (blocked: 8 — opendata.gov.ua) → персист по логике workflow; батч 97 — CI (`2fbb5c7`).
+- Источники: `opendata.gov.ua` — TLS-хендшейк висит (измерено повторно 2026-09-25: ReadTimeout 15.6s; сломан с 2026-09-14); `data.gov.ua` — периодически троттлит раннер песочницы (429).
+- Песочница: только `--dry-run` (нет HF_TOKEN); «чистый» dry-run батч НЕ помечается successful (урок 21); sync — на СВЕЖЕМ каталоге из /home/user/work/ через `--catalog` (урок 22).
+- Чужая активность: GitHub Actions персистит discovery-state параллельно песочнице (батч 97 за шаг 4); state-машина convergent (множества + пересчёт next_batch), дубли батча безвредны.
+- Следующий NNN: 5. Кандидаты: (1) продолжить bootstrap в песочнице: батчи 101+ (dry-run) и/или retry-очередь failed (47); (2) зеркалирование 96–100 с публикацией — CI/владелец (workflow_dispatch `batch_index=96…100`); (3) ротация origin-токена — решение (а).
 
 ## ПРАВИЛА ВЛАДЕЛЬЦА (standing)
 
