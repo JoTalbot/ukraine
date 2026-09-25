@@ -259,16 +259,16 @@ rm -rf artifacts/status
 
 ## ТОЧКА ВОЗОБНОВЛЕНИЯ
 
-Снимок: 2026-09-22. Этап 0 завершён; при следующем старте — ПЕРЕСЧИТАТЬ каждую строку командами раздела «ЭТАП 0.6», не копировать вслепую.
+Снимок: 2026-09-25. Этап 0 завершён (свежий клон, ситуация (б)); при следующем старте — ПЕРЕСЧИТАТЬ каждую строку командами раздела «ЭТАП 0.6», не копировать вслепую.
 
-- HEAD на момент пересчёта: `84ed2a2b87573298d6dcb2a011a15c2babe0e26e` (main); после завершения шага — см. `git -C /home/user/ukraine rev-parse HEAD`.
-- История шага: `84ed2a2 fix(ci): avoid duplicate Kaggle collector triggers`; после завершения — новый коммит восстановления среды (пересчитать: `git --no-pager log --oneline -5`).
-- Тесты: P3 = 170 passed, 1 skipped (2026-09-22); P1/P2/P4/P5 = RC=0.
-- Доки: `docs/ROADMAP.md` = 98 строк; `docs/AGENT_CANON.md` — строки/md5 пересчитать (`wc -l`, `md5sum`).
+- HEAD на момент пересчёта: `d56e1e559c5aeeca9a321b27548ec790cab2cbcd` (main); после завершения шага — см. `git -C /home/user/ukraine rev-parse HEAD`.
+- История шага: HEAD на старте = `d56e1e5 chore(data): persist discovered open-data progress` (CI); шаг 1 — docs-коммит (пересчитать: `git --no-pager log --oneline -5`).
+- Тесты (2026-09-25): P3 = 170 passed, 1 skipped; P1 = RC=0; P2 = RC=0; P4 = 6 passed; P5 = RC=0 ×6, «Release contract OK».
+- Доки: `docs/ROADMAP.md` = 98 строк; `docs/AGENT_CANON.md` — строки/md5 пересчитать (`wc -l`, `md5sum`); последний по имени STATUS_REPORT = `docs/STATUS_REPORT_2026-09-25.md` (до него — два файла от 2026-09-14).
 - Тень: `/home/user/work/ukraine-CANON.shadow.md` (md5-паритет с копией в репо — обязательна).
-- Discovery: next_batch=80, failed=27, blocked=53, successful=0, completed=0, bootstrap_complete=false.
-- Чужая активность: не обнаружена; сбросы режимов снапшотом исправлены в Этапе 0.4.
-- Следующий NNN: 1. Кандидаты: (1) обновить устаревшие статусы ROADMAP (решение (е)); (2) discovery bootstrap (решение (в)); (3) полный CI-эквивалент P1–P5 + STATUS_REPORT.
+- Discovery (пересчёт 2026-09-25): batch_count=359, next_batch=95, failed=42, blocked=53, successful=0, completed_batches=0, bootstrap_complete=false (state перезаписывается CI-ранами — урок 19).
+- Чужая активность: GitHub Actions персистит discovery-state непрерывно (цепочка `chore(data)`-коммитов; HEAD на старте `d56e1e5`); read-only, без вмешательства.
+- Следующий NNN: 2. Кандидаты: (1) обновить устаревшие статусы CI-02/CHAIN-02 в ROADMAP (решение владельца (е); коммиты фиксов `9477672`, `edd6516` в истории — статус только через `git log --oneline -- docs/ROADMAP.md`); (2) discovery bootstrap (решение владельца (в)); (3) следующий статус-отчёт/CI-эквивалент.
 
 ## ПРАВИЛА ВЛАДЕЛЬЦА (standing)
 
