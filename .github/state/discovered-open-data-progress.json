@@ -1,5 +1,5 @@
 {
-  "next_batch": 110,
+  "next_batch": 111,
   "successful_batches": [],
   "failed_batches": [
     2,
@@ -58,7 +58,7 @@
   "completed_batches": 0,
   "batch_count": 359,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-26T18:38:36.129002+00:00",
+  "updated_at_utc": "2026-09-26T21:34:56.552298+00:00",
   "blocked_batches": [
     0,
     1,
@@ -117,17 +117,17 @@
     101,
     105,
     106,
-    109
+    109,
+    110
   ],
-  "blocked_batch_count": 58,
+  "blocked_batch_count": 59,
   "unreachable_hosts": [
-    "data.gov.ua",
-    "www.drlz.com.ua"
+    "data.gov.ua"
   ],
   "last_batch": {
-    "batch": 109,
+    "batch": 110,
     "mode": "bootstrap",
     "failed_resources": 0,
-    "blocked_resources": 6
+    "blocked_resources": 798
   }
 }
