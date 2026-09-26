@@ -1,5 +1,5 @@
 {
-  "next_batch": 109,
+  "next_batch": 110,
   "successful_batches": [],
   "failed_batches": [
     2,
@@ -58,7 +58,7 @@
   "completed_batches": 0,
   "batch_count": 359,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-09-26T15:16:18.913859+00:00",
+  "updated_at_utc": "2026-09-26T17:32:53.771792+00:00",
   "blocked_batches": [
     0,
     1,
@@ -116,16 +116,17 @@
     100,
     101,
     105,
-    106
+    106,
+    109
   ],
-  "blocked_batch_count": 57,
+  "blocked_batch_count": 58,
   "unreachable_hosts": [
-    "data.dniprorada.gov.ua"
+    "www.drlz.com.ua"
   ],
   "last_batch": {
-    "batch": 108,
+    "batch": 109,
     "mode": "bootstrap",
-    "failed_resources": 1,
+    "failed_resources": 0,
     "blocked_resources": 1
   }
 }
