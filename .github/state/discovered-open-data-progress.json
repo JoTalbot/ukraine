@@ -1,5 +1,5 @@
 {
-  "next_batch": 133,
+  "next_batch": 134,
   "successful_batches": [
     111,
     113
@@ -71,12 +71,13 @@
     127,
     129,
     131,
-    132
+    132,
+    133
   ],
   "completed_batches": 2,
   "batch_count": 357,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-10-01T02:20:49.761160+00:00",
+  "updated_at_utc": "2026-10-01T09:10:33.441880+00:00",
   "blocked_batches": [
     0,
     1,
@@ -149,9 +150,9 @@
     "data.gov.ua"
   ],
   "last_batch": {
-    "batch": 132,
+    "batch": 133,
     "mode": "bootstrap",
-    "failed_resources": 17,
-    "blocked_resources": 206
+    "failed_resources": 2,
+    "blocked_resources": 74
   }
 }
