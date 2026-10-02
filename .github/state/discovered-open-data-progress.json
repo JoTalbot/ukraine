@@ -1,5 +1,5 @@
 {
-  "next_batch": 136,
+  "next_batch": 137,
   "successful_batches": [
     111,
     113
@@ -73,12 +73,13 @@
     132,
     133,
     134,
-    135
+    135,
+    136
   ],
   "completed_batches": 2,
   "batch_count": 357,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-10-02T00:54:09.547683+00:00",
+  "updated_at_utc": "2026-10-02T06:16:04.594744+00:00",
   "blocked_batches": [
     0,
     1,
@@ -147,14 +148,11 @@
     130
   ],
   "blocked_batch_count": 65,
-  "unreachable_hosts": [
-    "data.dniprorada.gov.ua",
-    "opendata.gov.ua"
-  ],
+  "unreachable_hosts": [],
   "last_batch": {
-    "batch": 135,
+    "batch": 136,
     "mode": "bootstrap",
-    "failed_resources": 2,
-    "blocked_resources": 37
+    "failed_resources": 6,
+    "blocked_resources": 0
   }
 }
