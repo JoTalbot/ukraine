@@ -1,5 +1,5 @@
 {
-  "next_batch": 146,
+  "next_batch": 147,
   "successful_batches": [
     111,
     113,
@@ -83,12 +83,13 @@
     142,
     143,
     144,
-    145
+    145,
+    146
   ],
   "completed_batches": 4,
-  "batch_count": 357,
+  "batch_count": 356,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-10-03T21:51:37.057587+00:00",
+  "updated_at_utc": "2026-10-04T00:14:25.291817+00:00",
   "blocked_batches": [
     0,
     1,
@@ -157,14 +158,11 @@
     130
   ],
   "blocked_batch_count": 65,
-  "unreachable_hosts": [
-    "data.carpathia.gov.ua",
-    "data.gov.ua"
-  ],
+  "unreachable_hosts": [],
   "last_batch": {
-    "batch": 145,
+    "batch": 146,
     "mode": "bootstrap",
-    "failed_resources": 14,
-    "blocked_resources": 1122
+    "failed_resources": 11,
+    "blocked_resources": 0
   }
 }
