@@ -1,5 +1,5 @@
 {
-  "next_batch": 148,
+  "next_batch": 149,
   "successful_batches": [
     111,
     113,
@@ -85,12 +85,13 @@
     144,
     145,
     146,
-    147
+    147,
+    148
   ],
   "completed_batches": 4,
   "batch_count": 356,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-10-04T05:48:55.665705+00:00",
+  "updated_at_utc": "2026-10-04T08:32:55.027409+00:00",
   "blocked_batches": [
     0,
     1,
@@ -161,9 +162,9 @@
   "blocked_batch_count": 65,
   "unreachable_hosts": [],
   "last_batch": {
-    "batch": 147,
+    "batch": 148,
     "mode": "bootstrap",
-    "failed_resources": 12,
+    "failed_resources": 14,
     "blocked_resources": 0
   }
 }
