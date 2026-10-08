@@ -1,5 +1,5 @@
 {
-  "next_batch": 168,
+  "next_batch": 169,
   "successful_batches": [
     111,
     113,
@@ -101,12 +101,13 @@
     164,
     165,
     166,
-    167
+    167,
+    168
   ],
   "completed_batches": 4,
   "batch_count": 356,
   "bootstrap_complete": false,
-  "updated_at_utc": "2026-10-08T21:44:34.684746+00:00",
+  "updated_at_utc": "2026-10-08T22:04:17.228959+00:00",
   "blocked_batches": [
     0,
     1,
@@ -179,14 +180,11 @@
     159
   ],
   "blocked_batch_count": 69,
-  "unreachable_hosts": [
-    "data.dniprorada.gov.ua",
-    "opendata.slavrada.gov.ua"
-  ],
+  "unreachable_hosts": [],
   "last_batch": {
-    "batch": 167,
+    "batch": 168,
     "mode": "bootstrap",
-    "failed_resources": 2,
-    "blocked_resources": 9
+    "failed_resources": 9,
+    "blocked_resources": 0
   }
 }
