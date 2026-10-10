@@ -1,6 +1,6 @@
 name: Release Control Plane
 
-run-name: Release Control Plane • ${{ inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}
+run-name: Release Control Plane • ${{ github.event.inputs.source_commit || github.event.workflow_run.head_sha || github.sha }}
 
 on:
   workflow_run:
