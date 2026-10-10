@@ -76,11 +76,16 @@ jobs:
           catalog = json.loads(Path(os.environ['CATALOG_FILE']).read_text(encoding='utf-8'))
           datasets = catalog.get('datasets', catalog) if isinstance(catalog, dict) else catalog
           size = int(os.environ['BATCH_SIZE'])
+          from scripts.discovery_progress import catalog_fingerprint, reconcile_progress
+          fingerprint = catalog_fingerprint(datasets)
           count = (len(datasets) + size - 1) // size
           if count < 1:
               raise SystemExit('Discovery catalog contains no datasets')
           requested = os.environ.get('REQUESTED_BATCH', '')
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
+          state, reset = reconcile_progress(state, count, fingerprint)
+          if reset:
+              print('Discovery catalog changed or stale batch indexes detected; resetting index-based progress safely.')
           failed = {int(x) for x in state.get('failed_batches', [])}
           successful = {int(x) for x in state.get('successful_batches', [])}
           blocked = {int(x) for x in state.get('blocked_batches', [])}
@@ -92,7 +97,7 @@ jobs:
           elif state.get('bootstrap_complete'):
               print('Initial bootstrap already complete. Daily refresh workflow owns updates now.')
               with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-                  fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
+                  fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\ncatalog_fingerprint={fingerprint}\n')
               raise SystemExit(0)
           else:
               # Never let a blocked upstream host stall the whole bootstrap forever.
@@ -209,6 +214,7 @@ jobs:
           MODE: ${{ steps.batch.outputs.mode }}
           BATCH: ${{ steps.batch.outputs.batch }}
           BATCH_COUNT: ${{ steps.batch.outputs.batch_count }}
+          CATALOG_FINGERPRINT: ${{ steps.batch.outputs.catalog_fingerprint }}
           HAS_FAILURES: ${{ steps.assess.outputs.has_failures }}
           FAILED_COUNT: ${{ steps.assess.outputs.failed_count }}
           BLOCKED_COUNT: ${{ steps.assess.outputs.blocked_count }}
@@ -219,10 +225,14 @@ jobs:
           import json, os
           from datetime import datetime, timezone
           from pathlib import Path
+          from scripts.discovery_progress import reconcile_progress
           p = Path(os.environ['PROGRESS_FILE'])
           state = json.loads(p.read_text(encoding='utf-8')) if p.exists() else {}
           batch = int(os.environ['BATCH'])
           count = int(os.environ['BATCH_COUNT'])
+          state, reset = reconcile_progress(state, count, os.environ['CATALOG_FINGERPRINT'])
+          if reset:
+              print('Discovery catalog changed or stale batch indexes detected during persistence; resetting old index state.')
           failed = {int(x) for x in state.get('failed_batches', [])}
           successful = {int(x) for x in state.get('successful_batches', [])}
           blocked = {int(x) for x in state.get('blocked_batches', [])}
