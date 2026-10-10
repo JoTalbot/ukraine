@@ -136,7 +136,7 @@ jobs:
           detail="EDRSR full-text publication completed with job status: $JOB_STATUS"
           if [ "$JOB_STATUS" = "success" ] && [ -s artifacts/texts/fetch-summary.json ]; then
             state="$(python -c 'import json; print(json.load(open("artifacts/texts/fetch-summary.json"))["state"])')"
-            counts="$(python -c 'import json; d=json.load(open("artifacts/texts/fetch-summary.json")); print(f"fetched={d[chr(102)+chr(101)+chr(116)+chr(99)+chr(104)+chr(101)+chr(100)]}, failed={d[chr(102)+chr(97)+chr(105)+chr(108)+chr(101)+chr(100)]}")')"
+            counts="$(python -c 'import json; d=json.load(open("artifacts/texts/fetch-summary.json")); print("fetched={}, failed={}".format(d.get("fetched"), d.get("failed")))')"
             detail="EDRSR full-text batch: $counts; signal=$state"
           fi
           python scripts/write_status_signal.py \
