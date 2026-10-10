@@ -9,6 +9,7 @@ on:
         default: 'auto'
         type: string
   push:
+    branches: [main]
     paths:
       - 'scripts/data_gov_ua_discovered_sync.py'
       - 'scripts/data_gov_ua_discovery.py'
@@ -20,7 +21,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: ukraine-discovered-open-data
+  group: ukraine-discovered-open-data-${{ github.ref }}
   cancel-in-progress: false
 
 env:
