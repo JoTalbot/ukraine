@@ -133,6 +133,7 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=3000)
     ap.add_argument("--delay", type=float, default=0.5)
     ap.add_argument("--max-chars", type=int, default=40000)
+    ap.add_argument("--summary-output", default="", help="optional JSON summary for the current fetch batch")
     args = ap.parse_args()
 
     import glob as globlib
@@ -182,9 +183,21 @@ def main() -> int:
         pq.write_table(pa.Table.from_pylist(rows), shard, compression="zstd")
 
     save_state(state_path, state)
-    print(json.dumps({"fetched": fetched, "failed": failed,
-                      "shard": shard.name if rows else None, "rows": len(rows),
-                      "total_fetched": len(state["fetched"])}, ensure_ascii=False))
+    summary = {
+        "schema_version": 1,
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "fetched": fetched,
+        "failed": failed,
+        "shard": shard.name if rows else None,
+        "rows": len(rows),
+        "total_fetched": len(state["fetched"]),
+        "state": "yellow" if failed else "green",
+    }
+    if args.summary_output:
+        summary_path = Path(args.summary_output)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(summary, ensure_ascii=False))
     return 0
 
 
