@@ -52,40 +52,40 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-import json
-from pathlib import Path
-p = Path('/tmp/release-control-plane/production-readiness.json')
-data = json.loads(p.read_text(encoding='utf-8'))
-if data.get('overall_state') != 'green':
-    raise SystemExit(f"production readiness is not green: {data!r}")
-manifest = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
-import subprocess
-head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-if manifest.get('git_commit') != head:
-    raise SystemExit(f"control-plane release commit {manifest.get('git_commit')!r} does not match checked-out source {head!r}")
-PY
+          import json
+          from pathlib import Path
+          p = Path('/tmp/release-control-plane/production-readiness.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          if data.get('overall_state') != 'green':
+              raise SystemExit(f"production readiness is not green: {data!r}")
+          manifest = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
+          import subprocess
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if manifest.get('git_commit') != head:
+              raise SystemExit(f"control-plane release commit {manifest.get('git_commit')!r} does not match checked-out source {head!r}")
+          PY
       - name: Verify current release manifest and control-plane identity
         if: ${{ github.event_name == 'workflow_dispatch' || steps.classify.outputs.promotion_run == 'true' }}
         run: |
           set -euo pipefail
           python scripts/generate_release_manifest.py --output /tmp/current-release-manifest.json
           python - <<'PY'
-import json
-import subprocess
-from pathlib import Path
-p = Path('/tmp/current-release-manifest.json')
-data = json.loads(p.read_text(encoding='utf-8'))
-if data.get('schema_version') != 1:
-    raise SystemExit(f"unexpected manifest schema_version: {data.get('schema_version')!r}")
-if data.get('release_class') != 'repository':
-    raise SystemExit(f"unexpected release_class: {data.get('release_class')!r}")
-if not isinstance(data.get('files'), list) or not data['files']:
-    raise SystemExit('release manifest must contain a non-empty files list')
-head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
-if data.get('git_commit') != head:
-    raise SystemExit(f"manifest git_commit {data.get('git_commit')!r} does not match HEAD {head!r}")
-if Path('/tmp/release-control-plane/release-manifest.json').exists():
-    control = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
-    if control.get('git_commit') != head:
-        raise SystemExit('control-plane manifest identity does not match verified source')
-PY
+          import json
+          import subprocess
+          from pathlib import Path
+          p = Path('/tmp/current-release-manifest.json')
+          data = json.loads(p.read_text(encoding='utf-8'))
+          if data.get('schema_version') != 1:
+              raise SystemExit(f"unexpected manifest schema_version: {data.get('schema_version')!r}")
+          if data.get('release_class') != 'repository':
+              raise SystemExit(f"unexpected release_class: {data.get('release_class')!r}")
+          if not isinstance(data.get('files'), list) or not data['files']:
+              raise SystemExit('release manifest must contain a non-empty files list')
+          head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+          if data.get('git_commit') != head:
+              raise SystemExit(f"manifest git_commit {data.get('git_commit')!r} does not match HEAD {head!r}")
+          if Path('/tmp/release-control-plane/release-manifest.json').exists():
+              control = json.loads(Path('/tmp/release-control-plane/release-manifest.json').read_text(encoding='utf-8'))
+              if control.get('git_commit') != head:
+                  raise SystemExit('control-plane manifest identity does not match verified source')
+          PY
