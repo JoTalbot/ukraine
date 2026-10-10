@@ -1,5 +1,6 @@
 from scripts.discovery_progress import catalog_fingerprint, reconcile_progress
 
+
 def test_catalog_fingerprint_tracks_ordered_dataset_ids():
     items = [{"id": "a"}, {"id": "b"}]
     assert catalog_fingerprint(items) == catalog_fingerprint(items)
