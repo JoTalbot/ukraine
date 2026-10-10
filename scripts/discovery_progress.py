@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 
+
 def catalog_fingerprint(datasets: list[dict]) -> str:
     identities = [str(item.get("id") or item.get("name") or "") for item in datasets if isinstance(item, dict)]
     payload = json.dumps(identities, ensure_ascii=False, separators=(",", ":"))
