@@ -4,17 +4,11 @@ run-name: Release Control Plane • ${{ github.event.inputs.source_commit || git
 
 on:
   workflow_run:
+    # Producer completions are coordinated by Release Control Plane Dispatch.
+    # Run this workflow directly on workflow_run only for the authoritative
+    # promotion-authorization artifact; otherwise premature producer events
+    # start duplicate aggregations before all required signals exist.
     workflows:
-      - Entity Graph Build
-      - Ukraine Open Data Discovery
-      - Ukraine data CI
-      - Train Ukraine Models
-      - Kaggle GPU Training
-      - Ukraine Open Data -> Hugging Face
-      - Discovered Ukraine Open Data -> Hugging Face
-      - EDRSR Hugging Face Upload
-      - EDRSR Full Texts
-      - Security scan
       - Production Promotion Authorization
     types: [completed]
   workflow_dispatch:
