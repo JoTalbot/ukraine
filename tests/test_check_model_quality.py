@@ -27,14 +27,27 @@ def test_initial_publication_passes(tmp_path: Path) -> None:
     assert json.loads(output.read_text(encoding="utf-8"))["state"] == "green"
 
 
-def test_regression_is_blocked(tmp_path: Path) -> None:
+def test_regression_is_blocked_and_diagnostic_is_written(tmp_path: Path) -> None:
     candidate = tmp_path / "candidate.jsonl"
     baseline = tmp_path / "baseline.jsonl"
+    output = tmp_path / "gate.json"
     write_metrics(candidate, [0.8])
     write_metrics(baseline, [0.7])
+
     assert main(
-        ["--candidate", str(candidate), "--baseline", str(baseline), "--tolerance", "1.02"]
+        [
+            "--candidate", str(candidate),
+            "--baseline", str(baseline),
+            "--tolerance", "1.02",
+            "--output", str(output),
+        ]
     ) == 1
+
+    diagnostic = json.loads(output.read_text(encoding="utf-8"))
+    assert diagnostic["state"] == "red"
+    assert diagnostic["candidate_val_loss"] == 0.8
+    assert diagnostic["baseline_val_loss"] == 0.7
+    assert diagnostic["allowed_max_val_loss"] == 0.714
 
 
 def test_small_regression_within_tolerance_passes(tmp_path: Path) -> None:
