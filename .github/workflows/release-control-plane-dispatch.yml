@@ -183,9 +183,26 @@ jobs:
               for name in missing:
                   if name not in dispatchable:
                       raise RuntimeError(f'missing producer {name} is not dispatchable')
-                  existing = [r for r in runs if r.get('head_sha') == release and r.get('name') == name and r.get('status') in {'queued', 'in_progress'}]
+                  existing = [
+                      r for r in runs
+                      if r.get('head_sha') == release
+                      and r.get('name') == name
+                      and r.get('status') in {'queued', 'pending', 'waiting', 'requested', 'in_progress'}
+                  ]
                   if existing:
                       print(f'{name} already queued/running for {release}')
+                      continue
+                  if name == 'Train Ukraine Models' and any(
+                      r.get('head_sha') == release
+                      and r.get('name') == name
+                      and r.get('status') == 'completed'
+                      and r.get('conclusion') == 'failure'
+                      for r in runs
+                  ):
+                      print(
+                          f'{name} previously failed for {release}; refusing an automatic identical retry. '
+                          'Fix the training issue or create a new release commit first.'
+                      )
                       continue
                   dispatch(name, release_ref)
               raise SystemExit(0)
