@@ -1,5 +1,6 @@
 """Guard index-based discovery progress against stale or changed catalogs."""
 from __future__ import annotations
+
 import hashlib
 import json
 
