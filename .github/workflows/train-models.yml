@@ -41,7 +41,7 @@ jobs:
       - name: Build Ukrainian legal corpus
         run: python scripts/build_lm_corpus.py --edrsr-parquet 'artifacts/lm-src/part-*.parquet' --edrsr-limit 400000 --output artifacts/lm/corpus.txt
       - name: Train legal LM (CPU)
-        run: python scripts/train_lm.py --corpus artifacts/lm/corpus.txt --out artifacts/lm/model --steps ${{ inputs.steps || '750' }} --dim 256 --layers 6 --ctx 256 --batch 8 --eval-every 150 --sample-every 300
+        run: python scripts/train_lm.py --corpus artifacts/lm/corpus.txt --out artifacts/lm/model --steps ${{ inputs.steps || '600' }} --dim 256 --layers 6 --ctx 256 --batch 8 --eval-every 150 --sample-every 300
       - name: Show samples
         run: cat artifacts/lm/model/samples.txt
       - name: Download published model metrics baseline
