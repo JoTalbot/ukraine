@@ -122,11 +122,11 @@ jobs:
                   p.parent.mkdir(parents=True, exist_ok=True)
                   p.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
                   with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-                      fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\n')
+                      fh.write(f'skip=true\nmode=complete\nbatch=0\noffset=0\nbatch_count={count}\ncatalog_fingerprint={fingerprint}\n')
                   raise SystemExit(0)
           offset = batch * size
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as fh:
-              fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\n')
+              fh.write(f'skip=false\nmode={mode}\nbatch={batch}\noffset={offset}\nbatch_count={count}\ncatalog_fingerprint={fingerprint}\n')
           print(f'Selected {mode} dataset batch {batch}/{count - 1}, offset {offset}, size {size}')
           print(f'Successful batches: {sorted(successful)}; failed batches: {sorted(failed)}; blocked batches: {sorted(blocked)}')
           PY
